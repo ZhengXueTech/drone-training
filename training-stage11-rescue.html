@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>無人機飛行員培訓 - 第十一階段：搜救任務</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+    body { font-family: 'Orbitron', 'Share Tech Mono', sans-serif; background-color: #0b0f19; user-select: none; -webkit-user-select: none; touch-action: none; overflow: hidden; }
+    ::-webkit-scrollbar { display: none; }
+    .neon-border-cyan { box-shadow: 0 0 15px rgba(6,182,212,0.35), inset 0 0 15px rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.55); }
+    .neon-border-red { box-shadow: 0 0 15px rgba(239,68,68,0.35), inset 0 0 15px rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.55); }
+    .neon-border-magenta { box-shadow: 0 0 15px rgba(217,70,239,0.35), inset 0 0 15px rgba(217,70,239,0.15); border: 1px solid rgba(217,70,239,0.55); }
+    .neon-text-cyan { text-shadow: 0 0 8px rgba(6,182,212,0.8); }
+    .glass-panel { background: rgba(15,23,42,0.78); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+    .key-cap { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px; border: 2px solid rgba(100,116,139,0.4); background: rgba(30,41,59,0.6); color: rgba(148,163,184,0.5); }
+    .stat-track { background: rgba(15,23,42,0.8); border: 1px solid rgba(148,163,184,0.25); }
+    .stat-fill { transition: width 0.3s ease; }
+    @keyframes beaconPulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.3; transform:scale(1.4); } }
+    .beacon-pulse { animation: beaconPulse 1s ease-in-out infinite; }
+    @keyframes slideIn { from { opacity:0; transform:translateX(-50%) translateY(-10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+    .slide-in { animation: slideIn 0.3s ease; }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body class="relative w-screen h-screen text-slate-100">
+
+<div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+<!-- ============ TOP HUD ============ -->
+<div class="absolute top-0 left-0 w-full p-3 md:p-5 z-10 pointer-events-none flex justify-between items-start">
+    <div class="glass-panel neon-border-red rounded-xl px-4 py-2.5 flex flex-col gap-1 pointer-events-auto">
+        <div class="text-[10px] text-red-400 tracking-widest font-bold uppercase">PILOT TRAINING · STAGE 11</div>
+        <h1 class="text-sm md:text-base font-black text-white tracking-wide">搜救任務</h1>
+        <div class="text-[10px] text-slate-400 font-mono">
+            已找到 <span id="hud-found" class="text-red-400 font-bold">0</span> / 6 名倖存者
+        </div>
+    </div>
+
+    <div class="glass-panel neon-border-cyan rounded-xl px-4 py-2.5 flex flex-col gap-1.5 pointer-events-auto min-w-[170px]">
+        <div class="flex items-center justify-between gap-2">
+            <span class="text-[9px] text-cyan-400 tracking-wider">任務時間</span>
+            <span class="text-sm font-bold text-white"><span id="hud-time">0.0</span> 秒</span>
+        </div>
+        <div class="flex flex-col gap-0.5">
+            <div class="flex justify-between text-[9px] text-slate-400"><span>電池電量</span><span id="val-battery">100%</span></div>
+            <div class="stat-track h-2 rounded-full overflow-hidden"><div id="fill-battery" class="stat-fill h-full bg-cyan-400" style="width:100%"></div></div>
+        </div>
+        <div id="proximity-alert" class="hidden text-[9px] text-red-300 font-mono font-bold">
+            🆘 附近有信號！<span id="prox-dist" class="text-white">--</span>m
+        </div>
+    </div>
+</div>
+
+<!-- ============ 找到信標提示 ============ -->
+<div id="beacon-found-toast" class="absolute left-1/2 top-1/3 -translate-x-1/2 z-20 pointer-events-none hidden">
+    <div class="glass-panel neon-border-red rounded-2xl px-8 py-4 text-center slide-in">
+        <div class="text-3xl mb-1">🆘</div>
+        <div class="text-sm font-black text-red-400">找到倖存者！</div>
+        <div id="toast-count" class="text-xs text-slate-300 font-mono mt-0.5">剩餘 -- 名</div>
+    </div>
+</div>
+
+<!-- ============ 返回基地提示 ============ -->
+<div id="return-hint" class="absolute left-1/2 bottom-44 -translate-x-1/2 z-10 pointer-events-none hidden">
+    <div class="glass-panel neon-border-cyan rounded-xl px-6 py-2 text-center">
+        <span class="text-xs font-black text-cyan-400">✅ 全員找到！返回出發點完成任務</span>
+    </div>
+</div>
+
+<!-- ============ INSTRUCTION ============ -->
+<div id="instruction-panel" class="absolute left-1/2 top-28 md:top-32 -translate-x-1/2 z-10 pointer-events-none w-[92%] max-w-md">
+    <div class="glass-panel neon-border-magenta rounded-2xl px-5 py-3 text-center">
+        <div class="text-xs font-black text-fuchsia-400 uppercase tracking-wider mb-1">進階訓練：搜救任務</div>
+        <div class="text-[11px] text-slate-300 font-mono leading-relaxed">地圖上有 6 名倖存者發出 SOS 信標，但你不知道他們在哪裡——靠近 8m 內才能偵測到。<strong class="text-white">系統性搜索整個地圖</strong>！</div>
+    </div>
+</div>
+
+<!-- ============ CAMERA SWITCHER ============ -->
+<div class="absolute bottom-24 right-3 md:bottom-28 md:right-5 z-10 pointer-events-auto glass-panel neon-border-cyan rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
+    <div class="text-[9px] text-cyan-400 font-mono tracking-wider text-center">相機視角</div>
+    <div class="grid grid-cols-3 gap-1">
+        <button id="cam-tpv" class="bg-cyan-500 text-slate-950 text-[9px] font-bold py-1 rounded">TPV</button>
+        <button id="cam-fpv" class="bg-slate-800 text-slate-400 text-[9px] font-bold py-1 rounded">FPV</button>
+        <button id="cam-spec" class="bg-slate-800 text-slate-400 text-[9px] font-bold py-1 rounded">站位</button>
+    </div>
+    <div id="pilot-position-submenu" class="hidden grid grid-cols-3 gap-1">
+        <button id="pilot-pos-left" class="bg-slate-800 text-slate-400 text-[8px] font-bold py-0.5 rounded">左</button>
+        <button id="pilot-pos-mid" class="bg-slate-800 text-slate-400 text-[8px] font-bold py-0.5 rounded">中</button>
+        <button id="pilot-pos-right" class="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[8px] font-bold py-0.5 rounded">右</button>
+    </div>
+    <div class="text-[8px] text-slate-500 font-mono text-center leading-tight border-t border-slate-700/60 pt-1 mt-0.5">鍵盤 C/V　搖桿 Start/Select</div>
+</div>
+
+<!-- ============ BOTTOM CONTROLS ============ -->
+<div class="absolute bottom-0 left-0 w-full p-3 md:p-5 z-10 pointer-events-none flex flex-col items-center gap-2">
+    <div id="gamepad-status" class="hidden glass-panel neon-border-cyan rounded-full px-4 py-1.5 text-[10px] font-bold text-emerald-400 flex items-center gap-2 pointer-events-auto">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        🎮 已偵測到搖桿，使用左右類比搖桿操作
+    </div>
+    <div class="glass-panel neon-border-cyan rounded-2xl px-5 py-3 flex items-center gap-8 pointer-events-auto">
+        <div class="flex flex-col items-center gap-1.5">
+            <div class="text-[9px] text-slate-400 font-mono">油門 / 偏航</div>
+            <div class="grid grid-cols-3 gap-1">
+                <div></div><div id="key-w" class="key-cap">W</div><div></div>
+                <div id="key-a" class="key-cap">A</div><div></div><div id="key-d" class="key-cap">D</div>
+                <div></div><div id="key-s" class="key-cap">S</div><div></div>
+            </div>
+        </div>
+        <div class="w-px h-16 bg-slate-700/60"></div>
+        <div class="flex flex-col items-center gap-1.5">
+            <div class="text-[9px] text-slate-400 font-mono">俯仰 / 翻滾</div>
+            <div class="grid grid-cols-3 gap-1">
+                <div></div><div id="key-up" class="key-cap">↑</div><div></div>
+                <div id="key-left" class="key-cap">←</div><div></div><div id="key-right" class="key-cap">→</div>
+                <div></div><div id="key-down" class="key-cap">↓</div><div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ INTRO MODAL ============ -->
+<div id="intro-modal" class="absolute inset-0 bg-slate-950/92 backdrop-blur-lg z-40 flex items-center justify-center p-4">
+    <div class="glass-panel neon-border-red rounded-2xl p-6 md:p-8 text-center max-w-xl flex flex-col gap-5">
+        <div class="flex flex-col gap-1">
+            <span class="text-xs text-red-400 tracking-widest font-black uppercase">Stage 11 · Search & Rescue</span>
+            <h2 class="text-xl md:text-2xl font-black text-red-400 tracking-wide" style="text-shadow:0 0 8px rgba(239,68,68,0.8)">搜救任務</h2>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed text-left font-mono">
+            🆘 緊急任務！有 6 名倖存者分散在廣大地區，需要你用無人機找到他們。<br><br>
+            <strong class="text-red-300">你沒有地圖，也沒有方向指引。</strong><br><br>
+            規則：<br>
+            📡 靠近 8m 內才能偵測到 SOS 信標，右上角會顯示距離<br>
+            🔴 到達 2m 內即確認找到，信標會熄滅<br>
+            ✅ 找到所有 6 名後，返回<strong class="text-white">出發點</strong>完成任務<br><br>
+            🔋 電量持續消耗（地圖中有 2 個充電站）<br>
+            💡 訣竅：把地圖分成區塊，有系統地搜索
+        </p>
+        <button id="btn-start-training" class="bg-gradient-to-r from-red-600 to-rose-500 hover:scale-105 transition duration-300 text-white font-black py-3 rounded-xl uppercase tracking-widest text-xs shadow-lg shadow-red-500/20">
+            🆘 開始搜救任務
+        </button>
+    </div>
+</div>
+
+<!-- ============ REPORT MODAL ============ -->
+<div id="report-modal" class="absolute inset-0 bg-slate-950/92 backdrop-blur-lg z-40 hidden items-center justify-center p-4">
+    <div class="glass-panel neon-border-cyan rounded-2xl p-6 md:p-8 text-center max-w-lg flex flex-col gap-4">
+        <div class="text-3xl">🏅</div>
+        <h2 class="text-lg md:text-xl font-black text-cyan-400 neon-text-cyan uppercase tracking-wide">任務完成！飛行報告</h2>
+        <div class="grid grid-cols-2 gap-3 text-left font-mono">
+            <div class="glass-panel rounded-xl px-3 py-2.5">
+                <div class="text-[9px] text-slate-400">⏱️ 總任務時間</div>
+                <div id="report-time" class="text-lg font-black text-white">0.0 秒</div>
+            </div>
+            <div class="glass-panel rounded-xl px-3 py-2.5">
+                <div class="text-[9px] text-slate-400">🆘 找到倖存者</div>
+                <div id="report-found" class="text-lg font-black text-white">6 / 6</div>
+            </div>
+            <div class="glass-panel rounded-xl px-3 py-2.5">
+                <div class="text-[9px] text-slate-400">📏 總飛行距離</div>
+                <div id="report-dist" class="text-lg font-black text-white">0 m</div>
+            </div>
+            <div class="glass-panel rounded-xl px-3 py-2.5">
+                <div class="text-[9px] text-slate-400">🔋 剩餘電量</div>
+                <div id="report-battery" class="text-lg font-black text-white">0%</div>
+            </div>
+        </div>
+        <div class="w-full bg-red-950/40 border border-red-800/60 rounded-xl py-3 px-4 text-[11px] text-red-300 font-mono">
+            🎉 Stage 11 完成！這是整個培訓課程的最終關卡，你已完成所有訓練！
+        </div>
+        <div class="flex gap-2">
+            <button id="btn-restart-all" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition">重新挑戰</button>
+            <a href="index.html" class="flex-1 bg-cyan-900/60 hover:bg-cyan-800/60 text-cyan-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition flex items-center justify-center">返回選關</a>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// 搜救信標位置（分散在 ±25 x ±50 的大地圖中，不在起點附近）
+// ============================================================
+const HOVER_Y = 4.5;
+const BASE_POS = new THREE.Vector3(0, 0.5, 5); // 起點/基地
+
+const BEACON_POSITIONS = [
+    new THREE.Vector3(-18, HOVER_Y,  -8),
+    new THREE.Vector3(20,  HOVER_Y, -14),
+    new THREE.Vector3(-12, HOVER_Y, -24),
+    new THREE.Vector3(15,  HOVER_Y, -32),
+    new THREE.Vector3(-20, HOVER_Y, -44),
+    new THREE.Vector3(10,  HOVER_Y, -50),
+];
+
+const DETECTION_RADIUS = 8;   // 偵測到信標的距離
+const CAPTURE_RADIUS   = 2;   // 確認找到的距離
+
+// ============================================================
+// 全域
+// ============================================================
+let scene, camera, renderer, clock;
+let drone = {
+    pos: new THREE.Vector3(0, 1.5, 5),
+    vel: new THREE.Vector3(),
+    rot: new THREE.Euler(0, 0, 0, 'YXZ'),
+    q: new THREE.Quaternion(),
+    mesh: null, glowMesh: null,
+    prevPos: new THREE.Vector3(0, 1.5, 5)
+};
+const GRAVITY = new THREE.Vector3(0, -9.81, 0);
+
+let controls = { throttle: 0, yaw: 0, pitch: 0, roll: 0 };
+const keysPressed = {};
+let cameraMode = 'TPV';
+let pilotPosMode = 'right';
+let gpCamBtnPrev = false;
+let gpPilotBtnPrev = false;
+
+let gameStarted = false;
+let gameFinished = false;
+
+let battery = 100;
+let flightTime = 0;
+let totalDist = 0;
+let foundCount = 0;
+let allFound = false;
+
+let beaconMeshes = [];   // { mesh, captured }
+let beaconLights = [];
+let chargers = [
+    { pos: new THREE.Vector3(-8, 0.3, -18), used: false },
+    { pos: new THREE.Vector3(10, 0.3, -38), used: false },
+];
+let chargerMeshes = [];
+
+let gameTime = 0; // 信標閃爍動畫
+
+const STORAGE_KEY = 'training-stage11-progress';
+
+window.onload = function () {
+    init3D();
+    setupKeyboard();
+    setupUI();
+    buildScene();
+    animate();
+};
+
+// ============================================================
+// 場景
+// ============================================================
+function init3D() {
+    const container = document.getElementById('canvas-container');
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x070510, 0.009); // 霧稍薄，大地圖可見度較遠
+
+    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 250);
+    camera.position.set(0, 6, 14);
+
+    scene.add(new THREE.AmbientLight(0x0a0810, 1.4));
+    const dLight = new THREE.DirectionalLight(0x94a3b8, 0.5);
+    dLight.position.set(0, 20, 5);
+    scene.add(dLight);
+
+    scene.add(new THREE.GridHelper(160, 80, 0xef4444, 0x1a1024));
+    const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(200, 200),
+        new THREE.MeshStandardMaterial({ color: 0x070312, roughness: 0.9 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    scene.add(floor);
+
+    // 基地標記
+    const baseMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(2.5, 2.8, 0.3, 20),
+        new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x22c55e, emissiveIntensity: 0.8 })
+    );
+    baseMesh.position.copy(BASE_POS);
+    baseMesh.position.y = 0.2;
+    scene.add(baseMesh);
+    const baseLight = new THREE.PointLight(0x22c55e, 0.8, 6);
+    baseLight.position.set(BASE_POS.x, 1, BASE_POS.z);
+    scene.add(baseLight);
+
+    buildDrone();
+    clock = new THREE.Clock();
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
+function buildDrone() {
+    const group = new THREE.Group();
+    drone.glowMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 16, 16),
+        new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 0.8, wireframe: true, transparent: true, opacity: 0.7 })
+    );
+    group.add(drone.glowMesh);
+    group.add(new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 })));
+    const armMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8 });
+    const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.75, 8), armMat);
+    arm1.rotation.z = Math.PI / 4; arm1.rotation.y = Math.PI / 4; group.add(arm1);
+    const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.75, 8), armMat);
+    arm2.rotation.z = -Math.PI / 4; arm2.rotation.y = Math.PI / 4; group.add(arm2);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.2, 4), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+    nose.rotation.x = -Math.PI / 2; nose.position.set(0, 0, -0.3); group.add(nose);
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    tail.position.set(0, 0, 0.4); group.add(tail);
+    drone.mesh = group;
+    drone.mesh.position.copy(drone.pos);
+    scene.add(drone.mesh);
+}
+
+function buildScene() {
+    // 信標（初始不可見，只有在偵測距離內才顯示）
+    BEACON_POSITIONS.forEach((p, i) => {
+        const geo = new THREE.SphereGeometry(0.6, 12, 12);
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 2.0,
+            transparent: true, opacity: 0
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(p);
+        scene.add(mesh);
+
+        const light = new THREE.PointLight(0xef4444, 0, 5);
+        light.position.copy(p);
+        scene.add(light);
+
+        beaconMeshes.push({ mesh, light, captured: false });
+    });
+
+    // 充電站
+    chargers.forEach(c => {
+        const m = new THREE.Mesh(
+            new THREE.CylinderGeometry(2.2, 2.4, 0.4, 20),
+            new THREE.MeshStandardMaterial({ color: 0x1e293b, emissive: 0xeab308, emissiveIntensity: 0.6, metalness: 0.7 })
+        );
+        m.position.copy(c.pos);
+        scene.add(m);
+        chargerMeshes.push(m);
+    });
+}
+
+// ============================================================
+// 輸入
+// ============================================================
+function setupKeyboard() {
+    window.addEventListener('keydown', e => {
+        const k = e.key.toLowerCase();
+        if (k === 'c' && !keysPressed[k]) cycleCameraMode();
+        if (k === 'v' && !keysPressed[k]) cyclePilotPos();
+        keysPressed[k] = true;
+    });
+    window.addEventListener('keyup', e => { keysPressed[e.key.toLowerCase()] = false; });
+}
+
+function getActiveGamepad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (let i = 0; i < pads.length; i++) if (pads[i] && pads[i].connected) return pads[i];
+    return null;
+}
+
+function pollInputs() {
+    const gp = getActiveGamepad();
+    if (gp) {
+        document.getElementById('gamepad-status').classList.remove('hidden');
+        const dz = v => Math.abs(v) > 0.12 ? v : 0;
+        controls.yaw = dz(gp.axes[0]); controls.throttle = -dz(gp.axes[1]);
+        controls.roll = dz(gp.axes[2]); controls.pitch = dz(gp.axes[3]);
+        const camBtn = !!(gp.buttons[9] && gp.buttons[9].pressed);
+        if (camBtn && !gpCamBtnPrev) cycleCameraMode(); gpCamBtnPrev = camBtn;
+        const pilotBtn = !!(gp.buttons[8] && gp.buttons[8].pressed);
+        if (pilotBtn && !gpPilotBtnPrev) cyclePilotPos(); gpPilotBtnPrev = pilotBtn;
+    } else {
+        document.getElementById('gamepad-status').classList.add('hidden');
+        controls.throttle = keysPressed['w'] ? 1 : (keysPressed['s'] ? -1 : 0);
+        controls.yaw      = keysPressed['d'] ? 1 : (keysPressed['a'] ? -1 : 0);
+        controls.pitch    = keysPressed['arrowup'] ? -1 : (keysPressed['arrowdown'] ? 1 : 0);
+        controls.roll     = keysPressed['arrowleft'] ? -1 : (keysPressed['arrowright'] ? 1 : 0);
+    }
+    ['w','s','a','d'].forEach(k => updateKeyVisual('key-' + k, keysPressed[k]));
+    updateKeyVisual('key-up', keysPressed['arrowup']);
+    updateKeyVisual('key-down', keysPressed['arrowdown']);
+    updateKeyVisual('key-left', keysPressed['arrowleft']);
+    updateKeyVisual('key-right', keysPressed['arrowright']);
+}
+
+function updateKeyVisual(id, pressed) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.borderColor = pressed ? '#22d3ee' : '';
+    el.style.background  = pressed ? 'linear-gradient(180deg,#67e8f9,#22d3ee)' : '';
+    el.style.color       = pressed ? '#0b0f19' : '';
+}
+
+// ============================================================
+// 物理
+// ============================================================
+function updatePhysics(dt) {
+    drone.prevPos.copy(drone.pos);
+    const { throttle, yaw, pitch, roll } = controls;
+    const targetYVel = throttle * 3.5;
+    const autoThrustForce = (targetYVel - drone.vel.y) * 12.0 + 9.81;
+    drone.rot.y += (-yaw * 1.8) * dt;
+    drone.rot.x = THREE.MathUtils.lerp(drone.rot.x, -pitch * 0.4, 8 * dt);
+    drone.rot.z = THREE.MathUtils.lerp(drone.rot.z, roll * 0.4, 8 * dt);
+    drone.q.setFromEuler(drone.rot);
+    const facingDir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
+    const strafeDir = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
+    const thrustHoriz = new THREE.Vector3()
+        .addScaledVector(facingDir, -pitch * 8.0)
+        .addScaledVector(strafeDir, roll * 8.0);
+    const totalForce = new THREE.Vector3(0, autoThrustForce, 0).add(thrustHoriz).add(GRAVITY);
+    const hDamp = (pitch === 0 && roll === 0) ? 6.0 : 1.2;
+    totalForce.add(new THREE.Vector3(-drone.vel.x * hDamp, -drone.vel.y * 1.5, -drone.vel.z * hDamp));
+    drone.vel.addScaledVector(totalForce, dt);
+    drone.pos.addScaledVector(drone.vel, dt);
+    if (drone.pos.y < 0.6) { drone.pos.y = 0.6; drone.vel.y = Math.max(drone.vel.y, 0); }
+    drone.mesh.position.copy(drone.pos);
+    drone.mesh.quaternion.copy(drone.q);
+
+    // 累計飛行距離
+    totalDist += drone.pos.distanceTo(drone.prevPos);
+}
+
+// ============================================================
+// 遊戲邏輯
+// ============================================================
+function updateGame(dt) {
+    updatePhysics(dt);
+    flightTime += dt;
+    gameTime += dt;
+
+    // 電池
+    battery = Math.max(0, battery - dt * 1.1);
+    chargers.forEach((c, i) => {
+        if (c.used) return;
+        const d = Math.hypot(drone.pos.x - c.pos.x, drone.pos.z - c.pos.z);
+        if (d < 2.6 && drone.pos.y < HOVER_Y + 2) {
+            battery = Math.min(100, battery + dt * 25);
+            if (battery >= 99.9) { c.used = true; chargerMeshes[i].material.emissiveIntensity = 0.1; }
+        }
+    });
+    updateBatteryBar();
+
+    // 偵測信標
+    let closestDist = Infinity;
+    beaconMeshes.forEach(b => {
+        if (b.captured) return;
+        const dist = drone.pos.distanceTo(b.mesh.position);
+
+        if (dist < DETECTION_RADIUS) {
+            // 顯示信標並讓它閃爍
+            const pulse = 0.5 + 0.5 * Math.sin(gameTime * 4);
+            b.mesh.material.opacity = 0.6 + 0.4 * pulse;
+            b.light.intensity = 0.5 + 0.8 * pulse;
+            closestDist = Math.min(closestDist, dist);
+
+            if (dist < CAPTURE_RADIUS) {
+                // 確認找到！
+                b.captured = true;
+                b.mesh.material.opacity = 0;
+                b.light.intensity = 0;
+                foundCount++;
+                document.getElementById('hud-found').textContent = foundCount;
+                showBeaconToast(foundCount);
+                flashDrone(0xff3333);
+                if (foundCount >= BEACON_POSITIONS.length) {
+                    allFound = true;
+                    document.getElementById('return-hint').classList.remove('hidden');
+                }
+            }
+        } else {
+            // 太遠，隱藏
+            b.mesh.material.opacity = 0;
+            b.light.intensity = 0;
+        }
+    });
+
+    // 近距偵測 HUD
+    const proxAlert = document.getElementById('proximity-alert');
+    if (closestDist < DETECTION_RADIUS) {
+        proxAlert.classList.remove('hidden');
+        document.getElementById('prox-dist').textContent = closestDist.toFixed(1);
+    } else {
+        proxAlert.classList.add('hidden');
+    }
+
+    // 全員找到後，返回基地
+    if (allFound) {
+        const distToBase = Math.hypot(drone.pos.x - BASE_POS.x, drone.pos.z - BASE_POS.z);
+        if (distToBase < 3.0) {
+            finishGame();
+        }
+    }
+
+    document.getElementById('hud-time').textContent = flightTime.toFixed(1);
+    if (battery <= 0) drone.vel.addScaledVector(GRAVITY, dt * 0.6);
+}
+
+let toastTimeout = null;
+
+function showBeaconToast(count) {
+    if (toastTimeout) clearTimeout(toastTimeout);
+    const toast = document.getElementById('beacon-found-toast');
+    document.getElementById('toast-count').textContent =
+        count < 6 ? `還剩 ${6 - count} 名` : '全員找到！返回基地！';
+    toast.classList.remove('hidden');
+    toast.classList.add('slide-in');
+    toastTimeout = setTimeout(() => {
+        toast.classList.add('hidden');
+        toast.classList.remove('slide-in');
+    }, 2000);
+}
+
+function flashDrone(hex) {
+    drone.glowMesh.material.color.setHex(hex);
+    setTimeout(() => { if (drone.glowMesh) drone.glowMesh.material.color.setHex(0x00ffff); }, 300);
+}
+
+function updateBatteryBar() {
+    document.getElementById('val-battery').textContent = `${Math.round(battery)}%`;
+    document.getElementById('fill-battery').style.width = `${battery}%`;
+    document.getElementById('fill-battery').className = 'stat-fill h-full ' +
+        (battery > 50 ? 'bg-cyan-400' : battery > 20 ? 'bg-yellow-400' : 'bg-rose-500');
+}
+
+function finishGame() {
+    if (gameFinished) return;
+    gameFinished = true;
+    document.getElementById('return-hint').classList.add('hidden');
+    document.getElementById('report-time').textContent = `${flightTime.toFixed(1)} 秒`;
+    document.getElementById('report-found').textContent = `${foundCount} / 6`;
+    document.getElementById('report-dist').textContent = `${Math.round(totalDist)} m`;
+    document.getElementById('report-battery').textContent = `${Math.round(battery)}%`;
+    document.getElementById('report-modal').classList.remove('hidden');
+    document.getElementById('report-modal').classList.add('flex');
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            completed: true, flightTime: parseFloat(flightTime.toFixed(1)),
+            foundCount, totalDist: Math.round(totalDist), finalBattery: Math.round(battery),
+            lastAttempt: new Date().toISOString()
+        }));
+    } catch(e) {}
+}
+
+// ============================================================
+// UI
+// ============================================================
+function resetGame() {
+    gameFinished = false; allFound = false;
+    battery = 100; flightTime = 0; totalDist = 0; foundCount = 0; gameTime = 0;
+    drone.pos.set(0, 1.5, 5); drone.vel.set(0, 0, 0);
+    drone.pos.copy(new THREE.Vector3(0, 1.5, 5));
+    drone.prevPos.copy(drone.pos);
+    drone.rot.set(0, 0, 0, 'YXZ'); drone.q.setFromEuler(drone.rot);
+    beaconMeshes.forEach(b => {
+        b.captured = false;
+        b.mesh.material.opacity = 0;
+        b.light.intensity = 0;
+    });
+    chargers.forEach((c, i) => {
+        c.used = false;
+        chargerMeshes[i].material.emissiveIntensity = 0.6;
+    });
+    document.getElementById('hud-found').textContent = '0';
+    document.getElementById('hud-time').textContent = '0.0';
+    document.getElementById('return-hint').classList.add('hidden');
+    document.getElementById('proximity-alert').classList.add('hidden');
+    updateBatteryBar();
+}
+
+function setupUI() {
+    setupCameraSwitcher();
+    document.getElementById('btn-start-training').addEventListener('click', () => {
+        document.getElementById('intro-modal').classList.add('hidden');
+        gameStarted = true;
+    });
+    document.getElementById('btn-restart-all').addEventListener('click', () => {
+        document.getElementById('report-modal').classList.remove('flex');
+        document.getElementById('report-modal').classList.add('hidden');
+        resetGame();
+    });
+}
+
+// ============================================================
+// 相機
+// ============================================================
+function updateCamera() {
+    if (cameraMode === 'TPV') {
+        const off = new THREE.Vector3(0, 2.5, 7.0).applyEuler(new THREE.Euler(0, drone.rot.y * 0.3, 0));
+        camera.position.lerp(new THREE.Vector3().copy(drone.pos).add(off), 0.10);
+        camera.lookAt(new THREE.Vector3().copy(drone.pos).add(new THREE.Vector3(0, 0.5, 0)));
+    } else if (cameraMode === 'FPV') {
+        camera.position.copy(drone.pos); camera.quaternion.copy(drone.q); camera.translateZ(-0.3);
+    } else {
+        let sp = new THREE.Vector3(20, 10, 14);
+        if (pilotPosMode === 'left') sp.set(-20, 10, 14);
+        else if (pilotPosMode === 'mid') sp.set(0, 15, 28);
+        camera.position.lerp(sp, 0.06); camera.lookAt(drone.pos);
+    }
+}
+
+const CAMERA_MODES = ['TPV', 'FPV', 'Spec'];
+const PILOT_POSITIONS = ['left', 'mid', 'right'];
+
+function setCameraMode(mode) {
+    cameraMode = mode;
+    const ac = 'bg-cyan-500 text-slate-950 text-[9px] font-bold py-1 rounded';
+    const ic = 'bg-slate-800 text-slate-400 text-[9px] font-bold py-1 rounded';
+    ['cam-tpv','cam-fpv','cam-spec'].forEach(id => document.getElementById(id).className = ic);
+    document.getElementById('pilot-position-submenu').classList.toggle('hidden', mode !== 'Spec');
+    document.getElementById('cam-' + mode.toLowerCase()).className = ac;
+}
+function cycleCameraMode() { setCameraMode(CAMERA_MODES[(CAMERA_MODES.indexOf(cameraMode) + 1) % CAMERA_MODES.length]); }
+function setPilotPos(pos) {
+    pilotPosMode = pos;
+    const ac = 'bg-cyan-950 text-cyan-300 border border-cyan-800 text-[8px] font-bold py-0.5 rounded';
+    const ic = 'bg-slate-800 text-slate-400 text-[8px] font-bold py-0.5 rounded';
+    ['left','mid','right'].forEach(p => document.getElementById('pilot-pos-' + p).className = ic);
+    document.getElementById('pilot-pos-' + pos).className = ac;
+}
+function cyclePilotPos() {
+    if (cameraMode !== 'Spec') return;
+    setPilotPos(PILOT_POSITIONS[(PILOT_POSITIONS.indexOf(pilotPosMode) + 1) % PILOT_POSITIONS.length]);
+}
+function setupCameraSwitcher() {
+    document.getElementById('cam-tpv').addEventListener('click', () => setCameraMode('TPV'));
+    document.getElementById('cam-fpv').addEventListener('click', () => setCameraMode('FPV'));
+    document.getElementById('cam-spec').addEventListener('click', () => setCameraMode('Spec'));
+    document.getElementById('pilot-pos-left').addEventListener('click', () => setPilotPos('left'));
+    document.getElementById('pilot-pos-mid').addEventListener('click', () => setPilotPos('mid'));
+    document.getElementById('pilot-pos-right').addEventListener('click', () => setPilotPos('right'));
+}
+
+// ============================================================
+// 主迴圈
+// ============================================================
+function animate() {
+    requestAnimationFrame(animate);
+    let dt = clock.getDelta();
+    if (dt > 0.1) dt = 0.1;
+    const introHidden = document.getElementById('intro-modal').classList.contains('hidden');
+    const reportShown = document.getElementById('report-modal').classList.contains('flex');
+    if (!introHidden || reportShown) { renderer.render(scene, camera); return; }
+    pollInputs();
+    if (gameStarted && !gameFinished) updateGame(dt);
+    updateCamera();
+    renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>

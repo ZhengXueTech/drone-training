@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>無人機飛行員培訓 - 第三階段：緊急處置教學</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+    body {
+        font-family: 'Orbitron', 'Share Tech Mono', sans-serif;
+        background-color: #0b0f19;
+        user-select: none; -webkit-user-select: none;
+        touch-action: none; overflow: hidden;
+    }
+    ::-webkit-scrollbar { display: none; }
+
+    .neon-border-cyan { box-shadow: 0 0 15px rgba(6,182,212,0.35), inset 0 0 15px rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.55); }
+    .neon-border-magenta { box-shadow: 0 0 15px rgba(217,70,239,0.35), inset 0 0 15px rgba(217,70,239,0.15); border: 1px solid rgba(217,70,239,0.55); }
+    .neon-border-red { box-shadow: 0 0 20px rgba(239,68,68,0.45), inset 0 0 15px rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.7); }
+    .neon-text-cyan { text-shadow: 0 0 8px rgba(6,182,212,0.8); }
+    .neon-text-red { text-shadow: 0 0 10px rgba(239,68,68,0.9); }
+
+    .glass-panel { background: rgba(15,23,42,0.78); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+
+    .key-cap {
+        width: 40px; height: 40px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 900; font-size: 13px;
+        border: 2px solid rgba(100,116,139,0.4);
+        background: rgba(30,41,59,0.6);
+        color: rgba(148,163,184,0.5);
+    }
+    .kill-key {
+        width: 150px; height: 46px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        font-weight: 900; font-size: 13px;
+        border: 2px solid rgba(239,68,68,0.6);
+        background: linear-gradient(180deg, rgba(239,68,68,0.25), rgba(127,29,29,0.35));
+        color: #fca5a5;
+        transition: all 0.15s ease;
+    }
+    .kill-key.pressed { transform: scale(0.92); background: linear-gradient(180deg,#f87171,#b91c1c); color: #1e0a0a; box-shadow: 0 0 20px rgba(239,68,68,0.9); }
+
+    .stage-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(100,116,139,0.4); transition: all .3s; }
+    .stage-dot.done { background: #22d3ee; box-shadow: 0 0 6px #22d3ee; }
+    .stage-dot.current { background: #facc15; box-shadow: 0 0 8px #facc15; }
+
+    .progress-track { background: rgba(15,23,42,0.8); border: 1px solid rgba(148,163,184,0.25); }
+    .progress-fill { transition: width 0.15s linear; }
+
+    @keyframes pulseWarn { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+    .pulse-warn { animation: pulseWarn 0.6s ease-in-out infinite; }
+
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body class="relative w-screen h-screen text-slate-100">
+
+<div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+<!-- ============ TOP HUD ============ -->
+<div class="absolute top-0 left-0 w-full p-3 md:p-5 z-10 pointer-events-none flex justify-between items-start">
+    <div class="glass-panel neon-border-cyan rounded-xl px-4 py-2.5 flex flex-col gap-1 pointer-events-auto">
+        <div class="text-[10px] text-cyan-400 tracking-widest font-bold uppercase">PILOT TRAINING · STAGE 3</div>
+        <h1 id="stage-title" class="text-sm md:text-base font-black text-white tracking-wide">緊急處置教學</h1>
+        <div class="flex gap-1.5 mt-1">
+            <div class="stage-dot" data-dot="1"></div>
+            <div class="stage-dot" data-dot="2"></div>
+            <div class="stage-dot" data-dot="3"></div>
+        </div>
+    </div>
+
+    <div class="glass-panel neon-border-cyan rounded-xl px-4 py-2.5 flex flex-col gap-1 pointer-events-auto min-w-[130px]">
+        <div class="text-[9px] text-cyan-400 tracking-wider">高度 ALT</div>
+        <div class="text-sm font-bold text-white"><span id="hud-alt">0.0</span> m</div>
+    </div>
+</div>
+
+<!-- ============ CAMERA SWITCHER ============ -->
+<div class="absolute bottom-28 right-3 md:bottom-32 md:right-5 z-10 pointer-events-auto glass-panel neon-border-cyan rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
+    <div class="text-[9px] text-cyan-400 font-mono tracking-wider text-center">相機視角</div>
+    <div class="grid grid-cols-3 gap-1">
+        <button id="cam-tpv" class="bg-cyan-500 text-slate-950 text-[9px] font-bold py-1 rounded">TPV</button>
+        <button id="cam-fpv" class="bg-slate-800 text-slate-400 text-[9px] font-bold py-1 rounded">FPV</button>
+        <button id="cam-spec" class="bg-slate-800 text-slate-400 text-[9px] font-bold py-1 rounded">站位</button>
+    </div>
+    <div id="pilot-position-submenu" class="hidden grid grid-cols-3 gap-1">
+        <button id="pilot-pos-left" class="bg-slate-800 text-slate-400 text-[8px] font-bold py-0.5 rounded">左</button>
+        <button id="pilot-pos-mid" class="bg-slate-800 text-slate-400 text-[8px] font-bold py-0.5 rounded">中</button>
+        <button id="pilot-pos-right" class="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[8px] font-bold py-0.5 rounded">右</button>
+    </div>
+    <div class="text-[8px] text-slate-500 font-mono text-center leading-tight border-t border-slate-700/60 pt-1 mt-0.5">
+        鍵盤 C/V　搖桿 Start/Select
+    </div>
+</div>
+
+<!-- ============ INSTRUCTION PANEL ============ -->
+<div id="instruction-panel" class="absolute left-1/2 top-20 md:top-24 -translate-x-1/2 z-10 pointer-events-none w-[92%] max-w-md">
+    <div class="glass-panel neon-border-magenta rounded-2xl px-5 py-3 flex flex-col gap-1 text-center">
+        <div id="instruction-title" class="text-xs font-black text-fuchsia-400 uppercase tracking-wider"></div>
+        <div id="instruction-text" class="text-[11px] text-slate-300 font-mono leading-relaxed"></div>
+    </div>
+</div>
+
+<!-- ============ DANGER COUNTDOWN BAR（緊急停止關卡專用） ============ -->
+<div id="danger-bar-wrap" class="absolute left-1/2 bottom-40 -translate-x-1/2 z-10 pointer-events-none w-[70%] max-w-sm hidden">
+    <div class="text-center text-xs font-black text-red-400 pulse-warn mb-1">⚠️ 前方障礙物，即將發生碰撞！</div>
+    <div class="progress-track h-3 rounded-full overflow-hidden">
+        <div id="danger-bar-fill" class="progress-fill h-full bg-gradient-to-r from-yellow-400 to-red-500" style="width:100%"></div>
+    </div>
+</div>
+
+<!-- ============ HOLD PROGRESS（穩定度關卡專用） ============ -->
+<div id="hold-progress-wrap" class="absolute left-1/2 bottom-40 -translate-x-1/2 z-10 pointer-events-none w-[70%] max-w-xs hidden">
+    <div class="progress-track h-2 rounded-full overflow-hidden">
+        <div id="hold-progress-fill" class="progress-fill h-full bg-gradient-to-r from-yellow-400 to-emerald-400" style="width:0%"></div>
+    </div>
+    <div class="text-center text-[9px] text-slate-400 font-mono mt-1">保持穩定持續達標</div>
+</div>
+
+<!-- ============ FULL SCREEN EVENT BANNER（訊號失靈 / 姿態失控） ============ -->
+<div id="event-banner" class="absolute inset-0 z-20 pointer-events-none hidden items-center justify-center flex-col gap-3">
+    <div id="event-banner-text" class="text-2xl md:text-4xl font-black neon-text-red text-red-400 pulse-warn tracking-widest text-center px-6"></div>
+    <div id="event-banner-sub" class="text-xs text-slate-300 font-mono text-center px-6"></div>
+</div>
+
+<!-- ============ BOTTOM CONTROLS ============ -->
+<div class="absolute bottom-0 left-0 w-full p-3 md:p-5 z-10 pointer-events-none flex flex-col items-center gap-2">
+    <div id="gamepad-status" class="hidden glass-panel neon-border-cyan rounded-full px-4 py-1.5 text-[10px] font-bold text-emerald-400 flex items-center gap-2 pointer-events-auto">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        🎮 已偵測到搖桿，A 鍵可作為緊急停止的替代按鍵
+    </div>
+    <div class="flex justify-center items-end gap-4 w-full">
+    <div class="glass-panel neon-border-cyan rounded-2xl px-5 py-3 flex items-center gap-6 pointer-events-auto">
+        <div class="flex flex-col items-center gap-1.5">
+            <div class="text-[9px] text-slate-400 font-mono">油門 / 偏航</div>
+            <div class="grid grid-cols-3 gap-1">
+                <div></div><div id="key-w" class="key-cap">W</div><div></div>
+                <div id="key-a" class="key-cap">A</div><div></div><div id="key-d" class="key-cap">D</div>
+                <div></div><div id="key-s" class="key-cap">S</div><div></div>
+            </div>
+        </div>
+        <div class="w-px h-16 bg-slate-700/60"></div>
+        <div class="flex flex-col items-center gap-1.5">
+            <div class="text-[9px] text-slate-400 font-mono">俯仰 / 翻滾</div>
+            <div class="grid grid-cols-3 gap-1">
+                <div></div><div id="key-up" class="key-cap">↑</div><div></div>
+                <div id="key-left" class="key-cap">←</div><div></div><div id="key-right" class="key-cap">→</div>
+                <div></div><div id="key-down" class="key-cap">↓</div><div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass-panel neon-border-red rounded-2xl px-4 py-3 flex flex-col items-center gap-1.5 pointer-events-auto">
+        <div class="text-[9px] text-red-300 font-mono">緊急停止</div>
+        <div id="key-space" class="kill-key">⛔ SPACE</div>
+    </div>
+    </div>
+</div>
+
+<!-- ============ INTRO MODAL ============ -->
+<div id="intro-modal" class="absolute inset-0 bg-slate-950/92 backdrop-blur-lg z-40 flex items-center justify-center p-4">
+    <div class="glass-panel neon-border-red rounded-2xl p-6 md:p-8 text-center max-w-xl flex flex-col gap-5">
+        <div class="flex flex-col gap-1">
+            <span class="text-xs text-red-400 tracking-widest font-black uppercase">Stage 3 · Emergency Procedures</span>
+            <h2 class="text-xl md:text-2xl font-black text-red-400 neon-text-red tracking-wide">緊急處置教學</h2>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed text-left font-mono">
+            這一關會練習三種真實飛行中可能遇到的危急狀況：<br><br>
+            <span class="text-red-300 font-bold">① 緊急停止（Kill Switch）</span>：按 <span class="text-white font-bold">SPACE</span> 立刻切斷馬達動力，是萬不得已才使用的最後手段。<br>
+            <span class="text-red-300 font-bold">② 訊號突然失靈</span>：學習在訊號中斷時保持冷靜，不要瘋狂按鍵。<br>
+            <span class="text-red-300 font-bold">③ 被其他無人機擦撞失控</span>：學習在姿態失控後，冷靜等待並重新穩定機身。
+        </p>
+        <button id="btn-start-training" class="bg-gradient-to-r from-red-500 to-rose-600 hover:scale-105 transition duration-300 text-slate-950 font-black py-3 rounded-xl uppercase tracking-widest text-xs shadow-lg shadow-red-500/20">
+            ⚠️ 開始第一項：緊急停止教學
+        </button>
+    </div>
+</div>
+
+<!-- ============ KILL-STAGE FAIL MODAL ============ -->
+<div id="kill-fail-modal" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-30 hidden items-center justify-center p-4">
+    <div class="glass-panel neon-border-red rounded-2xl p-6 text-center max-w-sm flex flex-col gap-4">
+        <div class="text-3xl">💥</div>
+        <h2 class="text-lg font-black text-red-400 uppercase tracking-wide">撞牆了！</h2>
+        <p class="text-[11px] text-slate-300 font-mono leading-relaxed">
+            這次沒有及時按下緊急停止。下次看到警示條變紅、快要見底之前，就要果斷按下 SPACE。
+        </p>
+        <button id="btn-retry-kill" class="w-full bg-red-600 hover:bg-red-500 text-slate-950 font-black py-2.5 rounded-xl uppercase tracking-widest text-xs transition">
+            🔄 重新挑戰
+        </button>
+    </div>
+</div>
+
+<!-- ============ COMPLETE MODAL ============ -->
+<div id="complete-modal" class="absolute inset-0 bg-slate-950/92 backdrop-blur-lg z-40 hidden items-center justify-center p-4">
+    <div class="glass-panel neon-border-cyan rounded-2xl p-6 md:p-8 text-center max-w-lg flex flex-col gap-4">
+        <div class="text-3xl">🛡️</div>
+        <h2 class="text-lg md:text-xl font-black text-cyan-400 neon-text-cyan uppercase tracking-wide">緊急處置教學 完成！</h2>
+        <p class="text-sm text-slate-300 font-mono">你已經學會緊急停止的正確時機，也體驗過訊號中斷與碰撞失控的應對方式。</p>
+        <div class="w-full bg-cyan-950/50 border border-cyan-800 rounded-xl py-3 px-4 text-[11px] text-cyan-300 font-mono">
+            🔓 已解鎖：下一項訓練（墜機後果 / 陣風環境干擾，開發中）
+        </div>
+        <button id="btn-restart-all" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition">
+            重新練習本階段
+        </button>
+        <a href="index.html" target="_top" class="w-full bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-800 text-cyan-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition text-center">
+            🏠 返回訓練總覽
+        </a>
+    </div>
+</div>
+
+<script>
+// ==========================================================
+// 場景與無人機
+// ==========================================================
+let scene, camera, renderer, clock;
+let drone = {
+    pos: new THREE.Vector3(0, 1.5, 5),
+    vel: new THREE.Vector3(),
+    rot: new THREE.Euler(0, 0, 0, 'YXZ'),
+    q: new THREE.Quaternion(),
+    mesh: null
+};
+const GRAVITY = new THREE.Vector3(0, -9.81, 0);
+const HOVER_Y = 4.0;
+
+let controls = { throttle: 0, yaw: 0, pitch: 0, roll: 0 };
+const keysPressed = {};
+let controlsLocked = false; // 訊號失靈 / 姿態失控期間，鎖定所有操作輸入
+
+const STAGES = ['kill', 'signal', 'collision'];
+let stageIndex = 0;
+let stageLocked = false;
+let targetObjects = {};
+let holdTimer = 0;
+let phase = ''; // 各關卡自訂的子階段
+let phaseTimer = 0;
+let trackedKeyPresses = 0; // 訊號失靈 / 姿態失控期間，追蹤玩家實際按鍵次數（僅供回饋，不強制卡關）
+let cameraMode = 'TPV'; // TPV | FPV | Spec
+let pilotPosMode = 'right'; // left | mid | right
+let gpCamBtnPrev = false;   // 搖桿「切換視角」按鈕的上一幀狀態
+let gpPilotBtnPrev = false; // 搖桿「切換站位」按鈕的上一幀狀態
+
+const STORAGE_KEY = 'training-stage3-progress';
+
+
+window.onload = function () {
+    init3D();
+    setupKeyboard();
+    setupUI();
+    animate();
+};
+
+function init3D() {
+    const container = document.getElementById('canvas-container');
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0c1020, 0.018);
+
+    camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 150);
+    camera.position.set(0, 5, 14);
+
+    scene.add(new THREE.AmbientLight(0x0f172a, 1.3));
+    const dLight = new THREE.DirectionalLight(0x22d3ee, 0.8);
+    dLight.position.set(0, 15, 5);
+    scene.add(dLight);
+
+    scene.add(new THREE.GridHelper(80, 60, 0x06b6d4, 0x1e293b));
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0x070b12, roughness: 0.85 }));
+    floor.rotation.x = -Math.PI / 2;
+    scene.add(floor);
+
+    buildDrone();
+    clock = new THREE.Clock();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
+function buildDrone() {
+    const group = new THREE.Group();
+    const glowMesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 0.8, wireframe: true, transparent: true, opacity: 0.7 }));
+    group.add(glowMesh);
+    group.add(new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 })));
+    const armMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8 });
+    const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.75, 8), armMat);
+    arm1.rotation.z = Math.PI / 4; arm1.rotation.y = Math.PI / 4; group.add(arm1);
+    const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.75, 8), armMat);
+    arm2.rotation.z = -Math.PI / 4; arm2.rotation.y = Math.PI / 4; group.add(arm2);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.2, 4), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+    nose.rotation.x = -Math.PI / 2; nose.position.set(0, 0, -0.3); group.add(nose);
+    const tailLight = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    tailLight.position.set(0, 0, 0.4); group.add(tailLight);
+    const tailGlow = new THREE.PointLight(0xef4444, 0.6, 1.5);
+    tailGlow.position.set(0, 0, 0.4); group.add(tailGlow);
+
+    drone.mesh = group;
+    drone.mesh.position.copy(drone.pos);
+    scene.add(drone.mesh);
+}
+
+// ==========================================================
+// 輸入
+// ==========================================================
+function setupKeyboard() {
+    window.addEventListener('keydown', e => {
+        const k = e.key.toLowerCase();
+        if (k === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            if (!keysPressed['space']) attemptKillSwitch();
+            keysPressed['space'] = true;
+            return;
+        }
+        // 追蹤訊號失靈 / 姿態失控期間的按鍵次數（僅供回饋用）
+        if (controlsLocked && !keysPressed[k] && ['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) {
+            trackedKeyPresses++;
+        }
+        if (k === 'c' && !keysPressed[k]) cycleCameraMode();
+        if (k === 'v' && !keysPressed[k]) cyclePilotPos();
+        keysPressed[k] = true;
+    });
+    window.addEventListener('keyup', e => {
+        const k = e.key.toLowerCase();
+        if (k === ' ' || e.code === 'Space') { keysPressed['space'] = false; return; }
+        keysPressed[k] = false;
+    });
+}
+
+function getActiveGamepad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (let i = 0; i < pads.length; i++) {
+        if (pads[i] && pads[i].connected) return pads[i];
+    }
+    return null;
+}
+
+let gpKillPrevPressed = false; // 搖桿緊急停止按鈕的上一幀狀態，用來偵測「剛按下」的瞬間
+
+function pollInputs() {
+    let rawThrottle, rawYaw, rawPitch, rawRoll;
+
+    const gp = getActiveGamepad();
+    const gamepadBadge = document.getElementById('gamepad-status');
+    if (gp) {
+        gamepadBadge.classList.remove('hidden');
+        const dz = v => Math.abs(v) > 0.12 ? v : 0;
+        rawYaw = dz(gp.axes[0]);
+        rawThrottle = -dz(gp.axes[1]);
+        rawRoll = dz(gp.axes[2]);
+        rawPitch = dz(gp.axes[3]);
+
+        // 搖桿的 A 鍵（button 0）當作緊急停止的替代按鍵
+        const killPressed = !!(gp.buttons[0] && gp.buttons[0].pressed);
+        if (killPressed && !gpKillPrevPressed) attemptKillSwitch();
+        gpKillPrevPressed = killPressed;
+        document.getElementById('key-space').classList.toggle('pressed', killPressed);
+
+        const camBtn = !!(gp.buttons[9] && gp.buttons[9].pressed);
+        if (camBtn && !gpCamBtnPrev) cycleCameraMode();
+        gpCamBtnPrev = camBtn;
+
+        const pilotBtn = !!(gp.buttons[8] && gp.buttons[8].pressed);
+        if (pilotBtn && !gpPilotBtnPrev) cyclePilotPos();
+        gpPilotBtnPrev = pilotBtn;
+    } else {
+        gamepadBadge.classList.add('hidden');
+        rawThrottle = keysPressed['w'] ? 1 : (keysPressed['s'] ? -1 : 0);
+        rawYaw = keysPressed['d'] ? 1 : (keysPressed['a'] ? -1 : 0);
+        rawPitch = keysPressed['arrowup'] ? -1 : (keysPressed['arrowdown'] ? 1 : 0);
+        rawRoll = keysPressed['arrowleft'] ? -1 : (keysPressed['arrowright'] ? 1 : 0);
+    }
+
+    const locked = controlsLocked || (STAGES[stageIndex] === 'kill');
+    controls.throttle = locked ? 0 : rawThrottle;
+    controls.yaw = locked ? 0 : rawYaw;
+    controls.pitch = locked ? 0 : rawPitch;
+    controls.roll = locked ? 0 : rawRoll;
+
+    const enabled = !locked;
+    updateKeyVisual('key-w', keysPressed['w'], enabled);
+    updateKeyVisual('key-s', keysPressed['s'], enabled);
+    updateKeyVisual('key-a', keysPressed['a'], enabled);
+    updateKeyVisual('key-d', keysPressed['d'], enabled);
+    updateKeyVisual('key-up', keysPressed['arrowup'], enabled);
+    updateKeyVisual('key-down', keysPressed['arrowdown'], enabled);
+    updateKeyVisual('key-left', keysPressed['arrowleft'], enabled);
+    updateKeyVisual('key-right', keysPressed['arrowright'], enabled);
+
+    if (!gp) {
+        const spaceKey = document.getElementById('key-space');
+        spaceKey.classList.toggle('pressed', !!keysPressed['space']);
+    }
+}
+
+function updateKeyVisual(id, pressed, enabled) {
+    const el = document.getElementById(id);
+    el.style.opacity = enabled ? '1' : '0.35';
+    el.style.borderColor = (enabled && pressed) ? '#22d3ee' : '';
+    el.style.background = (enabled && pressed) ? 'linear-gradient(180deg,#67e8f9,#22d3ee)' : '';
+    el.style.color = (enabled && pressed) ? '#0b0f19' : '';
+}
+
+// ==========================================================
+// 物理（一般飛行，用於「訊號失靈」「碰撞後」關卡的手動操作階段）
+// ==========================================================
+function updatePhysics(dt) {
+    const throttle = controls.throttle, yaw = controls.yaw, pitch = controls.pitch, roll = controls.roll;
+
+    const targetYVel = throttle * 3.5;
+    const autoThrustForce = (targetYVel - drone.vel.y) * 12.0 + 9.81;
+
+    drone.rot.y += (-yaw * 1.8) * dt;
+    drone.rot.x = THREE.MathUtils.lerp(drone.rot.x, -pitch * 0.4, 8 * dt);
+    drone.rot.z = THREE.MathUtils.lerp(drone.rot.z, roll * 0.4, 8 * dt);
+    drone.q.setFromEuler(drone.rot);
+
+    const facingDir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
+    const strafeDir = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
+    const thrustHoriz = new THREE.Vector3().addScaledVector(facingDir, -pitch * 8.0).addScaledVector(strafeDir, roll * 8.0);
+
+    const totalForce = new THREE.Vector3(0, autoThrustForce, 0).add(thrustHoriz).add(GRAVITY);
+    const hDamp = (pitch === 0 && roll === 0) ? 6.0 : 1.2;
+    totalForce.add(new THREE.Vector3(-drone.vel.x * hDamp, -drone.vel.y * 1.5, -drone.vel.z * hDamp));
+
+    drone.vel.addScaledVector(totalForce, dt);
+    drone.pos.addScaledVector(drone.vel, dt);
+
+    if (drone.pos.y < 0.6) { drone.pos.y = 0.6; drone.vel.y = Math.max(drone.vel.y, 0); }
+
+    drone.mesh.position.copy(drone.pos);
+    drone.mesh.quaternion.copy(drone.q);
+}
+
+// 失控保護（Failsafe）：自動維持高度與水平懸停，忽略玩家輸入
+function updateFailsafeHover(dt) {
+    const yErr = HOVER_Y - drone.pos.y;
+    const targetYVel = THREE.MathUtils.clamp(yErr * 1.5, -3, 3);
+    const autoThrustForce = (targetYVel - drone.vel.y) * 12.0 + 9.81;
+
+    drone.rot.x = THREE.MathUtils.lerp(drone.rot.x, 0, 6 * dt);
+    drone.rot.z = THREE.MathUtils.lerp(drone.rot.z, 0, 6 * dt);
+    drone.q.setFromEuler(drone.rot);
+
+    const totalForce = new THREE.Vector3(0, autoThrustForce, 0).add(GRAVITY);
+    totalForce.add(new THREE.Vector3(-drone.vel.x * 6.0, -drone.vel.y * 1.5, -drone.vel.z * 6.0));
+
+    drone.vel.addScaledVector(totalForce, dt);
+    drone.pos.addScaledVector(drone.vel, dt);
+
+    drone.mesh.position.copy(drone.pos);
+    drone.mesh.quaternion.copy(drone.q);
+}
+
+function checkRingPass(dronePos, ring, radius, axisTolerance) {
+    const ringNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(ring.quaternion);
+    const toPoint = new THREE.Vector3().subVectors(dronePos, ring.position);
+    const alongAxis = toPoint.dot(ringNormal);
+    const radial = toPoint.clone().addScaledVector(ringNormal, -alongAxis).length();
+    return Math.abs(alongAxis) < axisTolerance && radial < radius;
+}
+
+function clearTargets() {
+    Object.values(targetObjects).forEach(obj => { if (obj instanceof THREE.Object3D) scene.remove(obj); });
+    targetObjects = {};
+}
+
+// ==========================================================
+// 關卡設置
+// ==========================================================
+const stageMeta = {
+    kill:      { title: '① 緊急停止教學', text: '無人機正朝前方障礙物直飛，系統來不及自動閃避。請在紅色警示條見底之前按下 SPACE 切斷動力！' },
+    signal:    { title: '② 訊號突然失靈', text: '正常飛行中，訊號隨時可能突然中斷。若發生中斷，請保持冷靜、不要瘋狂按鍵，等待訊號恢復。' },
+    collision: { title: '③ 被擦撞失控', text: '注意前方！另一台無人機正在接近。若不慎被擦撞導致姿態不穩，請冷靜等待，並在恢復操控後重新穩定機身。' }
+};
+
+function goToStage(idx) {
+    stageLocked = false;
+    controlsLocked = false;
+    stageIndex = idx;
+    const stage = STAGES[stageIndex];
+    const meta = stageMeta[stage];
+    document.getElementById('stage-title').textContent = meta.title;
+    document.getElementById('instruction-title').textContent = meta.title;
+    document.getElementById('instruction-text').textContent = meta.text;
+
+    document.getElementById('danger-bar-wrap').classList.add('hidden');
+    document.getElementById('hold-progress-wrap').classList.add('hidden');
+    document.getElementById('hold-progress-fill').style.width = '0%';
+    document.getElementById('event-banner').classList.add('hidden');
+    document.getElementById('event-banner').classList.remove('flex');
+    document.getElementById('kill-fail-modal').classList.add('hidden');
+    document.getElementById('kill-fail-modal').classList.remove('flex');
+
+    document.querySelectorAll('.stage-dot').forEach((dot, i) => {
+        dot.classList.toggle('done', i < idx);
+        dot.classList.toggle('current', i === idx);
+    });
+
+    drone.pos.set(0, 1.5, 5); drone.vel.set(0, 0, 0);
+    drone.rot.set(0, 0, 0, 'YXZ'); drone.q.setFromEuler(drone.rot);
+
+    clearTargets();
+    holdTimer = 0;
+    phaseTimer = 0;
+    trackedKeyPresses = 0;
+
+    if (stage === 'kill') setupKillStage();
+    if (stage === 'signal') setupSignalStage();
+    if (stage === 'collision') setupCollisionStage();
+
+    saveProgress({ lastStage: idx });
+}
+
+// ---------- ① 緊急停止 ----------
+function setupKillStage() {
+    phase = 'approaching';
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(16, 8), new THREE.MeshStandardMaterial({ color: 0xef4444, transparent: true, opacity: 0.35, emissive: 0xef4444, emissiveIntensity: 0.5, side: THREE.DoubleSide }));
+    wall.position.set(0, 4, -18);
+    scene.add(wall);
+    targetObjects.wall = wall;
+    targetObjects.wallZ = -18;
+    targetObjects.startZ = drone.pos.z;
+    document.getElementById('danger-bar-wrap').classList.remove('hidden');
+}
+
+function attemptKillSwitch() {
+    if (STAGES[stageIndex] !== 'kill' || phase !== 'approaching') return;
+    phase = 'killed';
+    phaseTimer = 0;
+    document.getElementById('danger-bar-wrap').classList.add('hidden');
+    document.getElementById('instruction-title').textContent = '✅ 動力已切斷';
+    document.getElementById('instruction-text').textContent = '螺旋槳瞬間停止，無人機開始自由落體。這就是緊急停止的代價——只在真正必要時才使用。';
+}
+
+function updateKillStage(dt) {
+    if (phase === 'approaching') {
+        const speed = 4.0;
+        drone.pos.z -= speed * dt;
+        drone.mesh.position.copy(drone.pos);
+
+        const totalDist = targetObjects.startZ - targetObjects.wallZ;
+        const remaining = drone.pos.z - targetObjects.wallZ;
+        const pct = THREE.MathUtils.clamp((remaining / totalDist) * 100, 0, 100);
+        document.getElementById('danger-bar-fill').style.width = `${pct}%`;
+
+        if (remaining <= 1.2) {
+            phase = 'crashed';
+            document.getElementById('danger-bar-wrap').classList.add('hidden');
+            document.getElementById('kill-fail-modal').classList.remove('hidden');
+            document.getElementById('kill-fail-modal').classList.add('flex');
+        }
+    } else if (phase === 'killed') {
+        drone.vel.z *= (1 - Math.min(dt * 2.0, 1));
+        drone.vel.y += GRAVITY.y * dt;
+        drone.pos.addScaledVector(drone.vel, dt);
+        if (drone.pos.y < 0.6) {
+            drone.pos.y = 0.6; drone.vel.set(0, 0, 0);
+            phaseTimer += dt;
+            if (phaseTimer > 1.0) { phaseTimer = 0; finishCurrentStage(); }
+        }
+        drone.mesh.position.copy(drone.pos);
+    }
+}
+
+// ---------- ② 訊號失靈 ----------
+function setupSignalStage() {
+    phase = 'wait';
+    phaseTimer = 0;
+    trackedKeyPresses = 0;
+}
+
+function updateSignalStage(dt) {
+    if (phase === 'wait') {
+        updatePhysics(dt);
+        phaseTimer += dt;
+        if (phaseTimer >= 2.0) {
+            phase = 'blackout'; phaseTimer = 0; trackedKeyPresses = 0;
+            controlsLocked = true;
+            const banner = document.getElementById('event-banner');
+            banner.classList.remove('hidden'); banner.classList.add('flex');
+            document.getElementById('event-banner-text').textContent = '📡 訊號遺失';
+            document.getElementById('event-banner-sub').textContent = '保持冷靜，不要重複按鍵操作，無人機會自動觸發失控保護懸停';
+        }
+    } else if (phase === 'blackout') {
+        updateFailsafeHover(dt);
+        phaseTimer += dt;
+        if (phaseTimer >= 4.0) {
+            phase = 'recover'; phaseTimer = 0;
+            controlsLocked = false;
+            document.getElementById('event-banner').classList.add('hidden');
+            document.getElementById('event-banner').classList.remove('flex');
+
+            const feedback = trackedKeyPresses <= 2
+                ? `✅ 訊號恢復！你在中斷期間只按了 ${trackedKeyPresses} 次鍵，反應非常冷靜。`
+                : `⚠️ 訊號恢復。你在中斷期間按了 ${trackedKeyPresses} 次鍵——訊號中斷時瘋狂按鍵不會有幫助，下次試著先觀察、再行動。`;
+            document.getElementById('instruction-title').textContent = '訊號已恢復';
+            document.getElementById('instruction-text').textContent = feedback + '　現在請飛向前方的綠色降落標記，安全返航。';
+
+            const pad = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.12, 8, 28), new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x22c55e, emissiveIntensity: 1.2 }));
+            pad.position.set(0, HOVER_Y, -10);
+            scene.add(pad);
+            targetObjects.pad = pad;
+        }
+    } else if (phase === 'recover') {
+        updatePhysics(dt);
+        if (targetObjects.pad && checkRingPass(drone.pos, targetObjects.pad, 1.8, 1.5)) {
+            finishCurrentStage();
+        }
+    }
+}
+
+// ---------- ③ 被擦撞失控 ----------
+function setupCollisionStage() {
+    phase = 'wait';
+    phaseTimer = 0;
+    trackedKeyPresses = 0;
+
+    const intruder = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), new THREE.MeshStandardMaterial({ color: 0xf87171, emissive: 0xf87171, emissiveIntensity: 1.2 }));
+    intruder.position.set(-10, HOVER_Y - 1.5, -2);
+    scene.add(intruder);
+    targetObjects.intruder = intruder;
+}
+
+function updateCollisionStage(dt) {
+    if (phase === 'wait') {
+        updatePhysics(dt);
+        phaseTimer += dt;
+
+        // 入侵無人機從左側快速飛過畫面
+        const t = Math.min(phaseTimer / 1.6, 1);
+        targetObjects.intruder.position.x = THREE.MathUtils.lerp(-10, 10, t);
+
+        if (phaseTimer >= 1.6) {
+            phase = 'tumble'; phaseTimer = 0; trackedKeyPresses = 0;
+            controlsLocked = true;
+            drone.vel.add(new THREE.Vector3((Math.random() - 0.5) * 6, 1.5, (Math.random() - 0.5) * 6));
+            scene.remove(targetObjects.intruder);
+
+            const banner = document.getElementById('event-banner');
+            banner.classList.remove('hidden'); banner.classList.add('flex');
+            document.getElementById('event-banner-text').textContent = '💥 遭到擦撞！';
+            document.getElementById('event-banner-sub').textContent = '姿態暫時失控，冷靜等待機身可以重新操控的時機';
+        }
+    } else if (phase === 'tumble') {
+        drone.rot.x += (Math.random() - 0.5) * 8 * dt;
+        drone.rot.z += (Math.random() - 0.5) * 8 * dt;
+        drone.q.setFromEuler(drone.rot);
+        drone.vel.addScaledVector(GRAVITY, dt);
+        drone.vel.multiplyScalar(1 - Math.min(dt * 0.8, 1));
+        drone.pos.addScaledVector(drone.vel, dt);
+        if (drone.pos.y < 0.8) drone.pos.y = 0.8;
+        drone.mesh.position.copy(drone.pos);
+        drone.mesh.quaternion.copy(drone.q);
+
+        phaseTimer += dt;
+        if (phaseTimer >= 1.5) {
+            phase = 'stabilize'; phaseTimer = 0;
+            controlsLocked = false;
+            document.getElementById('event-banner').classList.add('hidden');
+            document.getElementById('event-banner').classList.remove('flex');
+            document.getElementById('instruction-title').textContent = '操控已恢復';
+            document.getElementById('instruction-text').textContent = '機身還在搖晃，慢慢用四個方向的操作把它穩定下來，保持水平懸停 1.5 秒即可完成。';
+            document.getElementById('hold-progress-wrap').classList.remove('hidden');
+        }
+    } else if (phase === 'stabilize') {
+        updatePhysics(dt);
+        const stable = drone.vel.length() < 1.2 && Math.abs(drone.rot.x) < 0.18 && Math.abs(drone.rot.z) < 0.18;
+        setHoldProgress(stable, dt);
+    }
+}
+
+function setHoldProgress(inRange, dt) {
+    if (inRange) {
+        holdTimer += dt;
+        if (holdTimer >= 1.5) { finishCurrentStage(); return; }
+    } else {
+        holdTimer = Math.max(0, holdTimer - dt * 1.5);
+    }
+    document.getElementById('hold-progress-fill').style.width = `${(holdTimer / 1.5) * 100}%`;
+}
+
+// ==========================================================
+// 關卡切換與儲存
+// ==========================================================
+async function finishCurrentStage() {
+    if (stageLocked) return;
+    stageLocked = true;
+    controlsLocked = false;
+
+    if (stageIndex >= STAGES.length - 1) {
+        await saveProgress({ completed: true });
+        document.getElementById('complete-modal').classList.remove('hidden');
+        document.getElementById('complete-modal').classList.add('flex');
+        return;
+    }
+    goToStage(stageIndex + 1);
+}
+
+function gasGetProgress(storageKey) {
+    return new Promise((resolve) => {
+        try {
+            const raw = localStorage.getItem(storageKey);
+            resolve(raw ? JSON.parse(raw) : null);
+        } catch(e) { resolve(null); }
+    });
+}
+
+async function saveProgress(patch) {
+    const existing = (await gasGetProgress(STORAGE_KEY)) || {};
+    const merged = Object.assign({}, existing, patch);
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    } catch(e) { console.error('儲存進度失敗', e); }
+}
+
+// ==========================================================
+// UI 事件
+// ==========================================================
+function setupUI() {
+    setupCameraSwitcher();
+    document.getElementById('btn-start-training').addEventListener('click', () => {
+        document.getElementById('intro-modal').classList.add('hidden');
+        goToStage(0);
+    });
+    document.getElementById('btn-restart-all').addEventListener('click', () => {
+        document.getElementById('complete-modal').classList.add('hidden');
+        document.getElementById('complete-modal').classList.remove('flex');
+        goToStage(0);
+    });
+    document.getElementById('btn-retry-kill').addEventListener('click', () => {
+        document.getElementById('kill-fail-modal').classList.add('hidden');
+        document.getElementById('kill-fail-modal').classList.remove('flex');
+        phaseTimer = 0;
+        setupKillStage();
+        drone.pos.set(0, 1.5, 5); drone.vel.set(0, 0, 0);
+        drone.rot.set(0, 0, 0, 'YXZ'); drone.q.setFromEuler(drone.rot);
+    });
+}
+
+// ==========================================================
+// 相機
+// ==========================================================
+function updateCamera() {
+    if (cameraMode === 'TPV') {
+        const followOffset = new THREE.Vector3(0, 2.2, 6.5).applyEuler(new THREE.Euler(0, drone.rot.y * 0.3, 0));
+        camera.position.lerp(new THREE.Vector3().copy(drone.pos).add(followOffset), 0.12);
+        camera.lookAt(new THREE.Vector3().copy(drone.pos).add(new THREE.Vector3(0, 0.5, 0)));
+    } else if (cameraMode === 'FPV') {
+        camera.position.copy(drone.pos);
+        camera.quaternion.copy(drone.q);
+        camera.translateZ(-0.3);
+    } else if (cameraMode === 'Spec') {
+        let specPos = new THREE.Vector3(9, 5, 8);
+        if (pilotPosMode === 'left') specPos.set(-9, 5, 8);
+        else if (pilotPosMode === 'mid') specPos.set(0, 5, 13);
+        camera.position.lerp(specPos, 0.08);
+        camera.lookAt(drone.pos);
+    }
+}
+
+const CAMERA_MODES = ['TPV', 'FPV', 'Spec'];
+const PILOT_POSITIONS = ['left', 'mid', 'right'];
+
+function setCameraMode(mode) {
+    cameraMode = mode;
+    const camTpv = document.getElementById('cam-tpv');
+    const camFpv = document.getElementById('cam-fpv');
+    const camSpec = document.getElementById('cam-spec');
+    const pilotSubmenu = document.getElementById('pilot-position-submenu');
+    const activeClass = "bg-cyan-500 text-slate-950 text-[9px] font-bold py-1 rounded";
+    const inactiveClass = "bg-slate-800 text-slate-400 text-[9px] font-bold py-1 rounded";
+    [camTpv, camFpv, camSpec].forEach(b => b.className = inactiveClass);
+    pilotSubmenu.classList.toggle('hidden', mode !== 'Spec');
+    if (mode === 'TPV') camTpv.className = activeClass;
+    else if (mode === 'FPV') camFpv.className = activeClass;
+    else if (mode === 'Spec') camSpec.className = activeClass;
+}
+
+function cycleCameraMode() {
+    const idx = CAMERA_MODES.indexOf(cameraMode);
+    setCameraMode(CAMERA_MODES[(idx + 1) % CAMERA_MODES.length]);
+}
+
+function setPilotPos(pos) {
+    pilotPosMode = pos;
+    const pilotLeft = document.getElementById('pilot-pos-left');
+    const pilotMid = document.getElementById('pilot-pos-mid');
+    const pilotRight = document.getElementById('pilot-pos-right');
+    const pilotActive = "bg-cyan-950 text-cyan-300 border border-cyan-800 text-[8px] font-bold py-0.5 rounded";
+    const pilotInactive = "bg-slate-800 text-slate-400 text-[8px] font-bold py-0.5 rounded";
+    [pilotLeft, pilotMid, pilotRight].forEach(b => b.className = pilotInactive);
+    if (pos === 'left') pilotLeft.className = pilotActive;
+    else if (pos === 'mid') pilotMid.className = pilotActive;
+    else pilotRight.className = pilotActive;
+}
+
+function cyclePilotPos() {
+    if (cameraMode !== 'Spec') return;
+    const idx = PILOT_POSITIONS.indexOf(pilotPosMode);
+    setPilotPos(PILOT_POSITIONS[(idx + 1) % PILOT_POSITIONS.length]);
+}
+
+function setupCameraSwitcher() {
+    document.getElementById('cam-tpv').addEventListener('click', () => setCameraMode('TPV'));
+    document.getElementById('cam-fpv').addEventListener('click', () => setCameraMode('FPV'));
+    document.getElementById('cam-spec').addEventListener('click', () => setCameraMode('Spec'));
+    document.getElementById('pilot-pos-left').addEventListener('click', () => setPilotPos('left'));
+    document.getElementById('pilot-pos-mid').addEventListener('click', () => setPilotPos('mid'));
+    document.getElementById('pilot-pos-right').addEventListener('click', () => setPilotPos('right'));
+}
+
+// ==========================================================
+// 主迴圈
+// ==========================================================
+function animate() {
+    requestAnimationFrame(animate);
+    let dt = clock.getDelta();
+    if (dt > 0.1) dt = 0.1;
+
+    const introHidden = document.getElementById('intro-modal').classList.contains('hidden');
+    const completeShown = document.getElementById('complete-modal').classList.contains('flex');
+    const killFailShown = document.getElementById('kill-fail-modal').classList.contains('flex');
+
+    if (!introHidden || completeShown) {
+        renderer.render(scene, camera);
+        return;
+    }
+
+    pollInputs();
+
+    if (!killFailShown) {
+        const stage = STAGES[stageIndex];
+        if (stage === 'kill') updateKillStage(dt);
+        else if (stage === 'signal') updateSignalStage(dt);
+        else if (stage === 'collision') updateCollisionStage(dt);
+    }
+
+    updateCamera();
+    document.getElementById('hud-alt').textContent = drone.pos.y.toFixed(1);
+
+    renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>

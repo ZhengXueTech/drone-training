@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>無人機飛行員培訓 - 第四階段：飛行風險與環境應對</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+    body {
+        font-family: 'Orbitron', 'Share Tech Mono', sans-serif;
+        background-color: #0b0f19;
+        user-select: none; -webkit-user-select: none;
+        touch-action: none; overflow: hidden;
+    }
+    ::-webkit-scrollbar { display: none; }
+
+    .neon-border-cyan { box-shadow: 0 0 15px rgba(6,182,212,0.35), inset 0 0 15px rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.55); }
+    .neon-border-magenta { box-shadow: 0 0 15px rgba(217,70,239,0.35), inset 0 0 15px rgba(217,70,239,0.15); border: 1px solid rgba(217,70,239,0.55); }
+    .neon-border-amber { box-shadow: 0 0 15px rgba(251,191,36,0.30), inset 0 0 15px rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.5); }
+    .neon-text-cyan { text-shadow: 0 0 8px rgba(6,182,212,0.8); }
+
+    .glass-panel { background: rgba(15,23,42,0.78); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+
+    .key-cap {
+        width: 40px; height: 40px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 900; font-size: 13px;
+        border: 2px solid rgba(100,116,139,0.4);
+        background: rgba(30,41,59,0.6);
+        color: rgba(148,163,184,0.5);
+    }
+
+    .stage-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(100,116,139,0.4); transition: all .3s; }
+    .stage-dot.done { background: #22d3ee; box-shadow: 0 0 6px #22d3ee; }
+    .stage-dot.current { background: #facc15; box-shadow: 0 0 8px #facc15; }
+
+    .stat-track { background: rgba(15,23,42,0.8); border: 1px solid rgba(148,163,184,0.25); }
+    .stat-fill { transition: width 0.3s ease; }
+
+    @keyframes pulseWarn { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .pulse-warn { animation: pulseWarn 0.6s ease-in-out infinite; }
+
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body class="relative w-screen h-screen text-slate-100">
+
+<div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+<!-- ============ TOP HUD ============ -->
+<div class="absolute top-0 left-0 w-full p-3 md:p-5 z-10 pointer-events-none flex justify-between items-start">
+    <div class="glass-panel neon-border-cyan rounded-xl px-4 py-2.5 flex flex-col gap-1 pointer-events-auto">
+        <div class="text-[10px] text-cyan-400 tracking-widest font-bold uppercase">PILOT TRAINING · STAGE 4</div>
+        <h1 id="stage-title" class="text-sm md:text-base font-black text-white tracking-wide">飛行風險與環境應對</h1>
+        <div class="flex gap-1.5 mt-1">
+            <div class="stage-dot" data-dot="1"></div>
+            <div class="stage-dot" data-dot="2"></div>
+        </div>
+    </div>
+
+    <div class="glass-panel neon-border-cyan rounded-xl px-4 py-2.5 flex flex-col gap-1.5 pointer-events-auto min-w-[160px]">
+        <div class="flex items-center justify-between gap-2">
+            <span class="text-[9px] text-cyan-400 tracking-wider">高度 ALT</span>
+            <span class="text-sm font-bold text-white"><span id="hud-alt">0.0</span> m</span>
+        </div>
+        <div id="stat-durability-wrap" class="hidden flex-col gap-0.5">
+            <div class="flex justify-between text-[9px] text-slate-400"><span>機體耐久度</span><span id="val-durability">100%</span></div>
+            <div class="stat-track h-2 rounded-full overflow-hidden"><div id="fill-durability" class="stat-fill h-full bg-emerald-400" style="width:100%"></div></div>
+        </div>
+        <div id="stat-battery-wrap" class="hidden flex-col gap-0.5">
+            <div class="flex justify-between text-[9px] text-slate-400"><span>電池電量</span><span id="val-battery">100%</span></div>
+            <div class="stat-track h-2 rounded-full overflow-hidden"><div id="fill-battery" class="stat-fill h-full bg-cyan-400" style="width:100%"></div></div>
+        </div>
+        <div class="w-full h-px bg-slate-700/60 my-0.5"></div>
+        <div class="flex items-center justify-between gap-2">
+            <span class="text-[9px] text-slate-400">XYZ 距離提示</span>
+            <button id="btn-toggle-distance" class="bg-emerald-600 text-slate-950 text-[9px] font-bold px-2 py-0.5 rounded">開</button>
+        </div>
+        <div id="distance-hint-rows" class="flex flex-col gap-0.5 mt-0.5 font-mono text-[10px]">
+            <div id="row-lateral" class="flex justify-between text-slate-300 hidden"><span>左右</span><span id="val-lateral">--</span></div>
+            <div id="row-vertical" class="flex justify-between text-slate-300 hidden"><span>高度</span><span id="val-vertical">--</span></div>
+            <div id="row-forward" class="flex justify-between text-slate-300 hidden"><span>前後</span><span id="val-forward">--</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ CAMERA SWITCHER ============ -->
+<div class="absolute bottom-24 right-3 md:bottom-28 md:right-5 z-10 pointer-events-auto glass-panel neon-border-cyan rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
+    <div class="text-[9px] text-cyan-400 font-mono tracking-wider text-center">相機視角</div>
+    <div class="grid grid-cols-3 gap-1">
+        <button id="cam-tpv" class="bg-cyan-500 text-slate-950 text-[9px] font-bold py-1 rounded">TPV</button>
+        <button id="cam-fpv" class="bg-slate-800 text-slate-400 text-[9px] font-bold py-1 rounded">FPV</button>
+        <button id="cam-spec" class="bg-slate-800 text-slate-400 text-[9px] font-bold py-1 rounded">站位</button>
+    </div>
+    <div id="pilot-position-submenu" class="hidden grid grid-cols-3 gap-1">
+        <button id="pilot-pos-left" class="bg-slate-800 text-slate-400 text-[8px] font-bold py-0.5 rounded">左</button>
+        <button id="pilot-pos-mid" class="bg-slate-800 text-slate-400 text-[8px] font-bold py-0.5 rounded">中</button>
+        <button id="pilot-pos-right" class="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[8px] font-bold py-0.5 rounded">右</button>
+    </div>
+    <div class="text-[8px] text-slate-500 font-mono text-center leading-tight border-t border-slate-700/60 pt-1 mt-0.5">
+        鍵盤 C/V　搖桿 Start/Select
+    </div>
+</div>
+
+<!-- ============ INSTRUCTION PANEL ============ -->
+<div id="instruction-panel" class="absolute left-1/2 top-20 md:top-24 -translate-x-1/2 z-10 pointer-events-none w-[92%] max-w-md">
+    <div class="glass-panel neon-border-magenta rounded-2xl px-5 py-3 flex flex-col gap-1 text-center">
+        <div id="instruction-title" class="text-xs font-black text-fuchsia-400 uppercase tracking-wider"></div>
+        <div id="instruction-text" class="text-[11px] text-slate-300 font-mono leading-relaxed"></div>
+    </div>
+</div>
+
+<!-- ============ CHARGING HINT ============ -->
+<div id="charging-hint" class="absolute left-1/2 bottom-40 -translate-x-1/2 z-10 pointer-events-none w-[70%] max-w-xs hidden">
+    <div class="text-center text-xs font-black text-yellow-300 pulse-warn mb-1">⚡ 停留在充電站上方進行充電</div>
+    <div class="stat-track h-3 rounded-full overflow-hidden">
+        <div id="charging-fill" class="stat-fill h-full bg-gradient-to-r from-yellow-400 to-emerald-400" style="width:0%"></div>
+    </div>
+</div>
+
+<!-- ============ WIND HUD ============ -->
+<div id="wind-hint" class="absolute left-1/2 bottom-40 -translate-x-1/2 z-10 pointer-events-none w-[80%] max-w-sm hidden">
+    <div class="glass-panel neon-border-amber rounded-xl px-4 py-2.5 flex items-center justify-center gap-3">
+        <span id="wind-arrow" class="text-2xl inline-block transition-transform duration-300">➤</span>
+        <span id="wind-text" class="text-xs font-black text-amber-300 tracking-wide">偵測風向中...</span>
+    </div>
+</div>
+
+<!-- ============ BOTTOM CONTROLS ============ -->
+<div class="absolute bottom-0 left-0 w-full p-3 md:p-5 z-10 pointer-events-none flex flex-col items-center gap-2">
+    <div id="gamepad-status" class="hidden glass-panel neon-border-cyan rounded-full px-4 py-1.5 text-[10px] font-bold text-emerald-400 flex items-center gap-2 pointer-events-auto">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        🎮 已偵測到搖桿，使用左右類比搖桿操作
+    </div>
+    <div class="glass-panel neon-border-cyan rounded-2xl px-5 py-3 flex items-center gap-8 pointer-events-auto">
+        <div class="flex flex-col items-center gap-1.5">
+            <div class="text-[9px] text-slate-400 font-mono">油門 / 偏航</div>
+            <div class="grid grid-cols-3 gap-1">
+                <div></div><div id="key-w" class="key-cap">W</div><div></div>
+                <div id="key-a" class="key-cap">A</div><div></div><div id="key-d" class="key-cap">D</div>
+                <div></div><div id="key-s" class="key-cap">S</div><div></div>
+            </div>
+        </div>
+        <div class="w-px h-16 bg-slate-700/60"></div>
+        <div class="flex flex-col items-center gap-1.5">
+            <div class="text-[9px] text-slate-400 font-mono">俯仰 / 翻滾</div>
+            <div class="grid grid-cols-3 gap-1">
+                <div></div><div id="key-up" class="key-cap">↑</div><div></div>
+                <div id="key-left" class="key-cap">←</div><div></div><div id="key-right" class="key-cap">→</div>
+                <div></div><div id="key-down" class="key-cap">↓</div><div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ INTRO MODAL ============ -->
+<div id="intro-modal" class="absolute inset-0 bg-slate-950/92 backdrop-blur-lg z-40 flex items-center justify-center p-4">
+    <div class="glass-panel neon-border-cyan rounded-2xl p-6 md:p-8 text-center max-w-xl flex flex-col gap-5">
+        <div class="flex flex-col gap-1">
+            <span class="text-xs text-cyan-400 tracking-widest font-black uppercase">Stage 4 · Risk &amp; Environment</span>
+            <h2 class="text-xl md:text-2xl font-black text-cyan-400 neon-text-cyan tracking-wide">飛行風險與環境應對</h2>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed text-left font-mono">
+            這一關會練習兩個真實飛行中常遇到的狀況：<br><br>
+            <span class="text-cyan-400 font-bold">① 墜機後果與換電池</span>：從起點飛到終點，途中要閃避障礙物（撞到會讓機體受損），並在半路的充電站補充電量，兩者都歸零會迫降失敗。<br>
+            <span class="text-cyan-400 font-bold">② 陣風環境干擾</span>：飛行中會隨機出現側風，把機身吹偏，要練習即時修正、依序穿過所有檢查點。
+        </p>
+        <button id="btn-start-training" class="bg-gradient-to-r from-cyan-500 to-teal-400 hover:scale-105 transition duration-300 text-slate-950 font-black py-3 rounded-xl uppercase tracking-widest text-xs shadow-lg shadow-cyan-500/20">
+            🚀 開始第一項：墜機後果與換電池
+        </button>
+    </div>
+</div>
+
+<!-- ============ FAIL MODAL ============ -->
+<div id="fail-modal" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-30 hidden items-center justify-center p-4">
+    <div class="glass-panel neon-border-amber rounded-2xl p-6 text-center max-w-sm flex flex-col gap-4">
+        <div class="text-3xl">⚠️</div>
+        <h2 id="fail-title" class="text-lg font-black text-amber-400 uppercase tracking-wide">迫降了！</h2>
+        <p id="fail-text" class="text-[11px] text-slate-300 font-mono leading-relaxed"></p>
+        <button id="btn-retry-stage" class="w-full bg-amber-600 hover:bg-amber-500 text-slate-950 font-black py-2.5 rounded-xl uppercase tracking-widest text-xs transition">
+            🔄 重新挑戰
+        </button>
+    </div>
+</div>
+
+<!-- ============ COMPLETE MODAL ============ -->
+<div id="complete-modal" class="absolute inset-0 bg-slate-950/92 backdrop-blur-lg z-40 hidden items-center justify-center p-4">
+    <div class="glass-panel neon-border-cyan rounded-2xl p-6 md:p-8 text-center max-w-lg flex flex-col gap-4">
+        <div class="text-3xl">🏆</div>
+        <h2 class="text-lg md:text-xl font-black text-cyan-400 neon-text-cyan uppercase tracking-wide">操作教學 全部完成！</h2>
+        <p class="text-sm text-slate-300 font-mono">你已經完成搖桿對應、緊急處置、墜機風險與環境干擾的完整訓練。</p>
+        <div class="w-full bg-cyan-950/50 border border-cyan-800 rounded-xl py-3 px-4 text-[11px] text-cyan-300 font-mono">
+            🔓 已解鎖：三、無人機障礙賽遊戲（開發中）
+        </div>
+        <button id="btn-restart-all" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition">
+            重新練習本階段
+        </button>
+        <a href="index.html" target="_top" class="w-full bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-800 text-cyan-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition text-center">
+            🏠 返回訓練總覽
+        </a>
+    </div>
+</div>
+
+<script>
+// ==========================================================
+// 場景與無人機
+// ==========================================================
+let scene, camera, renderer, clock;
+let drone = {
+    pos: new THREE.Vector3(0, 1.5, 5),
+    vel: new THREE.Vector3(),
+    rot: new THREE.Euler(0, 0, 0, 'YXZ'),
+    q: new THREE.Quaternion(),
+    mesh: null, glowMesh: null
+};
+const GRAVITY = new THREE.Vector3(0, -9.81, 0);
+const HOVER_Y = 4.0;
+
+let controls = { throttle: 0, yaw: 0, pitch: 0, roll: 0 };
+const keysPressed = {};
+let distanceHintEnabled = true; // XYZ 距離提示開關，預設開啟
+let cameraMode = 'TPV'; // TPV | FPV | Spec
+let pilotPosMode = 'right'; // left | mid | right
+let gpCamBtnPrev = false;   // 搖桿「切換視角」按鈕的上一幀狀態
+let gpPilotBtnPrev = false; // 搖桿「切換站位」按鈕的上一幀狀態
+
+const STAGES = ['crash', 'wind'];
+let stageIndex = 0;
+let stageLocked = false;
+let targetObjects = {};
+let phase = '';
+let phaseTimer = 0;
+let invulnTimer = 0; // 撞擊後的短暫無敵時間，避免同一次碰撞連續扣好幾次耐久度
+
+const STORAGE_KEY = 'training-stage4-progress';
+
+
+window.onload = function () {
+    init3D();
+    setupKeyboard();
+    setupUI();
+    animate();
+};
+
+function init3D() {
+    const container = document.getElementById('canvas-container');
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0c1020, 0.014);
+
+    camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 5, 14);
+
+    scene.add(new THREE.AmbientLight(0x0f172a, 1.3));
+    const dLight = new THREE.DirectionalLight(0x22d3ee, 0.8);
+    dLight.position.set(0, 15, 5);
+    scene.add(dLight);
+
+    scene.add(new THREE.GridHelper(100, 60, 0x06b6d4, 0x1e293b));
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: 0x070b12, roughness: 0.85 }));
+    floor.rotation.x = -Math.PI / 2;
+    scene.add(floor);
+
+    buildDrone();
+    clock = new THREE.Clock();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
+function buildDrone() {
+    const group = new THREE.Group();
+    drone.glowMesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 0.8, wireframe: true, transparent: true, opacity: 0.7 }));
+    group.add(drone.glowMesh);
+    group.add(new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 })));
+    const armMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8 });
+    const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.75, 8), armMat);
+    arm1.rotation.z = Math.PI / 4; arm1.rotation.y = Math.PI / 4; group.add(arm1);
+    const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.75, 8), armMat);
+    arm2.rotation.z = -Math.PI / 4; arm2.rotation.y = Math.PI / 4; group.add(arm2);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.2, 4), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+    nose.rotation.x = -Math.PI / 2; nose.position.set(0, 0, -0.3); group.add(nose);
+    const tailLight = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    tailLight.position.set(0, 0, 0.4); group.add(tailLight);
+    const tailGlow = new THREE.PointLight(0xef4444, 0.6, 1.5);
+    tailGlow.position.set(0, 0, 0.4); group.add(tailGlow);
+
+    drone.mesh = group;
+    drone.mesh.position.copy(drone.pos);
+    scene.add(drone.mesh);
+}
+
+// ==========================================================
+// 輸入
+// ==========================================================
+function setupKeyboard() {
+    window.addEventListener('keydown', e => {
+        const k = e.key.toLowerCase();
+        if (k === 'c' && !keysPressed[k]) cycleCameraMode();
+        if (k === 'v' && !keysPressed[k]) cyclePilotPos();
+        keysPressed[k] = true;
+    });
+    window.addEventListener('keyup', e => { keysPressed[e.key.toLowerCase()] = false; });
+}
+
+function getActiveGamepad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (let i = 0; i < pads.length; i++) {
+        if (pads[i] && pads[i].connected) return pads[i];
+    }
+    return null;
+}
+
+function pollInputs() {
+    const gp = getActiveGamepad();
+    const gamepadBadge = document.getElementById('gamepad-status');
+    if (gp) {
+        gamepadBadge.classList.remove('hidden');
+        const dz = v => Math.abs(v) > 0.12 ? v : 0;
+        controls.yaw = dz(gp.axes[0]);
+        controls.throttle = -dz(gp.axes[1]);
+        controls.roll = dz(gp.axes[2]);
+        controls.pitch = dz(gp.axes[3]);
+
+        const camBtn = !!(gp.buttons[9] && gp.buttons[9].pressed);
+        if (camBtn && !gpCamBtnPrev) cycleCameraMode();
+        gpCamBtnPrev = camBtn;
+
+        const pilotBtn = !!(gp.buttons[8] && gp.buttons[8].pressed);
+        if (pilotBtn && !gpPilotBtnPrev) cyclePilotPos();
+        gpPilotBtnPrev = pilotBtn;
+    } else {
+        gamepadBadge.classList.add('hidden');
+        controls.throttle = keysPressed['w'] ? 1 : (keysPressed['s'] ? -1 : 0);
+        controls.yaw = keysPressed['d'] ? 1 : (keysPressed['a'] ? -1 : 0);
+        controls.pitch = keysPressed['arrowup'] ? -1 : (keysPressed['arrowdown'] ? 1 : 0);
+        controls.roll = keysPressed['arrowleft'] ? -1 : (keysPressed['arrowright'] ? 1 : 0);
+    }
+
+    ['w','s','a','d'].forEach(k => updateKeyVisual('key-' + k, keysPressed[k]));
+    updateKeyVisual('key-up', keysPressed['arrowup']);
+    updateKeyVisual('key-down', keysPressed['arrowdown']);
+    updateKeyVisual('key-left', keysPressed['arrowleft']);
+    updateKeyVisual('key-right', keysPressed['arrowright']);
+}
+
+function updateKeyVisual(id, pressed) {
+    const el = document.getElementById(id);
+    el.style.borderColor = pressed ? '#22d3ee' : '';
+    el.style.background = pressed ? 'linear-gradient(180deg,#67e8f9,#22d3ee)' : '';
+    el.style.color = pressed ? '#0b0f19' : '';
+}
+
+// ==========================================================
+// 物理
+// ==========================================================
+let windForce = new THREE.Vector3(0, 0, 0); // 陣風關卡專用的外力
+
+function updatePhysics(dt) {
+    const throttle = controls.throttle, yaw = controls.yaw, pitch = controls.pitch, roll = controls.roll;
+
+    const targetYVel = throttle * 3.5;
+    const autoThrustForce = (targetYVel - drone.vel.y) * 12.0 + 9.81;
+
+    drone.rot.y += (-yaw * 1.8) * dt;
+    drone.rot.x = THREE.MathUtils.lerp(drone.rot.x, -pitch * 0.4, 8 * dt);
+    drone.rot.z = THREE.MathUtils.lerp(drone.rot.z, roll * 0.4, 8 * dt);
+    drone.q.setFromEuler(drone.rot);
+
+    const facingDir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
+    const strafeDir = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
+    const thrustHoriz = new THREE.Vector3().addScaledVector(facingDir, -pitch * 8.0).addScaledVector(strafeDir, roll * 8.0);
+
+    const totalForce = new THREE.Vector3(0, autoThrustForce, 0).add(thrustHoriz).add(GRAVITY).add(windForce);
+    const hDamp = (pitch === 0 && roll === 0) ? 6.0 : 1.2;
+    totalForce.add(new THREE.Vector3(-drone.vel.x * hDamp, -drone.vel.y * 1.5, -drone.vel.z * hDamp));
+
+    drone.vel.addScaledVector(totalForce, dt);
+    drone.pos.addScaledVector(drone.vel, dt);
+
+    if (drone.pos.y < 0.6) { drone.pos.y = 0.6; drone.vel.y = Math.max(drone.vel.y, 0); }
+
+    drone.mesh.position.copy(drone.pos);
+    drone.mesh.quaternion.copy(drone.q);
+}
+
+// 動力喪失時的自由落體（電池耗盡 / 機體損毀迫降）
+function updatePowerLossFall(dt) {
+    drone.vel.addScaledVector(GRAVITY, dt);
+    drone.vel.multiplyScalar(1 - Math.min(dt * 0.5, 1));
+    drone.pos.addScaledVector(drone.vel, dt);
+    if (drone.pos.y < 0.6) { drone.pos.y = 0.6; drone.vel.set(0, 0, 0); }
+    drone.mesh.position.copy(drone.pos);
+}
+
+function checkRingPass(dronePos, ring, radius, axisTolerance) {
+    const ringNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(ring.quaternion);
+    const toPoint = new THREE.Vector3().subVectors(dronePos, ring.position);
+    const alongAxis = toPoint.dot(ringNormal);
+    const radial = toPoint.clone().addScaledVector(ringNormal, -alongAxis).length();
+    return Math.abs(alongAxis) < axisTolerance && radial < radius;
+}
+
+function clearTargets() {
+    Object.values(targetObjects).forEach(obj => { if (obj instanceof THREE.Object3D) scene.remove(obj); });
+    targetObjects = {};
+}
+
+// ==========================================================
+// 關卡設置
+// ==========================================================
+const stageMeta = {
+    crash: { title: '① 墜機後果與換電池', text: '從起點飛到終點，途中請小心避開灰色障礙柱。撞到會讓機體耐久度下降，電池會持續消耗，記得在充電站補充電量。' },
+    wind:  { title: '② 陣風環境干擾', text: '飛行途中會隨機吹來側風，把機身往旁邊推。留意上方的風向箭頭，即時反向修正，依序穿過三個檢查點。' }
+};
+
+function goToStage(idx) {
+    stageLocked = false;
+    stageIndex = idx;
+    const stage = STAGES[stageIndex];
+    const meta = stageMeta[stage];
+    document.getElementById('stage-title').textContent = meta.title;
+    document.getElementById('instruction-title').textContent = meta.title;
+    document.getElementById('instruction-text').textContent = meta.text;
+
+    document.getElementById('stat-durability-wrap').classList.add('hidden');
+    document.getElementById('stat-durability-wrap').classList.remove('flex');
+    document.getElementById('stat-battery-wrap').classList.add('hidden');
+    document.getElementById('stat-battery-wrap').classList.remove('flex');
+    document.getElementById('charging-hint').classList.add('hidden');
+    document.getElementById('wind-hint').classList.add('hidden');
+    document.getElementById('fail-modal').classList.add('hidden');
+    document.getElementById('fail-modal').classList.remove('flex');
+
+    document.querySelectorAll('.stage-dot').forEach((dot, i) => {
+        dot.classList.toggle('done', i < idx);
+        dot.classList.toggle('current', i === idx);
+    });
+
+    drone.pos.set(0, 1.5, 5); drone.vel.set(0, 0, 0);
+    drone.rot.set(0, 0, 0, 'YXZ'); drone.q.setFromEuler(drone.rot);
+    windForce.set(0, 0, 0);
+
+    clearTargets();
+    phaseTimer = 0;
+    invulnTimer = 0;
+
+    if (stage === 'crash') setupCrashStage();
+    if (stage === 'wind') setupWindStage();
+
+    saveProgress({ lastStage: idx });
+}
+
+// ---------- ① 墜機後果與換電池 ----------
+let durability = 100;
+let battery = 100;
+
+function setupCrashStage() {
+    phase = 'flying';
+    durability = 100;
+    battery = 100;
+    document.getElementById('stat-durability-wrap').classList.remove('hidden');
+    document.getElementById('stat-durability-wrap').classList.add('flex');
+    document.getElementById('stat-battery-wrap').classList.remove('hidden');
+    document.getElementById('stat-battery-wrap').classList.add('flex');
+    updateStatBars();
+
+    const pillarPositions = [
+        new THREE.Vector3(-3, HOVER_Y, -10),
+        new THREE.Vector3(3, HOVER_Y, -20),
+        new THREE.Vector3(-2.5, HOVER_Y, -28)
+    ];
+    pillarPositions.forEach((p, idx) => {
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 7, 12), new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.6, emissive: 0x334155, emissiveIntensity: 0.3 }));
+        pillar.position.copy(p);
+        scene.add(pillar);
+        targetObjects['pillar' + idx] = pillar;
+    });
+
+    const chargerPos = new THREE.Vector3(0, 0.3, -18);
+    const charger = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.4, 0.4, 20), new THREE.MeshStandardMaterial({ color: 0x1e293b, emissive: 0xeab308, emissiveIntensity: 0.6, metalness: 0.7 }));
+    charger.position.copy(chargerPos);
+    scene.add(charger);
+    targetObjects.charger = charger;
+    targetObjects.chargerPos = chargerPos;
+
+    const goal = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.13, 8, 28), new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x22c55e, emissiveIntensity: 1.2 }));
+    goal.position.set(0, HOVER_Y, -35);
+    scene.add(goal);
+    targetObjects.goal = goal;
+}
+
+function updateCrashStage(dt) {
+    if (phase === 'flying') {
+        updatePhysics(dt);
+
+        // 電池持續消耗
+        battery = Math.max(0, battery - dt * 4.0);
+
+        // 充電站：停留在上方即可回充
+        const distToCharger = new THREE.Vector2(drone.pos.x - targetObjects.chargerPos.x, drone.pos.z - targetObjects.chargerPos.z).length();
+        const overCharger = distToCharger < 2.6 && drone.pos.y < HOVER_Y + 1.5;
+        document.getElementById('charging-hint').classList.toggle('hidden', !overCharger);
+        if (overCharger) {
+            battery = Math.min(100, battery + dt * 30.0);
+            document.getElementById('charging-fill').style.width = `${battery}%`;
+        }
+
+        // 障礙柱碰撞判定
+        if (invulnTimer > 0) invulnTimer -= dt;
+        else {
+            for (let i = 0; i < 3; i++) {
+                const pillar = targetObjects['pillar' + i];
+                if (!pillar) continue;
+                const dx = drone.pos.x - pillar.position.x;
+                const dz = drone.pos.z - pillar.position.z;
+                const horizDist = Math.sqrt(dx * dx + dz * dz);
+                const verticalOk = Math.abs(drone.pos.y - pillar.position.y) < 3.5;
+                if (horizDist < 1.5 && verticalOk) {
+                    durability = Math.max(0, durability - 25);
+                    invulnTimer = 1.0;
+                    drone.vel.addScaledVector(new THREE.Vector3(dx, 0, dz).normalize(), 4.0);
+                    drone.glowMesh.material.color.setHex(0xff0000);
+                    setTimeout(() => { if (drone.glowMesh) drone.glowMesh.material.color.setHex(0x00ffff); }, 200);
+                    break;
+                }
+            }
+        }
+
+        updateStatBars();
+
+        if (durability <= 0) { triggerCrashFail('機體嚴重受損', '連續碰撞導致機體耐久度歸零，系統強制迫降。下次請放慢速度、提前閃避障礙柱。'); return; }
+        if (battery <= 0) { triggerCrashFail('電池電量耗盡', '電池沒有及時在充電站補充，動力完全喪失。記得電量偏低時要提早規劃降落或充電路線。'); return; }
+
+        if (targetObjects.goal) {
+            const ringNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(targetObjects.goal.quaternion);
+            const alongAxis = Math.abs(new THREE.Vector3().subVectors(drone.pos, targetObjects.goal.position).dot(ringNormal));
+            targetObjects.goal.material.emissiveIntensity = THREE.MathUtils.clamp(2.0 - alongAxis / 10, 0.6, 2.0);
+        }
+
+        if (checkRingPass(drone.pos, targetObjects.goal, 2.0, 1.6)) {
+            finishCurrentStage();
+        }
+    } else if (phase === 'falling') {
+        updatePowerLossFall(dt);
+    }
+}
+
+function triggerCrashFail(title, text) {
+    phase = 'falling';
+    document.getElementById('charging-hint').classList.add('hidden');
+    document.getElementById('fail-title').textContent = title;
+    document.getElementById('fail-text').textContent = text;
+    setTimeout(() => {
+        document.getElementById('fail-modal').classList.remove('hidden');
+        document.getElementById('fail-modal').classList.add('flex');
+    }, 900);
+}
+
+function updateStatBars() {
+    document.getElementById('val-durability').textContent = `${Math.round(durability)}%`;
+    document.getElementById('fill-durability').style.width = `${durability}%`;
+    document.getElementById('fill-durability').className = 'stat-fill h-full ' + (durability > 50 ? 'bg-emerald-400' : durability > 20 ? 'bg-yellow-400' : 'bg-rose-500');
+
+    document.getElementById('val-battery').textContent = `${Math.round(battery)}%`;
+    document.getElementById('fill-battery').style.width = `${battery}%`;
+    document.getElementById('fill-battery').className = 'stat-fill h-full ' + (battery > 50 ? 'bg-cyan-400' : battery > 20 ? 'bg-yellow-400' : 'bg-rose-500');
+}
+
+// ---------- ② 陣風環境干擾 ----------
+let windRings = [];
+let windIndex = 0;
+let gustTimer = 0;
+let gustActive = false;
+let gustDuration = 0;
+
+function setupWindStage() {
+    phase = 'flying';
+    windIndex = 0;
+    gustTimer = 1.5;
+    gustActive = false;
+    windForce.set(0, 0, 0);
+    document.getElementById('wind-hint').classList.remove('hidden');
+
+    windRings = [
+        new THREE.Vector3(2, HOVER_Y, -8),
+        new THREE.Vector3(-2, HOVER_Y + 0.6, -16),
+        new THREE.Vector3(0, HOVER_Y, -24)
+    ];
+    windRings.forEach((p, idx) => {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.12, 8, 28), new THREE.MeshStandardMaterial({ color: idx === 0 ? 0x22c55e : 0x64748b, emissive: idx === 0 ? 0x22c55e : 0x64748b, emissiveIntensity: idx === 0 ? 1.4 : 0.4 }));
+        ring.position.copy(p);
+        scene.add(ring);
+        targetObjects['wr' + idx] = ring;
+    });
+}
+
+function updateWindStage(dt) {
+    updateGusts(dt);
+    updatePhysics(dt);
+
+    const target = targetObjects['wr' + windIndex];
+    if (target) {
+        const ringNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(target.quaternion);
+        const alongAxis = Math.abs(new THREE.Vector3().subVectors(drone.pos, target.position).dot(ringNormal));
+        target.material.emissiveIntensity = THREE.MathUtils.clamp(2.2 - alongAxis / 8, 0.6, 2.2);
+    }
+    if (target && checkRingPass(drone.pos, target, 1.8, 1.5)) {
+        target.material.color.setHex(0x64748b); target.material.emissive.setHex(0x64748b); target.material.emissiveIntensity = 0.4;
+        windIndex++;
+        if (windIndex >= windRings.length) {
+            finishCurrentStage();
+        } else {
+            const next = targetObjects['wr' + windIndex];
+            next.material.color.setHex(0x22c55e); next.material.emissive.setHex(0x22c55e); next.material.emissiveIntensity = 1.4;
+        }
+    }
+}
+
+function updateGusts(dt) {
+    gustTimer -= dt;
+    if (!gustActive && gustTimer <= 0) {
+        gustActive = true;
+        gustDuration = 1.2 + Math.random() * 0.8;
+        const angle = Math.random() * Math.PI * 2;
+        const magnitude = 3.0 + Math.random() * 2.5;
+        windForce.set(Math.cos(angle) * magnitude, 0, Math.sin(angle) * magnitude);
+
+        const arrow = document.getElementById('wind-arrow');
+        const deg = THREE.MathUtils.radToDeg(Math.atan2(windForce.z, windForce.x));
+        arrow.style.transform = `rotate(${deg}deg)`;
+        document.getElementById('wind-text').textContent = '🌬️ 陣風來襲，注意修正！';
+    } else if (gustActive) {
+        gustDuration -= dt;
+        if (gustDuration <= 0) {
+            gustActive = false;
+            windForce.set(0, 0, 0);
+            gustTimer = 2.5 + Math.random() * 2.5;
+            document.getElementById('wind-text').textContent = '風平浪靜，繼續前進';
+        }
+    }
+}
+
+// ==========================================================
+// 關卡切換與儲存
+// ==========================================================
+async function finishCurrentStage() {
+    if (stageLocked) return;
+    stageLocked = true;
+
+    if (stageIndex >= STAGES.length - 1) {
+        await saveProgress({ completed: true });
+        document.getElementById('complete-modal').classList.remove('hidden');
+        document.getElementById('complete-modal').classList.add('flex');
+        return;
+    }
+    goToStage(stageIndex + 1);
+}
+
+function gasGetProgress(storageKey) {
+    return new Promise((resolve) => {
+        try {
+            const raw = localStorage.getItem(storageKey);
+            resolve(raw ? JSON.parse(raw) : null);
+        } catch(e) { resolve(null); }
+    });
+}
+
+async function saveProgress(patch) {
+    const existing = (await gasGetProgress(STORAGE_KEY)) || {};
+    const merged = Object.assign({}, existing, patch);
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    } catch(e) { console.error('儲存進度失敗', e); }
+}
+
+// ==========================================================
+// UI 事件
+// ==========================================================
+function setupUI() {
+    setupCameraSwitcher();
+    document.getElementById('btn-start-training').addEventListener('click', () => {
+        document.getElementById('intro-modal').classList.add('hidden');
+        goToStage(0);
+    });
+    document.getElementById('btn-restart-all').addEventListener('click', () => {
+        document.getElementById('complete-modal').classList.add('hidden');
+        document.getElementById('complete-modal').classList.remove('flex');
+        goToStage(0);
+    });
+    document.getElementById('btn-retry-stage').addEventListener('click', () => {
+        document.getElementById('fail-modal').classList.add('hidden');
+        document.getElementById('fail-modal').classList.remove('flex');
+        goToStage(stageIndex);
+    });
+    document.getElementById('btn-toggle-distance').addEventListener('click', () => {
+        distanceHintEnabled = !distanceHintEnabled;
+        const btn = document.getElementById('btn-toggle-distance');
+        btn.textContent = distanceHintEnabled ? '開' : '關';
+        btn.className = distanceHintEnabled
+            ? "bg-emerald-600 text-slate-950 text-[9px] font-bold px-2 py-0.5 rounded"
+            : "bg-slate-700 text-slate-400 text-[9px] font-bold px-2 py-0.5 rounded";
+        if (!distanceHintEnabled) {
+            document.getElementById('row-lateral').classList.add('hidden');
+            document.getElementById('row-vertical').classList.add('hidden');
+            document.getElementById('row-forward').classList.add('hidden');
+        }
+    });
+}
+
+// 依照目前關卡取得「應該對準的目標位置」
+function getCurrentTargetPosition() {
+    const stage = STAGES[stageIndex];
+    if (stage === 'crash') return targetObjects.goal ? targetObjects.goal.position : null;
+    if (stage === 'wind') return targetObjects['wr' + windIndex] ? targetObjects['wr' + windIndex].position : null;
+    return null;
+}
+
+function formatDelta(v, posWord, negWord) {
+    const dir = v > 0.05 ? posWord : (v < -0.05 ? negWord : '已對齊');
+    return `${Math.abs(v).toFixed(1)} m ${dir}`;
+}
+
+// 依實際數值大小回傳顏色，數字越接近 0（代表真正靠近目標）顏色越接近綠色
+// 讓學生不會被畫面透視誤導，顏色永遠誠實反映真正的 3D 距離
+function colorForDelta(v) {
+    const absV = Math.abs(v);
+    if (absV < 0.5) return '#4ade80';
+    if (absV < 2.0) return '#facc15';
+    return '#f87171';
+}
+
+function updateDistanceHint() {
+    const rowLateral = document.getElementById('row-lateral');
+    const rowVertical = document.getElementById('row-vertical');
+    const rowForward = document.getElementById('row-forward');
+
+    const targetPos = distanceHintEnabled ? getCurrentTargetPosition() : null;
+    if (!targetPos) {
+        rowLateral.classList.add('hidden');
+        rowVertical.classList.add('hidden');
+        rowForward.classList.add('hidden');
+        return;
+    }
+
+    const delta = new THREE.Vector3().subVectors(targetPos, drone.pos);
+    const facingDir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
+    const strafeDir = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
+
+    const forwardComp = delta.dot(facingDir);
+    const lateralComp = delta.dot(strafeDir);
+    const verticalComp = delta.y;
+
+    rowLateral.classList.remove('hidden');
+    rowVertical.classList.remove('hidden');
+    rowForward.classList.remove('hidden');
+
+    const elL = document.getElementById('val-lateral');
+    const elV = document.getElementById('val-vertical');
+    const elF = document.getElementById('val-forward');
+    elL.textContent = formatDelta(lateralComp, '→往右', '←往左'); elL.style.color = colorForDelta(lateralComp);
+    elV.textContent = formatDelta(verticalComp, '↑往上', '↓往下'); elV.style.color = colorForDelta(verticalComp);
+    elF.textContent = formatDelta(forwardComp, '↑往前', '↓往後'); elF.style.color = colorForDelta(forwardComp);
+}
+
+// ==========================================================
+// 相機
+// ==========================================================
+function updateCamera() {
+    if (cameraMode === 'TPV') {
+        const followOffset = new THREE.Vector3(0, 2.2, 6.5).applyEuler(new THREE.Euler(0, drone.rot.y * 0.3, 0));
+        camera.position.lerp(new THREE.Vector3().copy(drone.pos).add(followOffset), 0.12);
+        camera.lookAt(new THREE.Vector3().copy(drone.pos).add(new THREE.Vector3(0, 0.5, 0)));
+    } else if (cameraMode === 'FPV') {
+        camera.position.copy(drone.pos);
+        camera.quaternion.copy(drone.q);
+        camera.translateZ(-0.3);
+    } else if (cameraMode === 'Spec') {
+        let specPos = new THREE.Vector3(14, 6, 12);
+        if (pilotPosMode === 'left') specPos.set(-14, 6, 12);
+        else if (pilotPosMode === 'mid') specPos.set(0, 6, 18);
+        camera.position.lerp(specPos, 0.08);
+        camera.lookAt(drone.pos);
+    }
+}
+
+const CAMERA_MODES = ['TPV', 'FPV', 'Spec'];
+const PILOT_POSITIONS = ['left', 'mid', 'right'];
+
+function setCameraMode(mode) {
+    cameraMode = mode;
+    const camTpv = document.getElementById('cam-tpv');
+    const camFpv = document.getElementById('cam-fpv');
+    const camSpec = document.getElementById('cam-spec');
+    const pilotSubmenu = document.getElementById('pilot-position-submenu');
+    const activeClass = "bg-cyan-500 text-slate-950 text-[9px] font-bold py-1 rounded";
+    const inactiveClass = "bg-slate-800 text-slate-400 text-[9px] font-bold py-1 rounded";
+    [camTpv, camFpv, camSpec].forEach(b => b.className = inactiveClass);
+    pilotSubmenu.classList.toggle('hidden', mode !== 'Spec');
+    if (mode === 'TPV') camTpv.className = activeClass;
+    else if (mode === 'FPV') camFpv.className = activeClass;
+    else if (mode === 'Spec') camSpec.className = activeClass;
+}
+
+function cycleCameraMode() {
+    const idx = CAMERA_MODES.indexOf(cameraMode);
+    setCameraMode(CAMERA_MODES[(idx + 1) % CAMERA_MODES.length]);
+}
+
+function setPilotPos(pos) {
+    pilotPosMode = pos;
+    const pilotLeft = document.getElementById('pilot-pos-left');
+    const pilotMid = document.getElementById('pilot-pos-mid');
+    const pilotRight = document.getElementById('pilot-pos-right');
+    const pilotActive = "bg-cyan-950 text-cyan-300 border border-cyan-800 text-[8px] font-bold py-0.5 rounded";
+    const pilotInactive = "bg-slate-800 text-slate-400 text-[8px] font-bold py-0.5 rounded";
+    [pilotLeft, pilotMid, pilotRight].forEach(b => b.className = pilotInactive);
+    if (pos === 'left') pilotLeft.className = pilotActive;
+    else if (pos === 'mid') pilotMid.className = pilotActive;
+    else pilotRight.className = pilotActive;
+}
+
+function cyclePilotPos() {
+    if (cameraMode !== 'Spec') return;
+    const idx = PILOT_POSITIONS.indexOf(pilotPosMode);
+    setPilotPos(PILOT_POSITIONS[(idx + 1) % PILOT_POSITIONS.length]);
+}
+
+function setupCameraSwitcher() {
+    document.getElementById('cam-tpv').addEventListener('click', () => setCameraMode('TPV'));
+    document.getElementById('cam-fpv').addEventListener('click', () => setCameraMode('FPV'));
+    document.getElementById('cam-spec').addEventListener('click', () => setCameraMode('Spec'));
+    document.getElementById('pilot-pos-left').addEventListener('click', () => setPilotPos('left'));
+    document.getElementById('pilot-pos-mid').addEventListener('click', () => setPilotPos('mid'));
+    document.getElementById('pilot-pos-right').addEventListener('click', () => setPilotPos('right'));
+}
+
+// ==========================================================
+// 主迴圈
+// ==========================================================
+function animate() {
+    requestAnimationFrame(animate);
+    let dt = clock.getDelta();
+    if (dt > 0.1) dt = 0.1;
+
+    const introHidden = document.getElementById('intro-modal').classList.contains('hidden');
+    const completeShown = document.getElementById('complete-modal').classList.contains('flex');
+    const failShown = document.getElementById('fail-modal').classList.contains('flex');
+
+    if (!introHidden || completeShown) {
+        renderer.render(scene, camera);
+        return;
+    }
+
+    pollInputs();
+
+    if (!failShown) {
+        const stage = STAGES[stageIndex];
+        if (stage === 'crash') updateCrashStage(dt);
+        else if (stage === 'wind') updateWindStage(dt);
+    }
+
+    updateCamera();
+    updateDistanceHint();
+    document.getElementById('hud-alt').textContent = drone.pos.y.toFixed(1);
+
+    renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>無人機飛行員培訓 - 第一階段：地面安全教育</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+    body {
+        font-family: 'Orbitron', 'Share Tech Mono', sans-serif;
+        background-color: #0b0f19;
+        background-image:
+            radial-gradient(circle at 15% 15%, rgba(6,182,212,0.10), transparent 40%),
+            radial-gradient(circle at 85% 85%, rgba(217,70,239,0.08), transparent 40%);
+        user-select: none;
+        -webkit-user-select: none;
+        min-height: 100vh;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.4); border-radius: 3px; }
+
+    .neon-border-cyan {
+        box-shadow: 0 0 15px rgba(6, 182, 212, 0.35), inset 0 0 15px rgba(6, 182, 212, 0.15);
+        border: 1px solid rgba(6, 182, 212, 0.55);
+    }
+    .neon-border-magenta {
+        box-shadow: 0 0 15px rgba(217, 70, 239, 0.35), inset 0 0 15px rgba(217, 70, 239, 0.15);
+        border: 1px solid rgba(217, 70, 239, 0.55);
+    }
+    .neon-border-amber {
+        box-shadow: 0 0 15px rgba(251, 191, 36, 0.30), inset 0 0 15px rgba(251, 191, 36, 0.12);
+        border: 1px solid rgba(251, 191, 36, 0.5);
+    }
+    .neon-text-cyan { text-shadow: 0 0 8px rgba(6, 182, 212, 0.8); }
+    .neon-text-magenta { text-shadow: 0 0 8px rgba(217, 70, 239, 0.8); }
+
+    .glass-panel {
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .checklist-item {
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    .checklist-item.checked {
+        background: rgba(6, 182, 212, 0.12);
+        border-color: rgba(6, 182, 212, 0.6);
+    }
+    .checkbox-box {
+        width: 26px; height: 26px; min-width: 26px;
+        border: 2px solid rgba(148,163,184,0.5);
+        border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.2s ease;
+    }
+    .checklist-item.checked .checkbox-box {
+        background: #22d3ee;
+        border-color: #22d3ee;
+        box-shadow: 0 0 10px rgba(34,211,238,0.6);
+    }
+
+    .quiz-option {
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .quiz-option:hover:not(.locked) {
+        border-color: rgba(6,182,212,0.7);
+        background: rgba(6,182,212,0.08);
+    }
+    .quiz-option.selected-correct {
+        background: rgba(16,185,129,0.18);
+        border-color: #10b981;
+    }
+    .quiz-option.selected-wrong {
+        background: rgba(239,68,68,0.18);
+        border-color: #ef4444;
+    }
+    .quiz-option.reveal-correct {
+        border-color: #10b981;
+    }
+
+    .stage-fade { transition: opacity 0.35s ease, transform 0.35s ease; }
+    .progress-track { background: rgba(15,23,42,0.8); border: 1px solid rgba(148,163,184,0.25); }
+    .progress-fill { transition: width 0.4s ease; }
+
+    @media (prefers-reduced-motion: reduce) {
+        * { transition: none !important; animation: none !important; }
+    }
+</style>
+</head>
+<body class="text-slate-100 flex items-center justify-center p-3 md:p-6">
+
+<div class="w-full max-w-2xl">
+
+    <!-- Header -->
+    <div class="glass-panel neon-border-cyan rounded-2xl px-5 py-4 mb-4 flex items-center justify-between">
+        <div>
+            <div class="text-[10px] text-cyan-400 tracking-widest font-bold uppercase">PILOT TRAINING · STAGE 1</div>
+            <h1 class="text-lg md:text-xl font-black text-cyan-400 neon-text-cyan tracking-wide">地面安全教育</h1>
+        </div>
+        <div class="text-right">
+            <div class="text-[9px] text-slate-400 uppercase tracking-wider">總進度</div>
+            <div id="overall-progress-text" class="text-sm font-bold text-white">0 / 2</div>
+        </div>
+    </div>
+
+    <!-- Overall progress bar -->
+    <div class="progress-track h-1.5 rounded-full mb-5 overflow-hidden">
+        <div id="overall-progress-fill" class="progress-fill h-full bg-gradient-to-r from-cyan-400 to-emerald-400" style="width:0%"></div>
+    </div>
+
+    <!-- ============ SCREEN 1 : CHECKLIST ============ -->
+    <div id="screen-checklist" class="stage-fade">
+        <div class="glass-panel rounded-2xl p-5 flex flex-col gap-3 neon-border-cyan">
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                <h2 class="text-sm font-bold text-cyan-400 uppercase tracking-wide">① 飛行前檢查清單</h2>
+                <span id="checklist-count" class="text-[11px] font-mono text-slate-400">0 / 6</span>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono leading-relaxed">
+                每次飛行前，真正的飛手都會逐項確認以下狀態。請點擊每一項，確認你已經檢查過，才能進入下一階段。
+            </p>
+
+            <div id="checklist-container" class="flex flex-col gap-2 mt-1"></div>
+
+            <button id="btn-checklist-next" disabled
+                class="mt-3 w-full bg-slate-800 text-slate-500 font-black py-3 rounded-xl uppercase tracking-widest text-xs transition cursor-not-allowed">
+                完成全部檢查後解鎖測驗
+            </button>
+        </div>
+    </div>
+
+    <!-- ============ SCREEN 2 : QUIZ ============ -->
+    <div id="screen-quiz" class="stage-fade hidden">
+        <div class="glass-panel rounded-2xl p-5 flex flex-col gap-3 neon-border-magenta">
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                <h2 class="text-sm font-bold text-fuchsia-400 uppercase tracking-wide">② 安全知識測驗</h2>
+                <span id="quiz-progress" class="text-[11px] font-mono text-slate-400">第 1 / 5 題</span>
+            </div>
+
+            <div id="quiz-question-block" class="flex flex-col gap-2 mt-1">
+                <div class="text-[10px] text-fuchsia-400 font-bold uppercase tracking-wider" id="quiz-category">分類</div>
+                <p id="quiz-question-text" class="text-sm font-bold text-white leading-relaxed"></p>
+                <div id="quiz-options" class="flex flex-col gap-2 mt-1"></div>
+                <div id="quiz-explanation" class="hidden text-[11px] font-mono leading-relaxed p-3 rounded-lg mt-1"></div>
+            </div>
+
+            <button id="btn-quiz-next" disabled
+                class="mt-2 w-full bg-slate-800 text-slate-500 font-black py-3 rounded-xl uppercase tracking-widest text-xs transition cursor-not-allowed">
+                請先作答
+            </button>
+        </div>
+    </div>
+
+    <!-- ============ SCREEN 3 : RESULT (fail) ============ -->
+    <div id="screen-fail" class="stage-fade hidden">
+        <div class="glass-panel neon-border-amber rounded-2xl p-6 flex flex-col items-center gap-3 text-center">
+            <div class="text-3xl">⚠️</div>
+            <h2 class="text-lg font-black text-amber-400 uppercase tracking-wide">尚未達到及格標準</h2>
+            <p id="fail-score-text" class="text-sm text-slate-300 font-mono"></p>
+            <p class="text-[11px] text-slate-400 font-mono leading-relaxed">
+                真正的飛手在正式起飛前，必須完全掌握這些安全知識。題目會重新隨機出題，再挑戰一次！
+            </p>
+            <button id="btn-retry-quiz"
+                class="w-full bg-amber-600 hover:bg-amber-500 text-slate-950 font-black py-3 rounded-xl uppercase tracking-widest text-xs transition">
+                🔄 重新測驗
+            </button>
+        </div>
+    </div>
+
+    <!-- ============ SCREEN 4 : RESULT (pass) ============ -->
+    <div id="screen-pass" class="stage-fade hidden">
+        <div class="glass-panel neon-border-cyan rounded-2xl p-6 flex flex-col items-center gap-3 text-center">
+            <div class="text-3xl">✅</div>
+            <h2 class="text-lg font-black text-cyan-400 neon-text-cyan uppercase tracking-wide">地面安全教育 完成！</h2>
+            <p id="pass-score-text" class="text-sm text-slate-300 font-mono"></p>
+            <div class="w-full h-px bg-slate-700/60 my-1"></div>
+            <p class="text-[11px] text-slate-400 font-mono leading-relaxed">
+                你已具備飛行前的基本安全觀念。下一階段將進入「操作教學」：學習搖桿對應、緊急停止、以及應對突發狀況。
+            </p>
+            <div class="w-full bg-cyan-950/50 border border-cyan-800 rounded-xl py-3 px-4 text-[11px] text-cyan-300 font-mono">
+                🔓 已解鎖：二、操作教學（開發中）
+            </div>
+            <button id="btn-restart-all"
+                class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition mt-1">
+                重新練習本階段
+            </button>
+            <a href="index.html" target="_top" class="w-full bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-800 text-cyan-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition text-center">
+                🏠 返回訓練總覽
+            </a>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// ---------------------------------------------------------
+// 資料：檢查清單項目
+// ---------------------------------------------------------
+const checklistItems = [
+    { id: 'battery', icon: '🔋', title: '電池電量檢查', desc: '確認電池電量充足，且電池外觀無膨脹或破損。' },
+    { id: 'props',   icon: '🌀', title: '螺旋槳檢查',   desc: '確認四支螺旋槳都已鎖緊，葉片無裂痕或缺角。' },
+    { id: 'signal',  icon: '📡', title: '訊號連接檢查', desc: '確認遙控器已與無人機成功配對，訊號強度正常。' },
+    { id: 'area',    icon: '🚧', title: '飛行區域淨空', desc: '確認飛行範圍內無圍觀人員、寵物或障礙物。' },
+    { id: 'sensor',  icon: '🧭', title: '感測器校正',   desc: '確認起飛前已完成水平校正，無人機能穩定懸停。' },
+    { id: 'weather', icon: '🌬️', title: '風速與天氣',   desc: '確認現場風速在安全範圍內，且無降雨或雷擊風險。' },
+];
+
+// ---------------------------------------------------------
+// 資料：安全知識測驗題庫（隨機抽取 5 題）
+// ---------------------------------------------------------
+const quizPool = [
+    {
+        category: '緊急處置',
+        q: '飛行中如果遙控器突然完全失去訊號，下列哪一個做法最正確？',
+        options: [
+            '立刻上下搖動遙控器天線',
+            '保持冷靜，等待無人機依照失控保護（Failsafe）自動懸停或返航',
+            '馬上關閉遙控器電源重新開機',
+            '朝無人機的方向跑過去'
+        ],
+        correct: 1,
+        explain: '正確答案：多數無人機在訊號中斷時會自動觸發「失控保護」機制，原地懸停或自動返航。飛手應保持冷靜、留在原地觀察，而不是做出可能加重狀況的動作。'
+    },
+    {
+        category: '飛行前準備',
+        q: '起飛前發現螺旋槳邊緣有一個小缺角，應該怎麼處理？',
+        options: [
+            '缺角很小，直接起飛沒關係',
+            '換一個角度裝上去就好',
+            '更換整支螺旋槳後才能起飛',
+            '用透明膠帶貼起來繼續用'
+        ],
+        correct: 2,
+        explain: '正確答案：螺旋槳是高速旋轉的部件，即使是小缺角也會造成震動與不平衡，飛行中可能斷裂。任何損傷都必須更換整支螺旋槳，不能勉強使用。'
+    },
+    {
+        category: '緊急處置',
+        q: '「緊急停止（Kill Switch）」最主要的作用是什麼？',
+        options: [
+            '讓無人機自動降落',
+            '瞬間切斷馬達動力，讓螺旋槳立刻停止轉動',
+            '讓無人機返回起飛點',
+            '讓遙控器重新連線'
+        ],
+        correct: 1,
+        explain: '正確答案：緊急停止會直接切斷馬達動力，是避免無人機傷人或造成更大損害的最後手段。因為切斷後無人機會直接墜落，所以只在真正危急、其他方式都無法排除風險時才使用。'
+    },
+    {
+        category: '環境判斷',
+        q: '飛行時遇到突然一陣強側風，機身被吹歪，下列哪個反應最恰當？',
+        options: [
+            '立刻大幅度反方向打滿油門修正',
+            '緩和、小幅度地反向修正姿態，並降低飛行高度或速度',
+            '完全不理它，等風停',
+            '立刻切換到緊急停止'
+        ],
+        correct: 1,
+        explain: '正確答案：面對強風應以緩和、漸進的修正動作應對，過度反應容易造成姿態失控或反向超修。若風力持續過大，應考慮盡快、平穩地降落。'
+    },
+    {
+        category: '飛行前準備',
+        q: '為什麼起飛前要確認飛行區域「淨空」（無人員、寵物、障礙物）？',
+        options: [
+            '只是為了畫面好看',
+            '因為初學者操作不穩定，意外碰撞風險較高，淨空能降低傷害發生的機會',
+            '淨空跟安全沒有直接關係',
+            '只有比賽場地才需要淨空'
+        ],
+        correct: 1,
+        explain: '正確答案：初學者操作不熟練，碰撞、失控時有所難免。確保周圍淨空是最基本、最有效降低意外傷害風險的方法，任何等級的飛手都應該遵守。'
+    },
+    {
+        category: '電池管理',
+        q: '無人機電池電量剩下 15% 時，最適當的處置方式是？',
+        options: [
+            '繼續飛到完全沒電為止，反正會自動降落',
+            '盡快、平穩地找安全地點降落或返回充電',
+            '把速度開到最快，趕快飛完剩下的行程',
+            '電量顯示不準，可以不用理它'
+        ],
+        correct: 1,
+        explain: '正確答案：電池電量過低時動力會下降，容易導致失控墜機。看到低電量警示應立刻規劃就近、平穩地降落或返航，而不是硬撐到完全耗盡。'
+    },
+    {
+        category: '環境判斷',
+        q: '下列哪一種天氣狀況最不適合飛行無人機？',
+        options: [
+            '微風、晴朗無雲',
+            '陰天但無降雨無強風',
+            '雷雨將至、風速明顯增強',
+            '氣溫稍低但風平浪靜'
+        ],
+        correct: 2,
+        explain: '正確答案：雷雨天氣不僅風速不穩定，還有雷擊與能見度不佳的風險，是最不適合飛行的狀況。飛行前一定要確認天氣預報與現場狀況。'
+    },
+    {
+        category: '緊急處置',
+        q: '如果飛行中被另一台無人機意外擦撞，導致自己的機身姿態不穩，第一步應該做什麼？',
+        options: [
+            '立刻加速逃離現場',
+            '先冷靜觀察姿態與高度是否仍可控制，優先讓機身穩定或緩降',
+            '假裝沒事繼續原本的飛行路線',
+            '立刻切換攝影機視角看碰撞畫面'
+        ],
+        correct: 1,
+        explain: '正確答案：碰撞後最重要的是先判斷機身是否還能穩定飛行，優先讓姿態穩定下來或安全降落，而不是繼續原計畫或做出無關安全的動作。'
+    },
+    {
+        category: '飛行前準備',
+        q: '「水平校正 / 感測器校正」沒有做好，飛行時最常出現什麼現象？',
+        options: [
+            '顏色顯示不正確',
+            '電池電量下降變快',
+            '無人機懸停時會自動往某個方向偏移，難以定點',
+            '螺旋槳轉速會變慢'
+        ],
+        correct: 2,
+        explain: '正確答案：感測器（如陀螺儀、加速度計）沒有正確校正，會導致無人機無法準確判斷「水平」的基準，懸停時容易不自主地朝某方向漂移。'
+    },
+    {
+        category: '電池管理',
+        q: '關於無人機電池的保養，下列說法哪一項正確？',
+        options: [
+            '電池外觀膨脹是正常現象，可以繼續使用',
+            '電池膨脹、破損或有異味時，應立即停止使用並妥善處理',
+            '電池越舊，飛行越穩定',
+            '電池可以隨意從高處摔落測試耐用度'
+        ],
+        correct: 1,
+        explain: '正確答案：電池膨脹或破損代表內部已經產生化學變化，有起火或爆裂的風險，必須立即停止使用，並依照正確方式回收處理，絕不能勉強使用。'
+    },
+    {
+        category: '環境判斷',
+        q: '在室內狹小空間第一次練習飛行，需要特別注意什麼？',
+        options: [
+            '空間小操作反而比較安全，不需要特別注意',
+            '天花板、燈具、玻璃等障礙物容易被忽略，且反彈空間小，風險較高',
+            '室內沒有風，所以完全不會有意外',
+            '室內光線昏暗最適合練習'
+        ],
+        correct: 1,
+        explain: '正確答案：室內空間雖然沒有自然風，但障礙物密集、可反應與迴避的距離短，一旦失控很容易撞到天花板、燈具或人員，初學者更需要謹慎。'
+    },
+    {
+        category: '緊急處置',
+        q: '無人機飛行時忽然開始不明原因地劇烈晃動、無法穩定，最優先的處理原則是什麼？',
+        options: [
+            '持續嘗試各種操作直到它自己穩定下來',
+            '優先考慮讓它平穩下降或降落，避免情況惡化到不可控',
+            '立刻拉到最高高度躲避風險',
+            '轉頭問旁邊的人怎麼辦，先不管無人機'
+        ],
+        correct: 1,
+        explain: '正確答案：面對不明原因的失控晃動，最優先原則是盡快、平穩地降低高度或降落，把風險控制在最小範圍，而不是持續嘗試冒險的操作或拖延處理。'
+    },
+];
+
+const QUIZ_SIZE = 5;
+const PASS_THRESHOLD = 4; // 5 題對 4 題以上算及格
+
+// ---------------------------------------------------------
+// 狀態
+// ---------------------------------------------------------
+let checkedSet = new Set();
+let currentQuiz = [];
+let quizIndex = 0;
+let quizAnswers = [];
+let quizLocked = false;
+
+const STORAGE_KEY = 'training-stage1-progress';
+
+
+// ---------------------------------------------------------
+// 初始化
+// ---------------------------------------------------------
+window.onload = async function () {
+    renderChecklist();
+    await loadProgress();
+    updateOverallProgress();
+};
+
+function gasGetProgress(storageKey) {
+    return new Promise((resolve) => {
+        try {
+            const raw = localStorage.getItem(storageKey);
+            resolve(raw ? JSON.parse(raw) : null);
+        } catch(e) { resolve(null); }
+    });
+}
+
+
+async function loadProgress() {
+    const data = await gasGetProgress(STORAGE_KEY);
+    if (data && data.checklistDone) {
+        checkedSet = new Set(checklistItems.map(i => i.id));
+        renderChecklist();
+        document.getElementById('btn-checklist-next').disabled = false;
+        document.getElementById('btn-checklist-next').className =
+            "mt-3 w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl uppercase tracking-widest text-xs transition cursor-pointer";
+        document.getElementById('btn-checklist-next').textContent = '已完成 · 繼續前往測驗 →';
+    }
+}
+
+async function saveProgress(patch) {
+    const existing = (await gasGetProgress(STORAGE_KEY)) || {};
+    const merged = Object.assign({}, existing, patch);
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    } catch(e) { console.error('儲存進度失敗', e); }
+}
+
+function updateOverallProgress() {
+    const checklistDone = checkedSet.size === checklistItems.length;
+    const quizDone = document.getElementById('screen-pass').classList.contains('hidden') === false;
+    const count = (checklistDone ? 1 : 0) + (quizDone ? 1 : 0);
+    document.getElementById('overall-progress-text').textContent = `${count} / 2`;
+    document.getElementById('overall-progress-fill').style.width = `${(count / 2) * 100}%`;
+}
+
+// ---------------------------------------------------------
+// 畫面一：檢查清單
+// ---------------------------------------------------------
+function renderChecklist() {
+    const container = document.getElementById('checklist-container');
+    container.innerHTML = '';
+    checklistItems.forEach(item => {
+        const isChecked = checkedSet.has(item.id);
+        const el = document.createElement('div');
+        el.className = `checklist-item ${isChecked ? 'checked' : ''} flex items-center gap-3 p-3 rounded-xl border border-slate-700/60 bg-slate-900/40`;
+        el.innerHTML = `
+            <div class="checkbox-box">${isChecked ? '<span class="text-slate-950 font-black text-sm">✓</span>' : ''}</div>
+            <div class="text-xl">${item.icon}</div>
+            <div class="flex flex-col">
+                <span class="text-xs font-bold text-white">${item.title}</span>
+                <span class="text-[10px] text-slate-400 font-mono leading-snug">${item.desc}</span>
+            </div>
+        `;
+        el.addEventListener('click', () => toggleCheck(item.id));
+        container.appendChild(el);
+    });
+    document.getElementById('checklist-count').textContent = `${checkedSet.size} / ${checklistItems.length}`;
+}
+
+function toggleCheck(id) {
+    if (checkedSet.has(id)) checkedSet.delete(id);
+    else checkedSet.add(id);
+    renderChecklist();
+
+    const btn = document.getElementById('btn-checklist-next');
+    const done = checkedSet.size === checklistItems.length;
+    btn.disabled = !done;
+    btn.textContent = done ? '已完成 · 繼續前往測驗 →' : '完成全部檢查後解鎖測驗';
+    btn.className = done
+        ? "mt-3 w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl uppercase tracking-widest text-xs transition cursor-pointer"
+        : "mt-3 w-full bg-slate-800 text-slate-500 font-black py-3 rounded-xl uppercase tracking-widest text-xs transition cursor-not-allowed";
+
+    if (done) saveProgress({ checklistDone: true });
+    updateOverallProgress();
+}
+
+document.getElementById('btn-checklist-next').addEventListener('click', () => {
+    if (checkedSet.size !== checklistItems.length) return;
+    startQuiz();
+});
+
+// ---------------------------------------------------------
+// 畫面二：隨機測驗
+// ---------------------------------------------------------
+function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function startQuiz() {
+    currentQuiz = shuffle(quizPool).slice(0, QUIZ_SIZE).map(q => {
+        // 同時打亂選項順序，避免死記位置
+        const optionIndices = shuffle(q.options.map((_, i) => i));
+        return {
+            category: q.category,
+            q: q.q,
+            options: optionIndices.map(i => q.options[i]),
+            correct: optionIndices.indexOf(q.correct),
+            explain: q.explain
+        };
+    });
+    quizIndex = 0;
+    quizAnswers = [];
+
+    document.getElementById('screen-checklist').classList.add('hidden');
+    document.getElementById('screen-fail').classList.add('hidden');
+    document.getElementById('screen-pass').classList.add('hidden');
+    document.getElementById('screen-quiz').classList.remove('hidden');
+
+    renderQuizQuestion();
+}
+
+function renderQuizQuestion() {
+    quizLocked = false;
+    const q = currentQuiz[quizIndex];
+    document.getElementById('quiz-progress').textContent = `第 ${quizIndex + 1} / ${currentQuiz.length} 題`;
+    document.getElementById('quiz-category').textContent = q.category;
+    document.getElementById('quiz-question-text').textContent = q.q;
+
+    const optionsContainer = document.getElementById('quiz-options');
+    optionsContainer.innerHTML = '';
+    q.options.forEach((opt, idx) => {
+        const el = document.createElement('div');
+        el.className = 'quiz-option flex items-center gap-3 p-3 rounded-xl border border-slate-700/60 bg-slate-900/40 text-xs text-slate-200 font-mono';
+        el.innerHTML = `<span class="w-5 h-5 min-w-[20px] rounded-full border border-slate-500 flex items-center justify-center text-[10px] font-bold">${String.fromCharCode(65 + idx)}</span><span>${opt}</span>`;
+        el.addEventListener('click', () => selectAnswer(idx));
+        optionsContainer.appendChild(el);
+    });
+
+    document.getElementById('quiz-explanation').classList.add('hidden');
+    const btn = document.getElementById('btn-quiz-next');
+    btn.disabled = true;
+    btn.textContent = '請先作答';
+    btn.className = "mt-2 w-full bg-slate-800 text-slate-500 font-black py-3 rounded-xl uppercase tracking-widest text-xs transition cursor-not-allowed";
+}
+
+function selectAnswer(idx) {
+    if (quizLocked) return;
+    quizLocked = true;
+    const q = currentQuiz[quizIndex];
+    const isCorrect = idx === q.correct;
+    quizAnswers.push(isCorrect);
+
+    const options = document.querySelectorAll('#quiz-options .quiz-option');
+    options.forEach((el, i) => {
+        el.classList.add('locked');
+        if (i === q.correct) el.classList.add('reveal-correct');
+        if (i === idx && isCorrect) el.classList.add('selected-correct');
+        if (i === idx && !isCorrect) el.classList.add('selected-wrong');
+    });
+
+    const explainBox = document.getElementById('quiz-explanation');
+    explainBox.classList.remove('hidden');
+    explainBox.className = `text-[11px] font-mono leading-relaxed p-3 rounded-lg mt-1 ${isCorrect ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-800' : 'bg-rose-950/50 text-rose-300 border border-rose-800'}`;
+    explainBox.textContent = (isCorrect ? '✓ 答對了！' : '✕ 答錯了。') + '　' + q.explain;
+
+    const btn = document.getElementById('btn-quiz-next');
+    btn.disabled = false;
+    const isLast = quizIndex === currentQuiz.length - 1;
+    btn.textContent = isLast ? '查看測驗結果' : '下一題 →';
+    btn.className = "mt-2 w-full bg-fuchsia-600 hover:bg-fuchsia-500 text-slate-950 font-black py-3 rounded-xl uppercase tracking-widest text-xs transition cursor-pointer";
+}
+
+document.getElementById('btn-quiz-next').addEventListener('click', () => {
+    if (quizIndex < currentQuiz.length - 1) {
+        quizIndex++;
+        renderQuizQuestion();
+    } else {
+        finishQuiz();
+    }
+});
+
+async function finishQuiz() {
+    const correctCount = quizAnswers.filter(Boolean).length;
+    const passed = correctCount >= PASS_THRESHOLD;
+
+    document.getElementById('screen-quiz').classList.add('hidden');
+
+    if (passed) {
+        document.getElementById('pass-score-text').textContent = `本次成績：${correctCount} / ${currentQuiz.length} 題正確`;
+        document.getElementById('screen-pass').classList.remove('hidden');
+        await saveProgress({ quizDone: true, bestScore: correctCount, lastAttempt: new Date().toISOString() });
+    } else {
+        document.getElementById('fail-score-text').textContent = `本次成績：${correctCount} / ${currentQuiz.length} 題正確（需達 ${PASS_THRESHOLD} 題以上才算及格）`;
+        document.getElementById('screen-fail').classList.remove('hidden');
+    }
+    updateOverallProgress();
+}
+
+document.getElementById('btn-retry-quiz').addEventListener('click', () => {
+    document.getElementById('screen-fail').classList.add('hidden');
+    startQuiz();
+});
+
+document.getElementById('btn-restart-all').addEventListener('click', () => {
+    document.getElementById('screen-pass').classList.add('hidden');
+    startQuiz();
+});
+</script>
+</body>
+</html>
