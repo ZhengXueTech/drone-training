@@ -21,6 +21,20 @@
     @keyframes pulseWarn { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
     .pulse-warn { animation: pulseWarn 0.6s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+    /* ── Gamepad 提示列 ── */
+    #gp-bar {
+        position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+        display: none; align-items: center; gap: 14px;
+        background: rgba(8,18,36,.92); backdrop-filter: blur(12px);
+        border: 1px solid rgba(6,182,212,.35); border-radius: 999px;
+        padding: 7px 18px; font-size: 10px; font-family: 'Share Tech Mono', monospace;
+        color: #94a3b8; z-index: 9999; white-space: nowrap; pointer-events: auto;
+    }
+    #gp-bar.show { display: flex; }
+    #gp-bar .gk { color: #22d3ee; font-weight: 700; margin-right: 2px; }
+    #gp-bar button { background: none; border: none; cursor: pointer; color: #475569;
+        font-size: 14px; line-height: 1; padding: 0 0 0 8px; }
+    #gp-bar button:hover { color: #94a3b8; }
 </style>
 </head>
 <body class="relative w-screen h-screen text-slate-100">
@@ -172,6 +186,10 @@
             🎉 Stage 6 完成！風況應對分數越高代表你在風力干擾下仍能穩定飛行。
         </div>
         <div class="flex gap-2">
+            <a id="btn-goto-next" href="training-stage7-landing.html"
+                class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl uppercase tracking-widest text-xs transition text-center block">
+                前往下一關：精準降落訓練 →
+            </a>
             <button id="btn-restart-all" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition">重新挑戰</button>
             <a href="index.html" class="flex-1 bg-cyan-900/60 hover:bg-cyan-800/60 text-cyan-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition flex items-center justify-center">返回選關</a>
         </div>
@@ -695,6 +713,52 @@ function animate() {
     updateCamera();
     renderer.render(scene, camera);
 }
+// ── Gamepad 提示列 & A 鍵快捷（自動加入） ──
+(function(){
+  var MODAL_ID = 'report-modal';
+  var _prevA = false, _started = false;
+  function _gpPoll(){
+    var gp = (navigator.getGamepads ? Array.from(navigator.getGamepads()) : []).find(function(g){return g;});
+    if(gp){
+      var intro = document.getElementById('intro-modal');
+      var introVis = intro && !intro.classList.contains('hidden');
+      var fail = document.getElementById('fail-modal');
+      var failVis = fail && (!fail.classList.contains('hidden') || fail.classList.contains('flex'));
+      var modal = document.getElementById(MODAL_ID);
+      var vis = modal && (!modal.classList.contains('hidden') || modal.classList.contains('flex'));
+      var hint = document.getElementById('gp-bar-a-hint');
+      if(hint){
+        if(introVis){ hint.innerHTML='<span class="gk">A</span> 開始訓練'; hint.style.display='inline'; }
+        else if(failVis){ hint.innerHTML='<span class="gk">A</span> 再試一次'; hint.style.display='inline'; }
+        else if(vis){ hint.innerHTML='<span class="gk">A</span> 前往下一關'; hint.style.display='inline'; }
+        else { hint.style.display='none'; }
+      }
+      var aPressed = !!(gp.buttons[0] && gp.buttons[0].pressed);
+      if(aPressed && !_prevA){
+        if(introVis){ var s=document.getElementById('btn-start-training'); if(s) s.click(); }
+        else if(failVis){ var f=document.getElementById('btn-retry'); if(f) f.click(); }
+        else if(vis){ var b=document.getElementById('btn-goto-next'); if(b){ b.click(); return; } }
+      }
+      _prevA = aPressed;
+    }
+    requestAnimationFrame(_gpPoll);
+  }
+  window.addEventListener('gamepadconnected', function(){
+    document.getElementById('gp-bar').classList.add('show');
+    if(!_started){ _started = true; _gpPoll(); }
+  });
+  window.addEventListener('gamepaddisconnected', function(){
+    var gps = Array.from(navigator.getGamepads ? navigator.getGamepads() : []).filter(function(g){return g;});
+    if(!gps.length) document.getElementById('gp-bar').classList.remove('show');
+  });
+})();
 </script>
+<div id="gp-bar">
+  <span>🎮</span>
+  <span><span class="gk">左搖桿</span> 油門/偏航</span>
+  <span><span class="gk">右搖桿</span> 前後/左右</span>
+  <span id="gp-bar-a-hint" style="display:none"><span class="gk">A</span> 前往下一關</span>
+  <button onclick="document.getElementById('gp-bar').classList.remove('show')" title="關閉提示">✕</button>
+</div>
 </body>
 </html>

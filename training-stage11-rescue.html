@@ -23,6 +23,20 @@
     @keyframes slideIn { from { opacity:0; transform:translateX(-50%) translateY(-10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
     .slide-in { animation: slideIn 0.3s ease; }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+    /* ── Gamepad 提示列 ── */
+    #gp-bar {
+        position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+        display: none; align-items: center; gap: 14px;
+        background: rgba(8,18,36,.92); backdrop-filter: blur(12px);
+        border: 1px solid rgba(6,182,212,.35); border-radius: 999px;
+        padding: 7px 18px; font-size: 10px; font-family: 'Share Tech Mono', monospace;
+        color: #94a3b8; z-index: 9999; white-space: nowrap; pointer-events: auto;
+    }
+    #gp-bar.show { display: flex; }
+    #gp-bar .gk { color: #22d3ee; font-weight: 700; margin-right: 2px; }
+    #gp-bar button { background: none; border: none; cursor: pointer; color: #475569;
+        font-size: 14px; line-height: 1; padding: 0 0 0 8px; }
+    #gp-bar button:hover { color: #94a3b8; }
 </style>
 </head>
 <body class="relative w-screen h-screen text-slate-100">
@@ -50,6 +64,17 @@
         </div>
         <div id="proximity-alert" class="hidden text-[9px] text-red-300 font-mono font-bold">
             🆘 附近有信號！<span id="prox-dist" class="text-white">--</span>m
+        </div>
+    </div>
+</div>
+
+<!-- ============ 方向羅盤指示器 ============ -->
+<div id="nav-compass" class="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none hidden">
+    <div class="glass-panel rounded-2xl px-5 py-3 flex flex-col items-center gap-1.5" style="border:1px solid rgba(239,68,68,0.5);box-shadow:0 0 12px rgba(239,68,68,0.25);">
+        <div class="text-[9px] text-red-400 font-bold tracking-widest uppercase">下一個倖存者</div>
+        <div class="flex items-center gap-3">
+            <div id="compass-arrow" style="font-size:22px;transition:transform 0.2s ease;">⬆️</div>
+            <div class="text-sm font-black text-white"><span id="compass-dist">--</span> <span class="text-[10px] text-slate-400">m</span></div>
         </div>
     </div>
 </div>
@@ -171,6 +196,10 @@
             🎉 Stage 11 完成！這是整個培訓課程的最終關卡，你已完成所有訓練！
         </div>
         <div class="flex gap-2">
+            <a id="btn-goto-next" href="soccer-match.html"
+                class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl uppercase tracking-widest text-xs transition text-center block">
+                前往下一關：⚽ 3v3 足球賽 →
+            </a>
             <button id="btn-restart-all" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition">重新挑戰</button>
             <a href="index.html" class="flex-1 bg-cyan-900/60 hover:bg-cyan-800/60 text-cyan-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition flex items-center justify-center">返回選關</a>
         </div>
@@ -193,7 +222,7 @@ const BEACON_POSITIONS = [
     new THREE.Vector3(10,  HOVER_Y, -50),
 ];
 
-const DETECTION_RADIUS = 8;   // 偵測到信標的距離
+const DETECTION_RADIUS = 16;  // 偵測到信標的距離（擴大以利搜尋）
 const CAPTURE_RADIUS   = 2;   // 確認找到的距離
 
 // ============================================================
@@ -319,7 +348,27 @@ function buildDrone() {
 }
 
 function buildScene() {
-    // 信標（初始不可見，只有在偵測距離內才顯示）
+    // 信標常駐光柱（從地面射向天空，遠距即可發現）
+    BEACON_POSITIONS.forEach((p) => {
+        const pillarGeo = new THREE.CylinderGeometry(0.12, 0.18, 55, 6);
+        const pillarMat = new THREE.MeshBasicMaterial({
+            color: 0xff2222, transparent: true, opacity: 0.18,
+            depthWrite: false
+        });
+        const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+        pillar.position.set(p.x, 27.5 - HOVER_Y + p.y, p.z); // 從地面到天頂
+        scene.add(pillar);
+
+        // 光柱頂部閃爍環（低高度輔助標記）
+        const ringGeo = new THREE.TorusGeometry(1.2, 0.12, 6, 18);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.5 });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(p.x, p.y + 0.5, p.z);
+        scene.add(ring);
+    });
+
+    // 信標本體（近距偵測時才顯現閃爍光球）
     BEACON_POSITIONS.forEach((p, i) => {
         const geo = new THREE.SphereGeometry(0.6, 12, 12);
         const mat = new THREE.MeshStandardMaterial({
@@ -494,6 +543,29 @@ function updateGame(dt) {
         proxAlert.classList.add('hidden');
     }
 
+    // 羅盤方向指示器：指向最近未找到的信標
+    if (!allFound) {
+        let nearestBeacon = null, nearestDist2 = Infinity;
+        beaconMeshes.forEach(b => {
+            if (b.captured) return;
+            const d2 = (drone.pos.x - b.mesh.position.x) ** 2 + (drone.pos.z - b.mesh.position.z) ** 2;
+            if (d2 < nearestDist2) { nearestDist2 = d2; nearestBeacon = b; }
+        });
+        if (nearestBeacon) {
+            const compass = document.getElementById('nav-compass');
+            compass.classList.remove('hidden');
+            const dx = nearestBeacon.mesh.position.x - drone.pos.x;
+            const dz = nearestBeacon.mesh.position.z - drone.pos.z;
+            const worldAngle = Math.atan2(dx, -dz); // world angle to target
+            // 相對於無人機偏航角（drone.rot.y）
+            const relAngle = worldAngle - drone.rot.y;
+            document.getElementById('compass-arrow').style.transform = `rotate(${relAngle}rad)`;
+            document.getElementById('compass-dist').textContent = Math.sqrt(nearestDist2).toFixed(0);
+        }
+    } else {
+        document.getElementById('nav-compass').classList.add('hidden');
+    }
+
     // 全員找到後，返回基地
     if (allFound) {
         const distToBase = Math.hypot(drone.pos.x - BASE_POS.x, drone.pos.z - BASE_POS.z);
@@ -656,6 +728,52 @@ function animate() {
     updateCamera();
     renderer.render(scene, camera);
 }
+// ── Gamepad 提示列 & A 鍵快捷（自動加入） ──
+(function(){
+  var MODAL_ID = 'report-modal';
+  var _prevA = false, _started = false;
+  function _gpPoll(){
+    var gp = (navigator.getGamepads ? Array.from(navigator.getGamepads()) : []).find(function(g){return g;});
+    if(gp){
+      var intro = document.getElementById('intro-modal');
+      var introVis = intro && !intro.classList.contains('hidden');
+      var fail = document.getElementById('fail-modal');
+      var failVis = fail && (!fail.classList.contains('hidden') || fail.classList.contains('flex'));
+      var modal = document.getElementById(MODAL_ID);
+      var vis = modal && (!modal.classList.contains('hidden') || modal.classList.contains('flex'));
+      var hint = document.getElementById('gp-bar-a-hint');
+      if(hint){
+        if(introVis){ hint.innerHTML='<span class="gk">A</span> 開始訓練'; hint.style.display='inline'; }
+        else if(failVis){ hint.innerHTML='<span class="gk">A</span> 再試一次'; hint.style.display='inline'; }
+        else if(vis){ hint.innerHTML='<span class="gk">A</span> 前往下一關'; hint.style.display='inline'; }
+        else { hint.style.display='none'; }
+      }
+      var aPressed = !!(gp.buttons[0] && gp.buttons[0].pressed);
+      if(aPressed && !_prevA){
+        if(introVis){ var s=document.getElementById('btn-start-training'); if(s) s.click(); }
+        else if(failVis){ var f=document.getElementById('btn-retry'); if(f) f.click(); }
+        else if(vis){ var b=document.getElementById('btn-goto-next'); if(b){ b.click(); return; } }
+      }
+      _prevA = aPressed;
+    }
+    requestAnimationFrame(_gpPoll);
+  }
+  window.addEventListener('gamepadconnected', function(){
+    document.getElementById('gp-bar').classList.add('show');
+    if(!_started){ _started = true; _gpPoll(); }
+  });
+  window.addEventListener('gamepaddisconnected', function(){
+    var gps = Array.from(navigator.getGamepads ? navigator.getGamepads() : []).filter(function(g){return g;});
+    if(!gps.length) document.getElementById('gp-bar').classList.remove('show');
+  });
+})();
 </script>
+<div id="gp-bar">
+  <span>🎮</span>
+  <span><span class="gk">左搖桿</span> 油門/偏航</span>
+  <span><span class="gk">右搖桿</span> 前後/左右</span>
+  <span id="gp-bar-a-hint" style="display:none"><span class="gk">A</span> 前往下一關</span>
+  <button onclick="document.getElementById('gp-bar').classList.remove('show')" title="關閉提示">✕</button>
+</div>
 </body>
 </html>

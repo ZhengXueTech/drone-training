@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>守門員練習 | 無人機足球</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#040810}
+body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-select:none}
+#cc{position:fixed;inset:0;z-index:0}
+#cc canvas{display:block;width:100%!important;height:100%!important}
+.glass{background:rgba(8,18,36,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.07)}
+.nc{border-color:rgba(6,182,212,.6)!important;box-shadow:0 0 18px rgba(6,182,212,.28)}
+.ng{border-color:rgba(34,197,94,.55)!important;box-shadow:0 0 14px rgba(34,197,94,.22)}
+.nr{border-color:rgba(239,68,68,.6)!important;box-shadow:0 0 18px rgba(239,68,68,.28)}
+.tc{color:#22d3ee;text-shadow:0 0 8px rgba(34,211,238,.6)}
+.tg{color:#4ade80;text-shadow:0 0 8px rgba(74,222,128,.6)}
+.tr{color:#f87171}
+@keyframes pulse2{0%,100%{opacity:1}50%{opacity:.4}}.pulse2{animation:pulse2 1.4s ease-in-out infinite}
+@keyframes pop{0%{transform:scale(.3) rotate(-6deg);opacity:0}50%{transform:scale(1.1) rotate(2deg);opacity:1}100%{transform:scale(1);opacity:1}}
+.pop{animation:pop .45s cubic-bezier(.2,1.4,.4,1) forwards}
+/* difficulty buttons */
+.d-btn{padding:3px 10px;border-radius:7px;font-size:9px;font-weight:700;border:1px solid rgba(100,116,139,.35);color:#64748b;background:rgba(15,23,42,.6);cursor:pointer;transition:all .15s;pointer-events:auto}
+.d-btn.on{border-color:rgba(6,182,212,.7);color:#22d3ee;background:rgba(6,182,212,.12);box-shadow:0 0 6px rgba(6,182,212,.2)}
+/* virtual joystick */
+.vj{position:fixed;bottom:28px;z-index:30;touch-action:none;display:none}
+.vj.show{display:block}
+#vjL{left:28px}#vjR{right:28px}
+.vj-out{width:110px;height:110px;border-radius:50%;border:2px solid rgba(6,182,212,.38);background:rgba(6,182,212,.07);position:relative;box-shadow:0 0 16px rgba(6,182,212,.15)}
+.vj-knob{width:40px;height:40px;border-radius:50%;background:rgba(6,182,212,.38);border:2px solid rgba(6,182,212,.8);box-shadow:0 0 12px rgba(6,182,212,.4);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);will-change:transform}
+.vj-lb{text-align:center;font-size:8px;color:rgba(6,182,212,.5);margin-top:5px;letter-spacing:.06em}
+</style>
+</head>
+<body>
+<div id="cc"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden fixed inset-0 pointer-events-none z-10">
+
+  <!-- Top-center: Goals / Attempts -->
+  <div class="absolute top-3 left-1/2 -translate-x-1/2 flex flex-col items-center">
+    <div class="glass nc rounded-2xl px-8 py-2 flex gap-6 items-center">
+      <div class="text-center">
+        <div class="text-[8px] tc uppercase tracking-widest mb-0.5">進球</div>
+        <div id="h-goals" class="text-4xl font-black tg leading-none">0</div>
+      </div>
+      <div class="text-slate-600 text-xl font-black">/</div>
+      <div class="text-center">
+        <div class="text-[8px] tc uppercase tracking-widest mb-0.5">嘗試</div>
+        <div id="h-att" class="text-4xl font-black tc leading-none">0</div>
+      </div>
+      <div class="text-slate-600 text-xl font-black">|</div>
+      <div class="text-center">
+        <div class="text-[8px] tg uppercase tracking-widest mb-0.5">成功率</div>
+        <div id="h-rate" class="text-xl font-black tg leading-none">--%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top-left: Current attempt timer -->
+  <div class="absolute top-3 left-3 glass nc rounded-xl px-3 py-1.5">
+    <div class="text-[8px] tc uppercase tracking-widest">本次計時</div>
+    <div id="h-time" class="text-2xl font-black text-white leading-tight">0.0s</div>
+  </div>
+
+  <!-- Top-right: Best time + difficulty selector -->
+  <div class="absolute top-3 right-3 flex flex-col gap-2 items-end">
+    <div class="glass ng rounded-xl px-3 py-1.5 text-right">
+      <div class="text-[8px] tg uppercase tracking-widest">最佳時間</div>
+      <div id="h-best" class="text-2xl font-black tg leading-tight">--</div>
+    </div>
+    <div class="glass rounded-xl px-2 py-1.5 flex gap-1.5 items-center">
+      <span class="text-[8px] text-slate-500 uppercase mr-1">難度</span>
+      <button class="d-btn" id="d-easy"  onclick="setDiff('easy')">簡單</button>
+      <button class="d-btn on" id="d-med" onclick="setDiff('med')">普通</button>
+      <button class="d-btn" id="d-hard"  onclick="setDiff('hard')">困難</button>
+    </div>
+  </div>
+
+  <!-- GK status indicator -->
+  <div id="h-gk" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 hidden">
+    <div class="text-5xl font-black tracking-widest pop" id="h-gk-word"></div>
+  </div>
+
+  <!-- Bottom bar: controls + back link -->
+  <div class="absolute bottom-3 left-1/2 -translate-x-1/2 glass nc rounded-xl px-4 py-1.5 flex gap-5 text-[9px] text-slate-500 items-center">
+    <span><span class="tc">WASD</span> 油門/偏航</span>
+    <span><span class="tc">↑↓←→</span> 前後/橫移</span>
+    <span><span class="tc font-bold">R</span> 重置球</span>
+    <span class="text-slate-600">|</span>
+    <a href="soccer-match.html" class="tc pointer-events-auto hover:underline">← 回比賽</a>
+  </div>
+</div>
+
+<!-- Goal / Block Overlay -->
+<div id="ov" class="hidden fixed inset-0 z-20 flex items-center justify-center pointer-events-none">
+  <div id="ov-word" class="text-7xl font-black tracking-widest pop"></div>
+</div>
+
+<!-- Virtual Joysticks -->
+<div id="vjL" class="vj"><div class="vj-out"><div id="vjLk" class="vj-knob"></div></div><div class="vj-lb">油門 · 偏航</div></div>
+<div id="vjR" class="vj"><div class="vj-out"><div id="vjRk" class="vj-knob"></div></div><div class="vj-lb">俯仰 · 翻滾</div></div>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════
+const FL=6, FW=3, FH=3, HL=FL/2, HW=FW/2;
+const GZ   = HL-1.0;         // 2.0  — Team B goal Z
+const GY   = 2.5;            // goal ring centre height
+const GI   = 0.20;           // inner radius
+const GO   = 0.35;           // outer radius
+const GT   = (GO-GI)/2;      // tube radius = 0.075
+const GR   = GI+GT;          // major radius = 0.275
+const BR   = 0.11;           // drone / ball radius
+const GRAV = -9.81, HOV = 9.81;
+const THRM = 14, PTCM = 8, YAWM = 2.8;
+const DRAG = 0.87, WBNC = 0.35, FBNC = 0.20;
+
+// ═══════════════════════════════════════════════
+//  DIFFICULTY
+// ═══════════════════════════════════════════════
+const DIFFS = {
+  easy : { spd:1.2, trackY:false },
+  med  : { spd:3.2, trackY:true  },
+  hard : { spd:5.8, trackY:true  }
+};
+let diff = 'med';
+function setDiff(d){
+  diff=d;
+  ['easy','med','hard'].forEach(k=>document.getElementById('d-'+k).classList.toggle('on',k===d));
+}
+
+// ═══════════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════════
+let goals=0, attempts=1, bestTime=Infinity;
+let attTimer=0;
+let phase='playing'; // 'playing' | 'paused'
+
+// ═══════════════════════════════════════════════
+//  THREE.JS SETUP
+// ═══════════════════════════════════════════════
+let scene, camera, renderer, clock;
+function initThree(){
+  scene   = new THREE.Scene();
+  scene.background = new THREE.Color(0x040810);
+  scene.fog = new THREE.FogExp2(0x040810, .12);
+  camera  = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, .1, 60);
+  renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  document.getElementById('cc').appendChild(renderer.domElement);
+  clock = new THREE.Clock();
+  window.addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+  // Lighting
+  scene.add(new THREE.AmbientLight(0x0a1628, 4));
+  const dl=new THREE.DirectionalLight(0x7dd3fc,.8); dl.position.set(0,8,4); scene.add(dl);
+  const pl=new THREE.PointLight(0x0ea5e9,1.2,12); pl.position.set(0,3,0); scene.add(pl);
+}
+
+// ═══════════════════════════════════════════════
+//  FIELD
+// ═══════════════════════════════════════════════
+function buildField(){
+  // Cage wireframe
+  const wm = new THREE.MeshStandardMaterial({
+    color:0x0f1f3d, metalness:.7, roughness:.4,
+    transparent:true, opacity:.5, wireframe:true
+  });
+  const walls = [
+    {s:[FL,FH,6,6], p:[HW,FH/2,0],  r:[0,-Math.PI/2,0]},
+    {s:[FL,FH,6,6], p:[-HW,FH/2,0], r:[0, Math.PI/2,0]},
+    {s:[FW,FL,6,10],p:[0,FH,0],     r:[-Math.PI/2,0,0]},
+    {s:[FW,FL,6,10],p:[0,0,0],      r:[ Math.PI/2,0,0]},
+    {s:[FW,FH,6,6], p:[0,FH/2,HL],  r:[0,Math.PI,0]},
+    {s:[FW,FH,6,6], p:[0,FH/2,-HL], r:[0,0,0]}
+  ];
+  walls.forEach(w=>{
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(...w.s),wm);
+    m.position.set(...w.p); m.rotation.set(...w.r); scene.add(m);
+  });
+  // Floor
+  const floor=new THREE.Mesh(
+    new THREE.PlaneGeometry(FW,FL,12,20),
+    new THREE.MeshStandardMaterial({color:0x041020,emissive:0x021030,emissiveIntensity:.35,roughness:.8})
+  );
+  floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+  // Center line
+  const ln=new THREE.Mesh(
+    new THREE.PlaneGeometry(FW,.012),
+    new THREE.MeshBasicMaterial({color:0x22d3ee,transparent:true,opacity:.3})
+  );
+  ln.rotation.x=-Math.PI/2; ln.position.y=.001; scene.add(ln);
+  // Goal zone mark
+  const gz=new THREE.Mesh(
+    new THREE.PlaneGeometry(FW,.008),
+    new THREE.MeshBasicMaterial({color:0x4ade80,transparent:true,opacity:.25})
+  );
+  gz.rotation.x=-Math.PI/2; gz.position.set(0,.001,GZ); scene.add(gz);
+  // Neon edge strips along the floor
+  [[HW,0],[-HW,0]].forEach(([x])=>{
+    const eg=new THREE.Mesh(
+      new THREE.PlaneGeometry(.01,FL),
+      new THREE.MeshBasicMaterial({color:0x0f4f8f,transparent:true,opacity:.5})
+    );
+    eg.rotation.x=-Math.PI/2; eg.position.set(x,.002,0); scene.add(eg);
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  GOAL RING  (Team B, at +GZ)
+// ═══════════════════════════════════════════════
+let goalMesh, goalLight;
+function buildGoalRing(){
+  const geo=new THREE.TorusGeometry(GR, GT, 8, 32);
+  const mat=new THREE.MeshStandardMaterial({
+    color:0x4ade80, emissive:0x4ade80, emissiveIntensity:.85, metalness:.5
+  });
+  goalMesh = new THREE.Mesh(geo, mat);
+  goalMesh.position.set(0, GY, GZ);
+  // No rotation — ring stands vertical in XY plane, opening faces Z axis ✓
+  scene.add(goalMesh);
+  goalLight = new THREE.PointLight(0x4ade80, 1.5, 2.8);
+  goalLight.position.set(0, GY, GZ);
+  scene.add(goalLight);
+}
+
+// ═══════════════════════════════════════════════
+//  DRONE MESH  (same visual as training stage 9-11, scale S=0.22)
+// ═══════════════════════════════════════════════
+function makeDroneMesh(tc, isPlayer){
+  const g=new THREE.Group(); const S=0.22;
+  const spin=new THREE.Group();
+  const gm=new THREE.MeshStandardMaterial({
+    color:tc, emissive:tc,
+    emissiveIntensity: isPlayer?.85:.55,
+    wireframe:true, transparent:true,
+    opacity: isPlayer?.72:.52
+  });
+  spin.add(new THREE.Mesh(new THREE.SphereGeometry(BR,14,10),gm));
+  g.add(spin); g.userData.spin=spin;
+  // Body sphere
+  g.add(new THREE.Mesh(
+    new THREE.SphereGeometry(0.14*S,8,8),
+    new THREE.MeshStandardMaterial({color:0x1e293b,metalness:.9})
+  ));
+  // X-frame arms
+  const am=new THREE.MeshStandardMaterial({color:isPlayer?0x64748b:0x8b2222,metalness:.8});
+  const ag=new THREE.CylinderGeometry(0.02*S,0.02*S,0.72*S,6);
+  const a1=new THREE.Mesh(ag,am); a1.rotation.z=Math.PI/4; a1.rotation.y=Math.PI/4; g.add(a1);
+  const a2=new THREE.Mesh(ag,am.clone()); a2.rotation.z=-Math.PI/4; a2.rotation.y=Math.PI/4; g.add(a2);
+  // Nose (tip points in +Z = attack direction for player; for GK facing -Z it's reversed visually)
+  const nose=new THREE.Mesh(
+    new THREE.ConeGeometry(0.08*S,0.2*S,4),
+    new THREE.MeshBasicMaterial({color:isPlayer?0xfacc15:0xff6633})
+  );
+  nose.rotation.x=Math.PI/2; nose.position.set(0,0,0.3*S); g.add(nose);
+  // Tail dot
+  const tail=new THREE.Mesh(
+    new THREE.SphereGeometry(0.09*S,6,6),
+    new THREE.MeshBasicMaterial({color:isPlayer?0xef4444:0xff9900})
+  );
+  tail.position.set(0,0,-0.35*S); g.add(tail);
+  // Inner glow point
+  const igl=new THREE.PointLight(tc, isPlayer?.6:.4, .65);
+  g.add(igl);
+  scene.add(g);
+  return g;
+}
+
+// ═══════════════════════════════════════════════
+//  DRONE OBJECTS
+// ═══════════════════════════════════════════════
+const P_START = new THREE.Vector3(0, 1.5, -3.0); // player start
+const B_START = new THREE.Vector3(0, 1.4, -2.0); // ball start
+const GK_POS  = new THREE.Vector3(0, GY, GZ-0.38); // goalkeeper hover position
+
+let pDrone, gkDrone;
+
+function makeDroneObj(startPos, yaw, isPlayer){
+  return {
+    pos : startPos.clone(),
+    vel : new THREE.Vector3(),
+    yaw,
+    prevZ : startPos.z,
+    mesh  : makeDroneMesh(isPlayer ? 0x00eeff : 0xff4422, isPlayer)
+  };
+}
+
+// ═══════════════════════════════════════════════
+//  BALL
+// ═══════════════════════════════════════════════
+let ballMesh, bPos, bVel, bPrevZ;
+
+function buildBall(){
+  ballMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(BR, 16, 12),
+    new THREE.MeshStandardMaterial({
+      color:0xffffff, emissive:0x8899ff, emissiveIntensity:.2,
+      metalness:.2, roughness:.5
+    })
+  );
+  scene.add(ballMesh);
+  bPos = B_START.clone();
+  bVel = new THREE.Vector3();
+  bPrevZ = bPos.z;
+  ballMesh.position.copy(bPos);
+}
+
+function resetBall(){
+  bPos.copy(B_START);
+  bVel.set(0,0,0);
+  bPrevZ = bPos.z;
+  ballMesh.position.copy(bPos);
+}
+
+// ═══════════════════════════════════════════════
+//  PHYSICS HELPERS
+// ═══════════════════════════════════════════════
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function physicsDrone(d, dt, ax, ay, az, yr){
+  d.prevZ = d.pos.z;
+  d.yaw  += yr*dt;
+  const sy=Math.sin(d.yaw), cy=Math.cos(d.yaw);
+  d.vel.x += (ax*cy + az*sy)*dt;
+  d.vel.y += (ay + GRAV)*dt;
+  d.vel.z += (ax*-sy + az*cy)*dt;
+  d.vel.multiplyScalar(DRAG);
+  d.pos.addScaledVector(d.vel, dt);
+  d.mesh.position.copy(d.pos);
+  d.mesh.rotation.y = d.yaw;
+  droneWall(d);
+}
+
+function droneWall(d){
+  if(d.pos.x> HW-BR){d.pos.x= HW-BR; d.vel.x*=-WBNC;}
+  if(d.pos.x<-HW+BR){d.pos.x=-HW+BR; d.vel.x*=-WBNC;}
+  if(d.pos.y>  FH-BR){d.pos.y=  FH-BR; d.vel.y*=-WBNC;}
+  if(d.pos.y<    BR ){d.pos.y=    BR;   d.vel.y*=-WBNC;}
+  if(d.pos.z> HL-BR){d.pos.z= HL-BR; d.vel.z*=-WBNC;}
+  if(d.pos.z<-HL+BR){d.pos.z=-HL+BR; d.vel.z*=-WBNC;}
+}
+
+function ballWall(){
+  if(bPos.x> HW-BR){bPos.x= HW-BR; bVel.x*=-WBNC;}
+  if(bPos.x<-HW+BR){bPos.x=-HW+BR; bVel.x*=-WBNC;}
+  if(bPos.y>  FH-BR){bPos.y=  FH-BR; bVel.y*=-WBNC;}
+  if(bPos.y<    BR ){bPos.y=    BR;   bVel.y*=-FBNC;}
+  if(bPos.z> HL-BR){bPos.z= HL-BR; bVel.z*=-WBNC;}
+  if(bPos.z<-HL+BR){bPos.z=-HL+BR; bVel.z*=-WBNC;}
+}
+
+function ballPhysics(dt){
+  bPrevZ = bPos.z;
+  bVel.y += GRAV*dt;
+  bVel.multiplyScalar(DRAG);
+  bPos.addScaledVector(bVel, dt);
+  ballWall();
+  ballMesh.position.copy(bPos);
+}
+
+function droneBallImpact(d){
+  const diff=bPos.clone().sub(d.pos);
+  const dist=diff.length(), md=BR*2;
+  if(dist<md && dist>1e-4){
+    const n=diff.divideScalar(dist);
+    const rv=bVel.clone().sub(d.vel);
+    const imp=rv.dot(n);
+    if(imp<0){
+      const j=imp*1.3;
+      bVel.addScaledVector(n,-j);
+      d.vel.addScaledVector(n, j*.15);
+    }
+    const ov=(md-dist)*.5;
+    bPos.addScaledVector(n, ov);
+    d.pos.addScaledVector(n,-ov);
+  }
+}
+
+function goalRingBounce(){
+  // Vertical torus in XY plane at (0, GY, GZ)
+  const dx=bPos.x, dy=bPos.y-GY, dz=bPos.z-GZ;
+  const r=Math.sqrt(dx*dx+dy*dy);
+  if(r<1e-4) return;
+  const dTube=Math.sqrt((r-GR)*(r-GR)+dz*dz);
+  if(dTube < GT+BR){
+    // Surface normal
+    const nr=(r-GR)/dTube, nz=dz/dTube;
+    const nx=(dx/r)*nr, ny=(dy/r)*nr;
+    const dot=bVel.x*nx+bVel.y*ny+bVel.z*nz;
+    if(dot<0){
+      bVel.x-=2*dot*nx; bVel.y-=2*dot*ny; bVel.z-=2*dot*nz;
+      bVel.multiplyScalar(.6);
+    }
+    const push=GT+BR-dTube+0.005;
+    bPos.x+=nx*push; bPos.y+=ny*push; bPos.z+=nz*push;
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  GOAL DETECTION
+// ═══════════════════════════════════════════════
+function checkGoal(){
+  // Ball crosses GZ plane moving in +Z through the inner opening
+  const crossed=(bPrevZ-GZ)<0 && (bPos.z-GZ)>=0;
+  if(!crossed) return false;
+  const dx=bPos.x, dy=bPos.y-GY;
+  return Math.sqrt(dx*dx+dy*dy) <= GI;
+}
+
+// ═══════════════════════════════════════════════
+//  GOALKEEPER AI
+// ═══════════════════════════════════════════════
+function updateGK(dt){
+  const cfg=DIFFS[diff];
+  // Target: mirror ball X (and Y if medium/hard), fixed Z in front of goal
+  const tX=clamp(bPos.x, -GI*.9, GI*.9);
+  const tY=cfg.trackY ? clamp(bPos.y, GY-GI*.85, GY+GI*.85) : GY;
+  const tZ=GZ-0.38;
+  const target=new THREE.Vector3(tX, tY, tZ);
+
+  const toT=target.clone().sub(gkDrone.pos);
+  const dist=toT.length();
+
+  const cy=Math.cos(gkDrone.yaw), sy=Math.sin(gkDrone.yaw);
+  if(dist<0.04){
+    physicsDrone(gkDrone, dt, 0, HOV, 0, 0);
+    return;
+  }
+  const spd=Math.min(dist*6, cfg.spd);
+  const dir=toT.normalize().multiplyScalar(spd);
+  // Transform world force to drone-local (inverse of yaw rotation)
+  const axL = cy*dir.x - sy*dir.z;
+  const azL = sy*dir.x + cy*dir.z;
+  const ayL = HOV + clamp(dir.y*4, -6, 6);
+  physicsDrone(gkDrone, dt, axL, ayL, azL, 0);
+}
+
+// ═══════════════════════════════════════════════
+//  PLAYER INPUT
+// ═══════════════════════════════════════════════
+const KEYS={};
+let gpPrev={cam:false};
+const vj={L:{id:null,cx:0,cy:0,nx:0,ny:0},R:{id:null,cx:0,cy:0,nx:0,ny:0}};
+
+function setupKeys(){
+  document.addEventListener('keydown',e=>{
+    KEYS[e.key]=true;
+    if((e.key==='r'||e.key==='R') && phase==='playing'){
+      resetBall();
+      if(attTimer>0.5){ attempts++; attTimer=0; updateHUD(); }
+    }
+  });
+  document.addEventListener('keyup',e=>{ KEYS[e.key]=false; });
+}
+
+function playerInput(dt){
+  const d=pDrone;
+  let thr=0,yaw=0,pitch=0,roll=0;
+  // ── Left stick keyboard (WASD) ──
+  if(KEYS['w']||KEYS['W']) thr+=1;  if(KEYS['s']||KEYS['S']) thr-=1;
+  if(KEYS['a']||KEYS['A']) yaw+=1;  if(KEYS['d']||KEYS['D']) yaw-=1;
+  // ── Right stick keyboard (Arrows) ──
+  if(KEYS['ArrowUp'])    pitch+=1;  if(KEYS['ArrowDown'])  pitch-=1;
+  if(KEYS['ArrowLeft'])  roll +=1;  if(KEYS['ArrowRight']) roll -=1;
+
+  // ── Gamepad ──
+  const gp=navigator.getGamepads?.()[0];
+  if(gp){
+    const dz=v=>Math.abs(v)>.12?v:0;
+    thr  +=clamp(-dz(gp.axes[1]),-1,1);
+    yaw  +=clamp(-dz(gp.axes[0]),-1,1);
+    pitch+=clamp(-dz(gp.axes[3]),-1,1);
+    roll +=clamp(-dz(gp.axes[2]),-1,1);
+  }
+
+  // ── Virtual joystick (touch) ──
+  if(vj.L.id!==null){ thr+=clamp(-vj.L.ny,-1,1); yaw+=clamp(-vj.L.nx,-1,1); }
+  if(vj.R.id!==null){ pitch+=clamp(-vj.R.ny,-1,1); roll+=clamp(-vj.R.nx,-1,1); }
+
+  thr=clamp(thr,-1,1); yaw=clamp(yaw,-1,1);
+  pitch=clamp(pitch,-1,1); roll=clamp(roll,-1,1);
+  physicsDrone(d, dt, roll*PTCM, HOV+thr*THRM, pitch*PTCM, yaw*YAWM);
+}
+
+// ═══════════════════════════════════════════════
+//  CAMERA  (TPV follows player)
+// ═══════════════════════════════════════════════
+function updateCamera(){
+  const d=pDrone;
+  const offset=new THREE.Vector3(0,1.2,-2.2).applyEuler(new THREE.Euler(0,d.yaw,0));
+  camera.position.lerp(d.pos.clone().add(offset), .08);
+  camera.lookAt(d.pos.clone().add(new THREE.Vector3(0,.6,0)));
+}
+
+// ═══════════════════════════════════════════════
+//  HUD UPDATE
+// ═══════════════════════════════════════════════
+function updateHUD(){
+  document.getElementById('h-goals').textContent = goals;
+  document.getElementById('h-att').textContent   = attempts;
+  const rate = attempts>0 ? Math.round(goals/attempts*100) : 0;
+  document.getElementById('h-rate').textContent  = rate+'%';
+  document.getElementById('h-time').textContent  = attTimer.toFixed(1)+'s';
+  document.getElementById('h-best').textContent  = bestTime===Infinity ? '--' : bestTime.toFixed(2)+'s';
+}
+
+// ═══════════════════════════════════════════════
+//  GOAL / OVERLAY EVENTS
+// ═══════════════════════════════════════════════
+function showOverlay(text, color, dur, cb){
+  const ov=document.getElementById('ov');
+  const wd=document.getElementById('ov-word');
+  ov.classList.remove('hidden');
+  wd.className='text-7xl font-black tracking-widest pop';
+  wd.style.color=color;
+  wd.style.textShadow=`0 0 40px ${color},0 0 80px ${color}`;
+  wd.textContent=text;
+  setTimeout(()=>{ ov.classList.add('hidden'); if(cb)cb(); }, dur);
+}
+
+function onGoal(){
+  goals++;
+  if(attTimer < bestTime) bestTime = attTimer;
+  phase = 'paused';
+  updateHUD();
+  showOverlay('GOAL! 🎉','#4ade80',2000,()=>{
+    resetBall();
+    gkDrone.pos.copy(GK_POS); gkDrone.vel.set(0,0,0);
+    attempts++;
+    attTimer=0;
+    phase='playing';
+    updateHUD();
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  VIRTUAL JOYSTICK
+// ═══════════════════════════════════════════════
+function vjMove(s,tx,ty){
+  const j=vj[s]; let dx=tx-j.cx,dy=ty-j.cy;
+  const R=55,d=Math.sqrt(dx*dx+dy*dy);
+  if(d>R){dx*=R/d;dy*=R/d;}
+  j.nx=dx/R; j.ny=dy/R;
+  const k=document.getElementById(s==='L'?'vjLk':'vjRk');
+  if(k)k.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
+}
+function vjReset(s){
+  vj[s].id=null; vj[s].nx=0; vj[s].ny=0;
+  const k=document.getElementById(s==='L'?'vjLk':'vjRk');
+  if(k)k.style.transform='translate(-50%,-50%)';
+}
+function initVJ(){
+  if(!window.matchMedia('(pointer:coarse)').matches)return;
+  document.getElementById('vjL').classList.add('show');
+  document.getElementById('vjR').classList.add('show');
+  document.addEventListener('touchstart',e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      const lR=document.getElementById('vjL').getBoundingClientRect();
+      const rR=document.getElementById('vjR').getBoundingClientRect();
+      const lc={x:lR.left+lR.width/2,y:lR.top+lR.height/2};
+      const rc={x:rR.left+rR.width/2,y:rR.top+rR.height/2};
+      if(vj.L.id===null&&Math.hypot(t.clientX-lc.x,t.clientY-lc.y)<72){
+        vj.L.id=t.identifier;vj.L.cx=lc.x;vj.L.cy=lc.y;vjMove('L',t.clientX,t.clientY);}
+      if(vj.R.id===null&&Math.hypot(t.clientX-rc.x,t.clientY-rc.y)<72){
+        vj.R.id=t.identifier;vj.R.cx=rc.x;vj.R.cy=rc.y;vjMove('R',t.clientX,t.clientY);}
+    }
+  },{passive:false});
+  document.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      if(t.identifier===vj.L.id)vjMove('L',t.clientX,t.clientY);
+      if(t.identifier===vj.R.id)vjMove('R',t.clientX,t.clientY);
+    }
+  },{passive:false});
+  const fn=e=>{for(const t of e.changedTouches){
+    if(t.identifier===vj.L.id)vjReset('L');
+    if(t.identifier===vj.R.id)vjReset('R');}};
+  document.addEventListener('touchend',fn);
+  document.addEventListener('touchcancel',fn);
+}
+
+// ═══════════════════════════════════════════════
+//  ANIMATE LOOP
+// ═══════════════════════════════════════════════
+let hudTick=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.05);
+
+  if(phase==='playing'){
+    playerInput(dt);
+    updateGK(dt);
+
+    // Ball simulation
+    ballPhysics(dt);
+    droneBallImpact(pDrone);
+    droneBallImpact(gkDrone);
+    goalRingBounce();
+
+    // Goal check
+    if(checkGoal()) onGoal();
+
+    // Attempt timer
+    attTimer+=dt;
+  }
+
+  // Spin glow meshes
+  [pDrone, gkDrone].forEach(d=>{
+    if(d.mesh.userData.spin){
+      d.mesh.userData.spin.rotation.x+=dt*1.1;
+      d.mesh.userData.spin.rotation.z+=dt*.6;
+    }
+  });
+
+  // Goal ring pulse
+  const t=Date.now()*.001;
+  goalLight.intensity=1.3+Math.sin(t*1.4)*.5;
+  goalMesh.rotation.z+=dt*.22;
+
+  updateCamera();
+  hudTick+=dt;
+  if(hudTick>.05){ hudTick=0; updateHUD(); }
+  renderer.render(scene, camera);
+}
+
+// ═══════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════
+window.addEventListener('load',()=>{
+  initThree();
+  buildField();
+  buildGoalRing();
+
+  pDrone  = makeDroneObj(P_START, 0,         true );  // player, faces +Z
+  gkDrone = makeDroneObj(GK_POS,  Math.PI,   false);  // GK, faces -Z (toward player)
+
+  buildBall();
+  setupKeys();
+  setDiff('med');
+  initVJ();
+
+  document.getElementById('hud').classList.remove('hidden');
+  updateHUD();
+  animate();
+});
+</script>
+</body>
+</html>
