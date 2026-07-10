@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>飛行訓練 — 學生進度報告</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+  body { font-family: 'Share Tech Mono', monospace; background: #0b0f19; color: #e2e8f0; }
+  h1, .title { font-family: 'Orbitron', sans-serif; }
+  .glass { background: rgba(15,23,42,0.75); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(8px); }
+  .neon-c { box-shadow: 0 0 12px rgba(6,182,212,0.3); border-color: rgba(6,182,212,0.45); }
+  .badge-done  { background: rgba(34,197,94,0.15);  color: #4ade80; border: 1px solid rgba(34,197,94,0.4); }
+  .badge-miss  { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid rgba(239,68,68,0.35); }
+  .badge-none  { background: rgba(100,116,139,0.12); color: #64748b; border: 1px solid rgba(100,116,139,0.25); }
+  @media print {
+    body { background: #fff; color: #111; }
+    .glass { background: #f8fafc; border: 1px solid #cbd5e1; box-shadow: none; }
+    .no-print { display: none !important; }
+    th { background: #1e293b !important; }
+    td,th { font-size: 11px; }
+  }
+</style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+<!-- 標題區 -->
+<div class="max-w-4xl mx-auto mb-6 flex flex-col gap-4">
+  <div class="flex flex-col md:flex-row md:items-end justify-between gap-3">
+    <div>
+      <div class="text-[10px] text-cyan-400 tracking-widest uppercase mb-1">Drone Pilot Training</div>
+      <h1 class="title text-xl md:text-2xl font-black text-white tracking-wide">學生進度報告</h1>
+    </div>
+    <div class="flex gap-2 no-print">
+      <button onclick="window.print()" class="glass neon-c rounded-xl px-4 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-900/30 transition">🖨️ 列印 / 儲存 PDF</button>
+      <button onclick="exportJSON()" class="glass rounded-xl px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-700/40 transition border border-slate-700/50">📋 複製 JSON</button>
+      <a href="index.html" class="glass rounded-xl px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-700/40 transition border border-slate-700/50 flex items-center">← 返回選關</a>
+    </div>
+  </div>
+
+  <!-- 學生資料輸入 -->
+  <div class="glass neon-c rounded-2xl p-4 grid grid-cols-1 md:grid-cols-3 gap-3 no-print">
+    <div class="flex flex-col gap-1">
+      <label class="text-[9px] text-cyan-400 tracking-wider uppercase">學生姓名</label>
+      <input id="inp-name" type="text" placeholder="請輸入姓名" class="bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500">
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-[9px] text-cyan-400 tracking-wider uppercase">學號 / ID</label>
+      <input id="inp-id" type="text" placeholder="選填" class="bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500">
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-[9px] text-cyan-400 tracking-wider uppercase">匯出時間</label>
+      <div id="export-time" class="bg-slate-800/40 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-400"></div>
+    </div>
+  </div>
+
+  <!-- 匯出後顯示（列印時用）-->
+  <div id="print-header" class="hidden glass rounded-xl px-5 py-3 grid grid-cols-3 gap-4 text-xs">
+    <div><span class="text-slate-400">學生：</span><span id="ph-name" class="text-white font-bold">--</span></div>
+    <div><span class="text-slate-400">學號：</span><span id="ph-id" class="text-white">--</span></div>
+    <div><span class="text-slate-400">匯出：</span><span id="ph-time" class="text-white"></span></div>
+  </div>
+</div>
+
+<!-- 摘要卡片 -->
+<div class="max-w-4xl mx-auto mb-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+  <div class="glass neon-c rounded-2xl px-4 py-3 text-center">
+    <div class="text-[9px] text-cyan-400 uppercase tracking-wider">完成關卡</div>
+    <div id="sum-done" class="text-2xl font-black text-white mt-1">0 / 11</div>
+  </div>
+  <div class="glass rounded-2xl px-4 py-3 text-center border border-emerald-700/30">
+    <div class="text-[9px] text-emerald-400 uppercase tracking-wider">完成率</div>
+    <div id="sum-pct" class="text-2xl font-black text-white mt-1">0%</div>
+  </div>
+  <div class="glass rounded-2xl px-4 py-3 text-center border border-fuchsia-700/30">
+    <div class="text-[9px] text-fuchsia-400 uppercase tracking-wider">總飛行時間</div>
+    <div id="sum-time" class="text-2xl font-black text-white mt-1">--</div>
+  </div>
+  <div class="glass rounded-2xl px-4 py-3 text-center border border-amber-700/30">
+    <div class="text-[9px] text-amber-400 uppercase tracking-wider">足球賽完成</div>
+    <div id="sum-soccer" class="text-2xl font-black text-white mt-1">--</div>
+  </div>
+</div>
+
+<!-- 明細表 -->
+<div class="max-w-4xl mx-auto glass rounded-2xl overflow-hidden mb-6" style="border:1px solid rgba(6,182,212,0.25)">
+  <table class="w-full text-xs">
+    <thead>
+      <tr class="text-[9px] text-slate-400 uppercase tracking-wider" style="background:rgba(6,182,212,0.08)">
+        <th class="px-4 py-3 text-left">關卡</th>
+        <th class="px-3 py-3 text-center">狀態</th>
+        <th class="px-3 py-3 text-right">分數 / 成績</th>
+        <th class="px-3 py-3 text-right">最後作答</th>
+      </tr>
+    </thead>
+    <tbody id="stage-tbody"></tbody>
+  </table>
+</div>
+
+<!-- ── 提交代碼區 ── -->
+<div class="max-w-4xl mx-auto mb-6 no-print">
+  <div class="glass neon-c rounded-2xl p-5 flex flex-col gap-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-[10px] text-cyan-400 uppercase tracking-wider mb-0.5">Google 表單提交</div>
+        <div class="text-sm font-black text-white">進度代碼</div>
+      </div>
+      <button id="btn-gen-code"
+        class="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs px-4 py-2 rounded-xl transition">
+        🔄 產生代碼
+      </button>
+    </div>
+
+    <!-- 代碼顯示 -->
+    <div id="code-wrap" class="hidden flex-col gap-3">
+      <div class="flex items-center gap-2">
+        <code id="code-output"
+          class="flex-1 bg-slate-900 border border-cyan-700/50 rounded-xl px-4 py-3 text-cyan-300 text-sm font-mono tracking-wider break-all select-all"></code>
+        <button id="btn-copy-code"
+          class="shrink-0 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs px-3 py-3 rounded-xl transition">
+          📋 複製
+        </button>
+      </div>
+      <!-- 一鍵前往表單 -->
+      <button id="btn-open-form"
+        class="w-full bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest transition shadow-lg shadow-cyan-900/30 flex items-center justify-center gap-2">
+        📋 開啟預填 Google 表單（姓名 + 代碼自動填入）
+      </button>
+      <div class="text-[10px] text-slate-400 font-mono leading-relaxed">
+        📌 <strong class="text-slate-300">使用方式：</strong>點上方按鈕，Google 表單會自動填入姓名與代碼，確認後按送出即可。<br>
+        🔓 <strong class="text-slate-300">老師解析：</strong>使用 <code class="text-amber-400">decode.html</code> 解碼，或貼上 GAS 腳本在試算表自動展開。
+      </div>
+      <div id="code-legend-wrap" class="hidden">
+        <div class="grid grid-cols-7 md:grid-cols-13 gap-1 text-center">
+          <div id="code-legend"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 原始 JSON -->
+<div class="max-w-4xl mx-auto mb-8 no-print">
+  <details class="glass rounded-xl" style="border:1px solid rgba(100,116,139,0.2)">
+    <summary class="px-5 py-3 text-[10px] text-slate-500 cursor-pointer hover:text-slate-300">🔍 原始 localStorage JSON</summary>
+    <pre id="raw-json" class="px-5 pb-4 text-[10px] text-slate-400 overflow-x-auto leading-relaxed"></pre>
+  </details>
+</div>
+
+<script>
+// ── 關卡定義 ──
+const STAGES = [
+  { num: 1,  key: 'training-stage1-progress',    name: '安全概念與法規',     file: 'training-stage1.html',
+    score: d => d.quizScore != null ? `測驗 ${d.quizScore}/${d.quizTotal ?? 5} 題` : '--',
+    done: d => !!d.quizDone },
+  { num: 2,  key: 'training-stage2-progress',    name: '搖桿位置對應',       file: 'training-stage2-stickmapping_1.html',
+    score: d => d.bestTime != null ? `最佳 ${d.bestTime.toFixed ? d.bestTime.toFixed(1) : d.bestTime} 秒` : '--',
+    done: d => !!d.completed },
+  { num: 3,  key: 'training-stage3-progress',    name: '緊急停止',           file: 'training-stage3-emergency.html',
+    score: d => d.kills != null ? `擊落 ${d.kills} 架` : '--',
+    done: d => !!d.completed },
+  { num: 4,  key: 'training-stage4-progress',    name: '障礙物迴避',         file: 'training-stage4-hazards.html',
+    score: d => d.bestTime != null ? `最佳 ${d.bestTime.toFixed ? d.bestTime.toFixed(1) : d.bestTime} 秒` : '--',
+    done: d => !!d.completed },
+  { num: 5,  key: 'training-stage5-progress',    name: '自主飛行',           file: 'training-stage5-standalone_1.html',
+    score: d => d.accuracy != null ? `精準度 ${d.accuracy}%` : '--',
+    done: d => !!d.completed },
+  { num: 6,  key: 'training-stage6-progress',    name: '風場干擾',           file: 'training-stage6-wind.html',
+    score: d => d.score != null ? `${d.score} 分` : '--',
+    done: d => !!d.completed },
+  { num: 7,  key: 'training-stage7-progress',    name: '精準降落',           file: 'training-stage7-landing.html',
+    score: d => d.bestScore != null ? `最佳 ${d.bestScore} 分` : '--',
+    done: d => !!d.completed },
+  { num: 8,  key: 'training-stage8-progress',    name: '限電計畫',           file: 'training-stage8-battery.html',
+    score: d => d.bestTime != null ? `最佳 ${d.bestTime.toFixed ? d.bestTime.toFixed(1) : d.bestTime} 秒` : '--',
+    done: d => !!d.completed },
+  { num: 9,  key: 'training-stage9-progress',    name: '動態追蹤',           file: 'training-stage9-dynamic.html',
+    score: d => d.score != null ? `${d.score} 分` : '--',
+    done: d => !!d.completed },
+  { num: 10, key: 'training-stage10-progress',   name: '城市飛行',           file: 'training-stage10-city.html',
+    score: d => d.bestTime != null ? `最佳 ${d.bestTime.toFixed ? d.bestTime.toFixed(1) : d.bestTime} 秒` : '--',
+    done: d => !!d.completed },
+  { num: 11, key: 'training-stage11-progress',   name: '搜救任務',           file: 'training-stage11-rescue.html',
+    score: d => d.flightTime != null ? `${d.flightTime.toFixed ? d.flightTime.toFixed(1) : d.flightTime} 秒 · 找到 ${d.foundCount ?? '?'}/6` : '--',
+    done: d => !!d.completed },
+];
+const SOCCER_KEY = 'soccer-match-progress';
+
+function fmtDate(iso) {
+  if (!iso) return '--';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('zh-TW') + ' ' + d.toLocaleTimeString('zh-TW', {hour:'2-digit',minute:'2-digit'});
+  } catch(e) { return iso.slice(0,16).replace('T',' '); }
+}
+
+function render() {
+  const tbody = document.getElementById('stage-tbody');
+  let doneCount = 0, totalFlightSec = 0;
+  const rawAll = {};
+  const rows = [];
+
+  STAGES.forEach(s => {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(s.key) || 'null'); } catch(e) {}
+    rawAll[s.key] = raw;
+
+    const isDone = raw && s.done(raw);
+    if (isDone) doneCount++;
+
+    const scoreStr = raw ? s.score(raw) : '--';
+    const dateStr  = raw ? fmtDate(raw.lastAttempt || raw.completedAt || null) : '--';
+
+    // 累計飛行時間
+    if (raw) {
+      const t = raw.flightTime || raw.bestTime || raw.time || 0;
+      if (typeof t === 'number') totalFlightSec += t;
+    }
+
+    const badgeCls = !raw ? 'badge-none' : isDone ? 'badge-done' : 'badge-miss';
+    const badgeTxt = !raw ? '未開始' : isDone ? '✅ 完成' : '⏳ 進行中';
+
+    rows.push(`
+      <tr class="border-t border-slate-800/60 hover:bg-slate-800/30 transition">
+        <td class="px-4 py-3">
+          <div class="font-bold text-white text-[11px]">第 ${s.num} 關　${s.name}</div>
+        </td>
+        <td class="px-3 py-3 text-center">
+          <span class="inline-block px-2.5 py-1 rounded-full text-[9px] font-bold ${badgeCls}">${badgeTxt}</span>
+        </td>
+        <td class="px-3 py-3 text-right text-slate-300">${scoreStr}</td>
+        <td class="px-3 py-3 text-right text-slate-500">${dateStr}</td>
+      </tr>`);
+  });
+
+  // 足球賽
+  let soccerRaw = null;
+  try { soccerRaw = JSON.parse(localStorage.getItem(SOCCER_KEY) || 'null'); } catch(e) {}
+  rawAll[SOCCER_KEY] = soccerRaw;
+  const soccerDone = soccerRaw && soccerRaw.completed;
+  const soccerBadge = !soccerRaw ? 'badge-none' : soccerDone ? 'badge-done' : 'badge-miss';
+  const soccerTxt   = !soccerRaw ? '未開始' : soccerDone ? '✅ 完成' : '⏳ 進行中';
+  const soccerScore = soccerRaw ? (soccerRaw.wins != null ? `勝 ${soccerRaw.wins} / 敗 ${soccerRaw.losses ?? '?'}` : '--') : '--';
+  rows.push(`
+    <tr class="border-t border-violet-800/40 hover:bg-violet-900/10 transition">
+      <td class="px-4 py-3">
+        <div class="font-bold text-violet-300 text-[11px]">⚽ 畢業任務　3v3 足球賽</div>
+      </td>
+      <td class="px-3 py-3 text-center">
+        <span class="inline-block px-2.5 py-1 rounded-full text-[9px] font-bold ${soccerBadge}">${soccerTxt}</span>
+      </td>
+      <td class="px-3 py-3 text-right text-slate-300">${soccerScore}</td>
+      <td class="px-3 py-3 text-right text-slate-500">${soccerRaw ? fmtDate(soccerRaw.lastAttempt || null) : '--'}</td>
+    </tr>`);
+
+  tbody.innerHTML = rows.join('');
+
+  // 摘要
+  document.getElementById('sum-done').textContent = `${doneCount} / 11`;
+  document.getElementById('sum-pct').textContent  = `${Math.round(doneCount/11*100)}%`;
+  document.getElementById('sum-time').textContent = totalFlightSec > 0
+    ? (totalFlightSec >= 60 ? `${Math.floor(totalFlightSec/60)}m ${Math.round(totalFlightSec%60)}s` : `${totalFlightSec.toFixed(0)}s`)
+    : '--';
+  document.getElementById('sum-soccer').textContent = soccerDone ? '🏆 是' : (soccerRaw ? '⏳' : '--');
+
+  // 原始 JSON
+  document.getElementById('raw-json').textContent = JSON.stringify(rawAll, null, 2);
+
+  return rawAll;
+}
+
+// 列印前同步學生資料
+function syncPrintHeader() {
+  const name = document.getElementById('inp-name').value || '（未填）';
+  const id   = document.getElementById('inp-id').value || '（未填）';
+  const now  = new Date().toLocaleString('zh-TW');
+  document.getElementById('ph-name').textContent = name;
+  document.getElementById('ph-id').textContent   = id;
+  document.getElementById('ph-time').textContent  = now;
+  document.getElementById('print-header').classList.remove('hidden');
+}
+
+function exportJSON() {
+  const rawAll = render();
+  const meta = {
+    studentName: document.getElementById('inp-name').value || '',
+    studentId:   document.getElementById('inp-id').value || '',
+    exportedAt:  new Date().toISOString(),
+    progress: rawAll
+  };
+  navigator.clipboard.writeText(JSON.stringify(meta, null, 2))
+    .then(() => alert('✅ JSON 已複製到剪貼板！'))
+    .catch(() => alert('⚠️ 複製失敗，請手動從頁面底部複製'));
+}
+
+// ═══════════════════════════════════════════════
+//  DPT Codec — 8 碼 base36 不透明代碼
+//  學生看到：HNS5GP6J （看不出哪位置是哪關）
+//  老師用 decode.html 或 GAS 解析
+// ═══════════════════════════════════════════════
+const DPT_WEIGHTS = [3,7,11,13,17,19,23,29,31,37,41,43];
+
+function dptEncode(bits, dateObj) {
+  let completion = 0;
+  bits.forEach((b, i) => { completion |= ((b & 1) << i); });
+  const yy = dateObj.getFullYear() % 100;
+  const mm = dateObj.getMonth() + 1;
+  const dd = dateObj.getDate();
+  const dateKey = yy * 10000 + mm * 100 + dd;
+  const xorKey = ((dateKey * 31) ^ (dateKey >>> 7)) & 0xFFF;
+  const encoded = completion ^ xorKey;
+  const packed = dateKey * 4096 + encoded;
+  const dataStr = packed.toString(36).toUpperCase().padStart(6, '0');
+  let chkVal = DPT_WEIGHTS.reduce((s, w, i) => s + (bits[i] || 0) * w, 0);
+  chkVal = (chkVal + dateKey) % 1296;
+  const chkStr = chkVal.toString(36).toUpperCase().padStart(2, '0');
+  return dataStr + chkStr;
+}
+
+function generateCode() {
+  const bits = STAGES.map(s => {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(s.key) || 'null'); } catch(e) {}
+    return (raw && s.done(raw)) ? 1 : 0;
+  });
+  let soccerRaw = null;
+  try { soccerRaw = JSON.parse(localStorage.getItem(SOCCER_KEY) || 'null'); } catch(e) {}
+  bits.push((soccerRaw && soccerRaw.completed) ? 1 : 0);
+  return dptEncode(bits, new Date());
+}
+
+function showCode() {
+  const code = generateCode();
+  const out = document.getElementById('code-output');
+  const wrap = document.getElementById('code-wrap');
+  out.textContent = code;
+  wrap.classList.remove('hidden');
+  wrap.classList.add('flex');
+  // 說明標籤（只顯示格式提示，不顯示內容）
+  const legend = document.getElementById('code-legend');
+  legend.parentElement.innerHTML =
+    '<div class="text-[10px] text-slate-500 font-mono">代碼已混淆，學生無法直接判讀內容。請將代碼貼入 Google 表單「進度代碼」欄位。</div>';
+}
+
+const FORM_BASE = 'https://docs.google.com/forms/d/e/1FAIpQLSdcy0v5YBTNYoOBAmhCzMVyo0hLDsviY6YuhkPKD_1f7vMz7A/viewform';
+const ENTRY_NAME = 'entry.888420120';
+const ENTRY_CODE = 'entry.1515281879';
+
+function buildFormURL(name, code) {
+  const params = new URLSearchParams();
+  params.set('usp', 'pp_url');
+  if (name) params.set(ENTRY_NAME, name);
+  if (code) params.set(ENTRY_CODE, code);
+  return FORM_BASE + '?' + params.toString();
+}
+
+document.getElementById('btn-gen-code').addEventListener('click', showCode);
+document.getElementById('btn-copy-code').addEventListener('click', () => {
+  const code = document.getElementById('code-output').textContent;
+  if (!code) { showCode(); return; }
+  navigator.clipboard.writeText(code)
+    .then(() => {
+      const btn = document.getElementById('btn-copy-code');
+      btn.textContent = '✅ 已複製';
+      setTimeout(() => { btn.textContent = '📋 複製'; }, 2000);
+    })
+    .catch(() => alert('請手動選取代碼複製'));
+});
+
+document.getElementById('btn-open-form').addEventListener('click', () => {
+  const code = document.getElementById('code-output').textContent.trim();
+  if (!code) {
+    showCode();
+    // 等代碼產生後再開
+    setTimeout(() => {
+      const c = document.getElementById('code-output').textContent.trim();
+      const name = document.getElementById('inp-name').value.trim();
+      if (c) window.open(buildFormURL(name, c), '_blank');
+    }, 100);
+    return;
+  }
+  const name = document.getElementById('inp-name').value.trim();
+  if (!name) {
+    alert('請先在上方填入學生姓名！');
+    document.getElementById('inp-name').focus();
+    return;
+  }
+  window.open(buildFormURL(name, code), '_blank');
+});
+
+// 初始化
+document.getElementById('export-time').textContent = new Date().toLocaleString('zh-TW');
+render();
+
+window.addEventListener('beforeprint', syncPrintHeader);
+window.addEventListener('afterprint', () => {
+  document.getElementById('print-header').classList.add('hidden');
+});
+</script>
+</body>
+</html>

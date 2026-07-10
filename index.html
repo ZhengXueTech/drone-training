@@ -341,9 +341,34 @@
         </div>
     </section>
 
-    <!-- 說明 -->
-    <footer class="glass border border-slate-700/40 rounded-2xl p-5 text-center">
-        <div class="text-[10px] text-slate-500 font-mono leading-relaxed">
+    <!-- 工具列 + 說明 -->
+    <footer class="glass border border-slate-700/40 rounded-2xl p-5 flex flex-col gap-4">
+        <!-- 功能按鈕 -->
+        <div class="flex flex-wrap gap-2 justify-center">
+            <a href="progress-report.html"
+               class="flex items-center gap-1.5 bg-cyan-900/50 hover:bg-cyan-800/60 border border-cyan-700/50 text-cyan-300 font-bold text-xs px-4 py-2 rounded-xl transition">
+                📊 匯出學習報告
+            </a>
+            <button id="btn-clear-all"
+               class="flex items-center gap-1.5 bg-slate-800/60 hover:bg-red-900/40 border border-slate-700/50 hover:border-red-700/50 text-slate-400 hover:text-red-400 font-bold text-xs px-4 py-2 rounded-xl transition">
+                🗑️ 清除所有紀錄
+            </button>
+        </div>
+        <!-- 清除確認區（預設隱藏）-->
+        <div id="clear-confirm" class="hidden flex-col items-center gap-3 text-center">
+            <div class="text-xs text-red-400 font-mono">⚠️ 確定要清除所有關卡進度嗎？此動作無法復原。</div>
+            <div class="flex gap-2">
+                <button id="btn-clear-yes"
+                    class="bg-red-600 hover:bg-red-500 text-white font-black text-xs px-5 py-2 rounded-xl transition">
+                    確定清除
+                </button>
+                <button id="btn-clear-no"
+                    class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs px-5 py-2 rounded-xl transition">
+                    取消
+                </button>
+            </div>
+        </div>
+        <div class="text-[10px] text-slate-500 font-mono leading-relaxed text-center">
             進度自動儲存於瀏覽器 localStorage · 完成關卡後返回此頁面進度將自動更新<br>
             所有關卡均獨立運作 · 建議使用 Chrome 或 Edge · 支援鍵盤 / 搖桿 / 觸控操作
         </div>
@@ -473,6 +498,31 @@ function loadAllProgress() {
 }
 
 loadAllProgress();
+
+// ── 清除所有紀錄 ──
+const STAGE_KEYS = [
+    'training-stage1-progress',  'training-stage2-progress',
+    'training-stage3-progress',  'training-stage4-progress',
+    'training-stage5-progress',  'training-stage6-progress',
+    'training-stage7-progress',  'training-stage8-progress',
+    'training-stage9-progress',  'training-stage10-progress',
+    'training-stage11-progress', 'soccer-match-progress',
+];
+
+document.getElementById('btn-clear-all').addEventListener('click', () => {
+    document.getElementById('clear-confirm').classList.remove('hidden');
+    document.getElementById('clear-confirm').classList.add('flex');
+});
+document.getElementById('btn-clear-no').addEventListener('click', () => {
+    document.getElementById('clear-confirm').classList.add('hidden');
+    document.getElementById('clear-confirm').classList.remove('flex');
+});
+document.getElementById('btn-clear-yes').addEventListener('click', () => {
+    STAGE_KEYS.forEach(k => localStorage.removeItem(k));
+    document.getElementById('clear-confirm').classList.add('hidden');
+    document.getElementById('clear-confirm').classList.remove('flex');
+    loadAllProgress(); // 重新渲染進度
+});
 </script>
 </body>
 </html>
