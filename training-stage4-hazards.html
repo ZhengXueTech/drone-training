@@ -152,10 +152,12 @@
     <div class="text-[8px] text-slate-500 font-mono text-center leading-tight border-t border-slate-700/60 pt-1 mt-0.5">
         鍵盤 C/V　搖桿 Start/Select
     </div>
+    <div id="crouch-ind" class="hidden text-[8px] text-amber-400 font-bold text-center py-0.5">🦵 蹲下中</div>
+    <div class="text-[8px] text-slate-600 font-mono text-center">L1 / Z 蹲</div>
 </div>
 
 <!-- ============ INSTRUCTION PANEL ============ -->
-<div id="instruction-panel" class="absolute left-1/2 top-20 md:top-24 -translate-x-1/2 z-10 pointer-events-none w-[92%] max-w-md">
+<div id="instruction-panel" class="absolute right-3 md:right-5 top-32 md:top-36 z-10 pointer-events-none max-w-[220px]">
     <div class="glass-panel neon-border-magenta rounded-2xl px-5 py-3 flex flex-col gap-1 text-center">
         <div id="instruction-title" class="text-xs font-black text-fuchsia-400 uppercase tracking-wider"></div>
         <div id="instruction-text" class="text-[11px] text-slate-300 font-mono leading-relaxed"></div>
@@ -251,6 +253,7 @@
         <a href="index.html" target="_top" class="w-full bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-800 text-cyan-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition text-center">
             🏠 返回訓練總覽
         </a>
+        <div class="text-[9px] text-slate-600 font-mono text-center mt-2">⌨ Enter 下一關・R 重試・Esc 返回</div>
     </div>
 </div>
 
@@ -273,7 +276,8 @@ let controls = { throttle: 0, yaw: 0, pitch: 0, roll: 0 };
 const keysPressed = {};
 let distanceHintEnabled = true; // XYZ 距離提示開關，預設開啟
 let cameraMode = 'TPV'; // TPV | FPV | Spec
-let pilotPosMode = 'right'; // left | mid | right
+let pilotPosMode = 'right';
+let pilotCrouching = false; // L1/Z 按住蹲下 // left | mid | right
 let gpCamBtnPrev = false;   // 搖桿「切換視角」按鈕的上一幀狀態
 let gpPilotBtnPrev = false; // 搖桿「切換站位」按鈕的上一幀狀態
 
@@ -358,9 +362,14 @@ function setupKeyboard() {
         const k = e.key.toLowerCase();
         if (k === 'c' && !keysPressed[k]) cycleCameraMode();
         if (k === 'v' && !keysPressed[k]) cyclePilotPos();
+        if (k === 'z') { pilotCrouching = true; document.getElementById('crouch-ind').classList.remove('hidden'); }
         keysPressed[k] = true;
     });
-    window.addEventListener('keyup', e => { keysPressed[e.key.toLowerCase()] = false; });
+    window.addEventListener('keyup', e => {
+        const k = e.key.toLowerCase();
+        keysPressed[k] = false;
+        if (k === 'z') { pilotCrouching = false; document.getElementById('crouch-ind').classList.add('hidden'); }
+    });
 }
 
 function getActiveGamepad() {
@@ -389,6 +398,8 @@ function pollInputs() {
         const pilotBtn = !!(gp.buttons[8] && gp.buttons[8].pressed);
         if (pilotBtn && !gpPilotBtnPrev) cyclePilotPos();
         gpPilotBtnPrev = pilotBtn;
+        pilotCrouching = !!(gp.buttons[4] && gp.buttons[4].pressed);
+        document.getElementById('crouch-ind').classList.toggle('hidden', !pilotCrouching);
     } else {
         gamepadBadge.classList.add('hidden');
         controls.throttle = keysPressed['w'] ? 1 : (keysPressed['s'] ? -1 : 0);
@@ -716,7 +727,7 @@ async function finishCurrentStage() {
     stageLocked = true;
 
     if (stageIndex >= STAGES.length - 1) {
-        await saveProgress({ completed: true });
+        await saveProgress({ completed: true, lastAttempt: new Date().toISOString() });
         document.getElementById('complete-modal').classList.remove('hidden');
         document.getElementById('complete-modal').classList.add('flex');
         return;
@@ -846,8 +857,9 @@ function updateCamera() {
         let specPos = new THREE.Vector3(14, 6, 12);
         if (pilotPosMode === 'left') specPos.set(-14, 6, 12);
         else if (pilotPosMode === 'mid') specPos.set(0, 6, 18);
+        if (pilotCrouching) specPos.y = 1.5;
         camera.position.lerp(specPos, 0.08);
-        camera.lookAt(drone.pos);
+        camera.lookAt(pilotCrouching ? new THREE.Vector3(specPos.x, 0.5, specPos.z * 0.7) : drone.pos);
     }
 }
 
@@ -936,7 +948,7 @@ function animate() {
 // ── Gamepad 提示列 & A 鍵快捷（自動加入） ──
 (function(){
   var MODAL_ID = 'complete-modal';
-  var _prevA = false, _started = false;
+  var _prevA = false, _prevB = false, _started = false;
   function _gpPoll(){
     var gp = (navigator.getGamepads ? Array.from(navigator.getGamepads()) : []).find(function(g){return g;});
     if(gp){
@@ -950,7 +962,7 @@ function animate() {
       if(hint){
         if(introVis){ hint.innerHTML='<span class="gk">A</span> 開始訓練'; hint.style.display='inline'; }
         else if(failVis){ hint.innerHTML='<span class="gk">A</span> 再試一次'; hint.style.display='inline'; }
-        else if(vis){ hint.innerHTML='<span class="gk">A</span> 前往下一關'; hint.style.display='inline'; }
+        else if(vis){ hint.innerHTML='<span class="gk">A</span> 下一關&ensp;<span class="gk">B</span> 重試'; hint.style.display='inline'; }
         else { hint.style.display='none'; }
       }
       var aPressed = !!(gp.buttons[0] && gp.buttons[0].pressed);
@@ -960,6 +972,9 @@ function animate() {
         else if(vis){ var b=document.getElementById('btn-goto-next'); if(b){ b.click(); return; } }
       }
       _prevA = aPressed;
+      var bPressed = !!(gp.buttons[1] && gp.buttons[1].pressed);
+      if(bPressed && !_prevB){ if(vis){ var r=document.getElementById('btn-restart-all'); if(r) r.click(); } }
+      _prevB = bPressed;
     }
     requestAnimationFrame(_gpPoll);
   }
@@ -970,6 +985,14 @@ function animate() {
   window.addEventListener('gamepaddisconnected', function(){
     var gps = Array.from(navigator.getGamepads ? navigator.getGamepads() : []).filter(function(g){return g;});
     if(!gps.length) document.getElementById('gp-bar').classList.remove('show');
+  });
+  window.addEventListener('keydown', function(e){
+    var modal = document.getElementById('complete-modal');
+    var vis = modal && (!modal.classList.contains('hidden') || modal.classList.contains('flex'));
+    if(!vis) return;
+    if(e.key === 'Enter'){ e.preventDefault(); var b=document.getElementById('btn-goto-next'); if(b) b.click(); }
+    if(e.key.toLowerCase() === 'r'){ e.preventDefault(); var r=document.getElementById('btn-restart-all'); if(r) r.click(); }
+    if(e.key === 'Escape'){ e.preventDefault(); window.location.href='index.html'; }
   });
 })();
 // ── Virtual Joystick (觸控裝置) ──

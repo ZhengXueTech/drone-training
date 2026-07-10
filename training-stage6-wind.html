@@ -111,7 +111,7 @@
                     <div class="stat-track h-2 rounded-full overflow-hidden">
                         <div id="fill-wind" class="stat-fill h-full bg-green-400" style="width:10%"></div>
                     </div>
-                    <div class="text-[9px] text-amber-300 font-mono"><span id="val-wind">微風</span></div>
+                    <div class="text-[9px] text-amber-300 font-mono"><span id="val-wind-dir" class="mr-1 text-amber-200 font-black"></span><span id="val-wind">微風</span></div>
                 </div>
             </div>
         </div>
@@ -122,7 +122,7 @@
 <div id="instruction-panel" class="absolute left-1/2 top-36 md:top-40 -translate-x-1/2 z-10 pointer-events-none w-[92%] max-w-md">
     <div class="glass-panel neon-border-magenta rounded-2xl px-5 py-3 flex flex-col gap-1 text-center">
         <div class="text-xs font-black text-fuchsia-400 uppercase tracking-wider">中階訓練：風況應對</div>
-        <div class="text-[11px] text-slate-300 font-mono leading-relaxed">依序穿過所有綠色檢查點。風向與風力持續變化，需主動補正才能維持路線。右上角風向箭頭指向風的來源。</div>
+        <div class="text-[11px] text-slate-300 font-mono leading-relaxed">依序穿過所有綠色檢查點。風向與風力持續變化，需主動補正才能維持路線。右上角風向箭頭指向風吹去的方向，即無人機將飄向哪裡，補正時往反方向推桿。</div>
     </div>
 </div>
 
@@ -140,6 +140,8 @@
         <button id="pilot-pos-right" class="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[8px] font-bold py-0.5 rounded">右</button>
     </div>
     <div class="text-[8px] text-slate-500 font-mono text-center leading-tight border-t border-slate-700/60 pt-1 mt-0.5">鍵盤 C/V　搖桿 Start/Select</div>
+    <div id="crouch-ind" class="hidden text-[8px] text-amber-400 font-bold text-center py-0.5">🦵 蹲下中</div>
+    <div class="text-[8px] text-slate-600 font-mono text-center">L1 / Z 蹲</div>
 </div>
 
 <!-- ============ BOTTOM CONTROLS ============ -->
@@ -228,6 +230,7 @@
             <button id="btn-restart-all" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition">重新挑戰</button>
             <a href="index.html" class="flex-1 bg-cyan-900/60 hover:bg-cyan-800/60 text-cyan-300 font-bold py-2.5 rounded-xl uppercase tracking-widest text-[10px] transition flex items-center justify-center">返回選關</a>
         </div>
+        <div class="text-[9px] text-slate-600 font-mono text-center mt-2">⌨ Enter 下一關・R 重試・Esc 返回</div>
     </div>
 </div>
 
@@ -250,6 +253,7 @@ let controls = { throttle: 0, yaw: 0, pitch: 0, roll: 0 };
 const keysPressed = {};
 let cameraMode = 'TPV';
 let pilotPosMode = 'right';
+let pilotCrouching = false; // L1/Z 按住蹲下
 let gpCamBtnPrev = false;
 let gpPilotBtnPrev = false;
 
@@ -406,9 +410,14 @@ function setupKeyboard() {
         const k = e.key.toLowerCase();
         if (k === 'c' && !keysPressed[k]) cycleCameraMode();
         if (k === 'v' && !keysPressed[k]) cyclePilotPos();
+        if (k === 'z') { pilotCrouching = true; document.getElementById('crouch-ind').classList.remove('hidden'); }
         keysPressed[k] = true;
     });
-    window.addEventListener('keyup', e => { keysPressed[e.key.toLowerCase()] = false; });
+    window.addEventListener('keyup', e => {
+        const k = e.key.toLowerCase();
+        keysPressed[k] = false;
+        if (k === 'z') { pilotCrouching = false; document.getElementById('crouch-ind').classList.add('hidden'); }
+    });
 }
 
 function getActiveGamepad() {
@@ -435,6 +444,8 @@ function pollInputs() {
         const pilotBtn = !!(gp.buttons[8] && gp.buttons[8].pressed);
         if (pilotBtn && !gpPilotBtnPrev) cyclePilotPos();
         gpPilotBtnPrev = pilotBtn;
+        pilotCrouching = !!(gp.buttons[4] && gp.buttons[4].pressed);
+        document.getElementById('crouch-ind').classList.toggle('hidden', !pilotCrouching);
     } else {
         gpBadge.classList.add('hidden');
         controls.throttle = keysPressed['w'] ? 1 : (keysPressed['s'] ? -1 : 0);
@@ -490,8 +501,8 @@ function updateWind(dt) {
 }
 
 function updateWindHUD() {
-    // 箭頭指向風的來源（飛行員角度）
-    const angleDeg = Math.atan2(-wind.dirX, -wind.dirZ) * 180 / Math.PI;
+    // 箭頭指向風吹去的方向（= 無人機飄移方向，符合氣象局慣例）
+    const angleDeg = Math.atan2(wind.dirX, wind.dirZ) * 180 / Math.PI;
     document.getElementById('wind-arrow').style.transform = `rotate(${angleDeg}deg)`;
 
     const pct = Math.min((wind.strength / 4.0) * 100, 100);
@@ -502,6 +513,12 @@ function updateWindHUD() {
 
     const label = wind.strength < 1.8 ? '微風' : wind.strength < 3.0 ? '中等側風' : '強側風';
     document.getElementById('val-wind').textContent = label;
+
+    // 方位文字（風吹向哪裡＝無人機飄移方向）
+    const dirs = ['北↑','東北','東→','東南','南↓','西南','西←','西北'];
+    const dirIdx = Math.round(((angleDeg % 360) + 360) % 360 / 45) % 8;
+    const dirEl = document.getElementById('val-wind-dir');
+    if (dirEl) dirEl.textContent = dirs[dirIdx];
 }
 
 // ============================================================
@@ -694,6 +711,7 @@ function updateCamera() {
         let sp = new THREE.Vector3(16, 7, 14);
         if (pilotPosMode === 'left') sp.set(-16, 7, 14);
         else if (pilotPosMode === 'mid') sp.set(0, 7, 20);
+        if (pilotCrouching) sp.y = 1.5;
         camera.position.lerp(sp, 0.08);
         camera.lookAt(drone.pos);
     }
@@ -758,7 +776,7 @@ function animate() {
 // ── Gamepad 提示列 & A 鍵快捷（自動加入） ──
 (function(){
   var MODAL_ID = 'report-modal';
-  var _prevA = false, _started = false;
+  var _prevA = false, _prevB = false, _started = false;
   function _gpPoll(){
     var gp = (navigator.getGamepads ? Array.from(navigator.getGamepads()) : []).find(function(g){return g;});
     if(gp){
@@ -772,7 +790,7 @@ function animate() {
       if(hint){
         if(introVis){ hint.innerHTML='<span class="gk">A</span> 開始訓練'; hint.style.display='inline'; }
         else if(failVis){ hint.innerHTML='<span class="gk">A</span> 再試一次'; hint.style.display='inline'; }
-        else if(vis){ hint.innerHTML='<span class="gk">A</span> 前往下一關'; hint.style.display='inline'; }
+        else if(vis){ hint.innerHTML='<span class="gk">A</span> 下一關&ensp;<span class="gk">B</span> 重試'; hint.style.display='inline'; }
         else { hint.style.display='none'; }
       }
       var aPressed = !!(gp.buttons[0] && gp.buttons[0].pressed);
@@ -782,6 +800,9 @@ function animate() {
         else if(vis){ var b=document.getElementById('btn-goto-next'); if(b){ b.click(); return; } }
       }
       _prevA = aPressed;
+      var bPressed = !!(gp.buttons[1] && gp.buttons[1].pressed);
+      if(bPressed && !_prevB){ if(vis){ var r=document.getElementById('btn-restart-all'); if(r) r.click(); } }
+      _prevB = bPressed;
     }
     requestAnimationFrame(_gpPoll);
   }
@@ -792,6 +813,14 @@ function animate() {
   window.addEventListener('gamepaddisconnected', function(){
     var gps = Array.from(navigator.getGamepads ? navigator.getGamepads() : []).filter(function(g){return g;});
     if(!gps.length) document.getElementById('gp-bar').classList.remove('show');
+  });
+  window.addEventListener('keydown', function(e){
+    var modal = document.getElementById('report-modal');
+    var vis = modal && (!modal.classList.contains('hidden') || modal.classList.contains('flex'));
+    if(!vis) return;
+    if(e.key === 'Enter'){ e.preventDefault(); var b=document.getElementById('btn-goto-next'); if(b) b.click(); }
+    if(e.key.toLowerCase() === 'r'){ e.preventDefault(); var r=document.getElementById('btn-restart-all'); if(r) r.click(); }
+    if(e.key === 'Escape'){ e.preventDefault(); window.location.href='index.html'; }
   });
 })();
 // ── Virtual Joystick (觸控裝置) ──

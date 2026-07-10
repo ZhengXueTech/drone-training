@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPT 代碼解析器 — 教師專用</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+  body { font-family: 'Share Tech Mono', monospace; background: #0b0f19; color: #e2e8f0; }
+  .title { font-family: 'Orbitron', sans-serif; }
+  .glass { background: rgba(15,23,42,0.75); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(8px); }
+  .neon-c { box-shadow: 0 0 12px rgba(6,182,212,0.3); border-color: rgba(6,182,212,0.45) !important; }
+  @media print {
+    body { background: #fff; color: #111; }
+    .glass { background: #f8fafc; border: 1px solid #cbd5e1 !important; box-shadow: none; }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+<div class="max-w-3xl mx-auto flex flex-col gap-6">
+
+  <!-- 標題 -->
+  <div class="flex items-center justify-between">
+    <div>
+      <div class="text-[10px] text-cyan-400 tracking-widest uppercase">Drone Pilot Training · Teacher Tool</div>
+      <h1 class="title text-xl font-black text-white mt-0.5">進度代碼解析器</h1>
+    </div>
+    <a href="index.html" class="glass border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-slate-400 hover:text-slate-200 transition no-print">← 返回選關</a>
+  </div>
+
+  <!-- 單一代碼輸入 -->
+  <div class="glass neon-c rounded-2xl p-5 flex flex-col gap-4 no-print">
+    <div class="text-xs text-cyan-400 font-bold uppercase tracking-wider">單一代碼查詢</div>
+    <div class="flex gap-2">
+      <input id="inp-code" type="text" maxlength="8" placeholder="貼上 8 碼進度代碼，例如 HNS5GP6J"
+        class="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white font-mono tracking-widest placeholder-slate-600 focus:outline-none focus:border-cyan-500 uppercase"
+        oninput="this.value=this.value.toUpperCase()">
+      <button onclick="decodeSingle()"
+        class="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs px-5 py-2 rounded-xl transition">
+        解析
+      </button>
+    </div>
+    <div id="single-result" class="hidden"></div>
+  </div>
+
+  <!-- 批次輸入 -->
+  <div class="glass rounded-2xl p-5 flex flex-col gap-4 no-print" style="border:1px solid rgba(6,182,212,0.2)">
+    <div class="text-xs text-cyan-400 font-bold uppercase tracking-wider">批次解析（從 Google Sheets 貼上）</div>
+    <div class="text-[10px] text-slate-500 font-mono">每行格式：<code class="text-amber-400">姓名,代碼</code> 或 <code class="text-amber-400">姓名\t代碼</code>（Tab 分隔）</div>
+    <textarea id="inp-batch" rows="6" placeholder="王小明,HNS5GP6J&#10;李大華,A3X9KM7P&#10;..."
+      class="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-cyan-500 resize-y"></textarea>
+    <div class="flex gap-2">
+      <button onclick="decodeBatch()"
+        class="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs px-5 py-2 rounded-xl transition">
+        批次解析
+      </button>
+      <button onclick="exportCSV()"
+        class="glass border border-slate-600 text-slate-400 hover:text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition">
+        匯出 CSV
+      </button>
+      <button onclick="window.print()"
+        class="glass border border-slate-600 text-slate-400 hover:text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition">
+        🖨️ 列印
+      </button>
+    </div>
+  </div>
+
+  <!-- 批次結果表格 -->
+  <div id="batch-wrap" class="hidden glass rounded-2xl overflow-hidden" style="border:1px solid rgba(6,182,212,0.2)">
+    <div class="px-4 py-3 text-[10px] text-cyan-400 uppercase tracking-wider font-bold" style="background:rgba(6,182,212,0.08)">
+      解析結果
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-[11px]" id="batch-table">
+        <thead>
+          <tr class="text-[9px] text-slate-400 uppercase" style="background:rgba(15,23,42,0.8)">
+            <th class="px-3 py-2 text-left">姓名</th>
+            <th class="px-2 py-2 text-center">日期</th>
+            <th class="px-2 py-2 text-center">完成</th>
+            <th class="px-2 py-2 text-center">S1</th><th class="px-2 py-2 text-center">S2</th>
+            <th class="px-2 py-2 text-center">S3</th><th class="px-2 py-2 text-center">S4</th>
+            <th class="px-2 py-2 text-center">S5</th><th class="px-2 py-2 text-center">S6</th>
+            <th class="px-2 py-2 text-center">S7</th><th class="px-2 py-2 text-center">S8</th>
+            <th class="px-2 py-2 text-center">S9</th><th class="px-2 py-2 text-center">S10</th>
+            <th class="px-2 py-2 text-center">S11</th><th class="px-2 py-2 text-center">⚽</th>
+            <th class="px-2 py-2 text-center">狀態</th>
+          </tr>
+        </thead>
+        <tbody id="batch-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- GAS 說明 -->
+  <div class="glass rounded-2xl p-5 flex flex-col gap-3 no-print" style="border:1px solid rgba(100,116,139,0.2)">
+    <div class="text-xs text-slate-400 font-bold uppercase tracking-wider">Google Apps Script 自動解碼</div>
+    <div class="text-[10px] text-slate-500 leading-relaxed">
+      在 Google Sheets 選「延伸功能 → Apps Script」，貼上以下腳本後儲存。<br>
+      之後在試算表輸入 <code class="text-amber-400">=DPT_DECODE(A2)</code> 即可自動還原代碼為欄位值。
+    </div>
+    <div class="relative">
+      <pre id="gas-code" class="bg-slate-900 rounded-xl px-4 py-3 text-[10px] text-emerald-400 overflow-x-auto leading-relaxed"></pre>
+      <button onclick="copyGAS()"
+        class="absolute top-2 right-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-[9px] font-bold px-2 py-1 rounded-lg transition">
+        複製
+      </button>
+    </div>
+  </div>
+
+</div><!-- /max-w -->
+
+<script>
+// ═══════════════════════════════════════════════
+//  DPT Codec — 共用解碼器
+// ═══════════════════════════════════════════════
+const DPT_WEIGHTS = [3,7,11,13,17,19,23,29,31,37,41,43];
+const STAGE_NAMES = [
+  'S1 安全概念','S2 搖桿對應','S3 緊急停止','S4 障礙迴避',
+  'S5 自主飛行','S6 風場干擾','S7 精準降落','S8 限電計畫',
+  'S9 動態追蹤','S10 城市飛行','S11 搜救任務','⚽ 足球賽'
+];
+
+function dptDecode(raw) {
+  const code = (raw || '').trim().toUpperCase();
+  if (!/^[0-9A-Z]{8}$/.test(code)) return { valid: false, error: '格式錯誤（需 8 碼英數字）' };
+  const packed = parseInt(code.slice(0, 6), 36);
+  if (isNaN(packed) || packed < 0) return { valid: false, error: '解析失敗' };
+  const encoded  = packed % 4096;
+  const dateKey  = Math.floor(packed / 4096);
+  if (dateKey < 10101 || dateKey > 991231) return { valid: false, error: '日期範圍異常' };
+  const xorKey    = ((dateKey * 31) ^ (dateKey >>> 7)) & 0xFFF;
+  const completion = encoded ^ xorKey;
+  const bits = Array.from({length: 12}, (_, i) => (completion >>> i) & 1);
+  let chkVal = DPT_WEIGHTS.reduce((s, w, i) => s + bits[i] * w, 0);
+  chkVal = (chkVal + dateKey) % 1296;
+  const expectedChk = chkVal.toString(36).toUpperCase().padStart(2, '0');
+  if (expectedChk !== code.slice(6, 8)) return { valid: false, error: '⚠️ Checksum 不符，代碼可能已竄改' };
+  const yy = Math.floor(dateKey / 10000);
+  const mm = Math.floor((dateKey % 10000) / 100);
+  const dd = dateKey % 100;
+  return {
+    valid: true, bits,
+    date: `20${String(yy).padStart(2,'0')}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`,
+    completed: bits.reduce((a, b) => a + b, 0)
+  };
+}
+
+// ── 單一查詢 ──
+function decodeSingle() {
+  const code = document.getElementById('inp-code').value.trim();
+  const res = dptDecode(code);
+  const el = document.getElementById('single-result');
+  el.classList.remove('hidden');
+  if (!res.valid) {
+    el.innerHTML = `<div class="text-red-400 font-bold text-sm">${res.error}</div>`;
+    return;
+  }
+  const rows = res.bits.map((b, i) => `
+    <div class="flex items-center gap-3 py-1.5 border-b border-slate-800/60">
+      <div class="text-[11px] text-slate-400 w-28">${STAGE_NAMES[i]}</div>
+      <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${b ? 'bg-emerald-900/50 text-emerald-400 border border-emerald-700/40' : 'bg-slate-800 text-slate-500'}">
+        ${b ? '✅ 完成' : '── 未完成'}
+      </span>
+    </div>`).join('');
+  el.innerHTML = `
+    <div class="flex items-center gap-4 mb-3">
+      <div class="text-2xl font-black text-white">${res.completed} / 12</div>
+      <div class="text-[10px] text-slate-400">已完成　·　產生日期 ${res.date}</div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6">${rows}</div>`;
+}
+
+document.getElementById('inp-code').addEventListener('keydown', e => {
+  if (e.key === 'Enter') decodeSingle();
+});
+
+// ── 批次解析 ──
+let batchData = [];
+
+function decodeBatch() {
+  const lines = document.getElementById('inp-batch').value.split('\n').filter(l => l.trim());
+  batchData = [];
+  const tbody = document.getElementById('batch-tbody');
+  tbody.innerHTML = '';
+
+  lines.forEach(line => {
+    const parts = line.split(/[,\t]/).map(s => s.trim());
+    const name = parts[0] || '（未填）';
+    const code = (parts[1] || '').toUpperCase();
+    const res  = dptDecode(code);
+
+    batchData.push({ name, code, ...res });
+
+    const dot = b => `<td class="px-2 py-2 text-center"><span class="${b ? 'text-emerald-400' : 'text-slate-600'}">${b ? '●' : '○'}</span></td>`;
+    const stagesCells = res.valid ? res.bits.map(b => dot(b)).join('') : '<td colspan="12" class="px-2 py-2 text-center text-red-400 text-[10px]">代碼錯誤</td>';
+    const statusBadge = !res.valid
+      ? `<span class="text-red-400 text-[10px]">${res.error}</span>`
+      : res.completed === 12
+        ? '<span class="text-amber-400 font-bold">🏆 全過</span>'
+        : `<span class="text-slate-400">${res.completed}/12</span>`;
+
+    tbody.innerHTML += `
+      <tr class="border-t border-slate-800/40 hover:bg-slate-800/20 transition">
+        <td class="px-3 py-2 font-bold text-white">${name}</td>
+        <td class="px-2 py-2 text-center text-slate-400 text-[10px]">${res.valid ? res.date.slice(5) : '--'}</td>
+        <td class="px-2 py-2 text-center font-bold ${res.valid ? 'text-cyan-300' : 'text-slate-600'}">${res.valid ? res.completed : '--'}</td>
+        ${stagesCells}
+        <td class="px-2 py-2 text-center">${statusBadge}</td>
+      </tr>`;
+  });
+
+  document.getElementById('batch-wrap').classList.remove('hidden');
+}
+
+// ── 匯出 CSV ──
+function exportCSV() {
+  if (!batchData.length) return;
+  const header = ['姓名','日期','完成數','S1','S2','S3','S4','S5','S6','S7','S8','S9','S10','S11','足球賽','備註'];
+  const rows = batchData.map(d => [
+    d.name,
+    d.valid ? d.date : '',
+    d.valid ? d.completed : '',
+    ...(d.valid ? d.bits : Array(12).fill('')),
+    d.valid ? '' : d.error
+  ]);
+  const csv = [header, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `DPT_進度_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ── GAS 代碼 ──
+const GAS_CODE = `// DPT Decoder — 貼入 Google Apps Script 後儲存
+// 用法：在試算表輸入 =DPT_DECODE(A2) 即可解碼
+// 回傳陣列：[日期, 完成數, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, 足球賽]
+
+const DPT_W = [3,7,11,13,17,19,23,29,31,37,41,43];
+
+function DPT_DECODE(code) {
+  const c = String(code || '').trim().toUpperCase();
+  if (!/^[0-9A-Z]{8}$/.test(c)) return [["格式錯誤"]];
+  const packed = parseInt(c.slice(0,6), 36);
+  const encoded = packed % 4096;
+  const dateKey = Math.floor(packed / 4096);
+  if (dateKey < 10101 || dateKey > 991231) return [["日期異常"]];
+  const xorKey = ((dateKey * 31) ^ (dateKey >>> 7)) & 0xFFF;
+  const comp = encoded ^ xorKey;
+  const bits = Array.from({length:12}, (_,i) => (comp >>> i) & 1);
+  let chk = DPT_W.reduce((s,w,i) => s + bits[i]*w, 0);
+  chk = (chk + dateKey) % 1296;
+  const expChk = chk.toString(36).toUpperCase().padStart(2,'0');
+  if (expChk !== c.slice(6,8)) return [["⚠️ 代碼疑似竄改"]];
+  const yy = Math.floor(dateKey/10000);
+  const mm = Math.floor((dateKey%10000)/100);
+  const dd = dateKey % 100;
+  const date = \`20\${String(yy).padStart(2,'0')}-\${String(mm).padStart(2,'0')}-\${String(dd).padStart(2,'0')}\`;
+  return [[date, bits.reduce((a,b)=>a+b,0), ...bits]];
+}
+
+// 取得欄位標題列（貼在 Header 行）
+function DPT_HEADER() {
+  return [["日期","完成數","S1","S2","S3","S4","S5","S6","S7","S8","S9","S10","S11","⚽足球"]];
+}`;
+
+document.getElementById('gas-code').textContent = GAS_CODE;
+
+function copyGAS() {
+  navigator.clipboard.writeText(GAS_CODE)
+    .then(() => {
+      const btn = event.target;
+      btn.textContent = '✅';
+      setTimeout(() => { btn.textContent = '複製'; }, 2000);
+    });
+}
+</script>
+</body>
+</html>
