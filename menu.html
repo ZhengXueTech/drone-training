@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>無人機飛行體驗 | 選關</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#030508}
+body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-select:none}
+#bg{position:fixed;inset:0;z-index:0}
+#bg canvas{display:block;width:100%!important;height:100%!important}
+.glass{background:rgba(8,12,18,.82);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.08)}
+@keyframes scanline{0%{transform:translateY(-80px)}100%{transform:translateY(110vh)}}
+.scanline{pointer-events:none;position:fixed;top:0;left:0;width:100%;height:80px;
+  background:linear-gradient(transparent,rgba(120,180,255,.008),transparent);
+  animation:scanline 14s linear infinite;z-index:2}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.card{transition:transform .2s,box-shadow .2s,border-color .2s;cursor:pointer;position:relative;overflow:hidden;}
+.card:hover{transform:translateY(-6px) scale(1.02);}
+.card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .3s;}
+.card:hover::before{opacity:1;}
+.gp-focus{outline:none!important;transform:translateY(-6px) scale(1.02)!important;}
+.gp-focus .card-inner{box-shadow:0 0 0 3px rgba(255,255,255,.85),0 0 28px rgba(255,255,255,.35)!important;}
+#gp-status{position:fixed;top:16px;right:16px;z-index:10}
+#nav-hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:10}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+<div id="bg"></div>
+<div class="fixed inset-0 z-10 flex flex-col items-center justify-start overflow-y-auto px-4 py-6">
+  <!-- 標題 -->
+  <div class="text-center mb-5">
+    <div class="text-[10px] text-slate-500 tracking-[0.4em] mb-2 font-mono">DRONE FLIGHT EXPERIENCE</div>
+    <h1 class="text-5xl font-black leading-tight" style="font-family:'Orbitron',monospace;
+      background:linear-gradient(135deg,#60a5fa,#34d399,#fb923c,#fbbf24);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
+      無人機飛行體驗
+    </h1>
+    <div class="text-slate-500 text-xs mt-2 tracking-widest">選擇關卡開始訓練</div>
+  </div>
+
+  <!-- 關卡卡片 -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-3xl pb-4" id="card-grid">
+
+    <!-- A: 農業噴灑 -->
+    <div class="card-wrap" id="card-0" tabindex="0" onclick="goLevel(0)">
+      <div class="card glass card-inner rounded-2xl p-5 h-full" style="border-color:rgba(74,222,128,.25);box-shadow:0 0 24px rgba(74,222,128,.08)">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-4xl">🌾</span>
+          <span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="background:rgba(74,222,128,.15);color:#4ade80;border:1px solid rgba(74,222,128,.3)">關卡 A</span>
+        </div>
+        <div class="text-lg font-black mb-1" style="color:#4ade80">農業噴灑</div>
+        <div class="text-[10px] text-slate-400 leading-relaxed mb-3">操控無人機飛越農田，精準完成灑藥覆蓋。按 B 鈕切換灑藥開關，避免浪費藥水。</div>
+        <div class="flex gap-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(74,222,128,.12);color:#86efac">🌿 初級</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(251,191,36,.10);color:#fde68a">⚡ 中級</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(239,68,68,.10);color:#fca5a5">💀 高級</span>
+        </div>
+        <div id="score-0" class="mt-2 text-[8px] text-slate-600 font-mono"></div>
+      </div>
+    </div>
+
+    <!-- B: 建築巡檢 -->
+    <div class="card-wrap" id="card-1" tabindex="0" onclick="goLevel(1)">
+      <div class="card glass card-inner rounded-2xl p-5 h-full" style="border-color:rgba(96,165,250,.25);box-shadow:0 0 24px rgba(96,165,250,.08)">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-4xl">🏢</span>
+          <span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.3)">關卡 B</span>
+        </div>
+        <div class="text-lg font-black mb-1" style="color:#60a5fa">建築外牆巡檢</div>
+        <div class="text-[10px] text-slate-400 leading-relaxed mb-3">沿大樓外牆飛行掃描，靠近橘色異常面板時按 B 鈕確認，發現所有缺陷。</div>
+        <div class="flex gap-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(74,222,128,.12);color:#86efac">🌿 初級</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(251,191,36,.10);color:#fde68a">⚡ 中級</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(239,68,68,.10);color:#fca5a5">💀 高級</span>
+        </div>
+        <div id="score-1" class="mt-2 text-[8px] text-slate-600 font-mono"></div>
+      </div>
+    </div>
+
+    <!-- C: 山區搜救 -->
+    <div class="card-wrap" id="card-2" tabindex="0" onclick="goLevel(2)">
+      <div class="card glass card-inner rounded-2xl p-5 h-full" style="border-color:rgba(251,146,60,.25);box-shadow:0 0 24px rgba(251,146,60,.08)">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-4xl">🏔</span>
+          <span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.3)">關卡 C</span>
+        </div>
+        <div class="text-lg font-black mb-1" style="color:#fb923c">山區搜救</div>
+        <div class="text-[10px] text-slate-400 leading-relaxed mb-3">在崎嶇山地尋找倖存者，靠信號音導航。按 B 鈕開熱成像擴大偵測距離，限時 15 秒。</div>
+        <div class="flex gap-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(74,222,128,.12);color:#86efac">🌿 初級</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(251,191,36,.10);color:#fde68a">⚡ 中級</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(239,68,68,.10);color:#fca5a5">💀 高級</span>
+        </div>
+        <div id="score-2" class="mt-2 text-[8px] text-slate-600 font-mono"></div>
+      </div>
+    </div>
+
+    <!-- D: 橋梁/電塔 -->
+    <div class="card-wrap" id="card-3" tabindex="0" onclick="goLevel(3)">
+      <div class="card glass card-inner rounded-2xl p-5 h-full" style="border-color:rgba(251,191,36,.25);box-shadow:0 0 24px rgba(251,191,36,.08)">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-4xl">🏗</span>
+          <span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)">關卡 D</span>
+        </div>
+        <div class="text-lg font-black mb-1" style="color:#fbbf24">橋梁/電塔巡檢</div>
+        <div class="text-[10px] text-slate-400 leading-relaxed mb-3">飛到各巡檢節點懸停掃描。按 B 鈕啟動精密加速掃描（3×速度），攻克難以靠近的位置。</div>
+        <div class="flex gap-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(74,222,128,.12);color:#86efac">🌉 橋梁</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(251,191,36,.10);color:#fde68a">⚡ 電塔</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(239,68,68,.10);color:#fca5a5">💀 高壓線</span>
+        </div>
+        <div id="score-3" class="mt-2 text-[8px] text-slate-600 font-mono"></div>
+      </div>
+    </div>
+
+    <!-- E: 守門訓練 -->
+    <div class="card-wrap" id="card-4" tabindex="0" onclick="goLevel(4)">
+      <div class="card glass card-inner rounded-2xl p-5 h-full" style="border-color:rgba(255,34,68,.25);box-shadow:0 0 24px rgba(255,34,68,.08)">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-4xl">🥅</span>
+          <span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="background:rgba(255,34,68,.15);color:#ff4466;border:1px solid rgba(255,34,68,.3)">關卡 E</span>
+        </div>
+        <div class="text-lg font-black mb-1" style="color:#ff4466">守門訓練</div>
+        <div class="text-[10px] text-slate-400 leading-relaxed mb-3">操控守門無人機防守球門，阻擋 AI 前鋒衝鋒穿越。限時 60 秒，擋越多越好！</div>
+        <div class="flex gap-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(74,222,128,.12);color:#86efac">🤖 AI 攻擊</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(251,191,36,.10);color:#fde68a">⏱ 60秒</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(239,68,68,.10);color:#fca5a5">🥅 防守</span>
+        </div>
+        <div id="score-4" class="mt-2 text-[8px] text-slate-600 font-mono"></div>
+      </div>
+    </div>
+
+    <!-- F: 動態變形賽 -->
+    <div class="card-wrap" id="card-5" tabindex="0" onclick="goLevel(5)">
+      <div class="card glass card-inner rounded-2xl p-5 h-full" style="border-color:rgba(217,70,239,.25);box-shadow:0 0 24px rgba(217,70,239,.08)">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-4xl">♾️</span>
+          <span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="background:rgba(217,70,239,.15);color:#d946ef;border:1px solid rgba(217,70,239,.3)">關卡 F</span>
+        </div>
+        <div class="text-lg font-black mb-1" style="color:#d946ef">動態變形賽</div>
+        <div class="text-[10px] text-slate-400 leading-relaxed mb-3">每 6 個檢查點地圖全面重組，Combo 疊加越高加時越多，圈數越高障礙越多越快！</div>
+        <div class="flex gap-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(217,70,239,.12);color:#f0abfc">🎲 亂數地圖</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(217,70,239,.10);color:#f0abfc">∞ 無限圈數</span>
+        </div>
+        <div id="score-5" class="mt-2 text-[8px] text-slate-600 font-mono"></div>
+      </div>
+    </div>
+
+    <!-- G: 懸停挑戰 -->
+    <div class="card-wrap" id="card-6" tabindex="0" onclick="goLevel(6)">
+      <div class="card glass card-inner rounded-2xl p-5 h-full" style="border-color:rgba(13,219,168,.25);box-shadow:0 0 24px rgba(13,219,168,.08)">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-4xl">🎯</span>
+          <span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="background:rgba(13,219,168,.15);color:#0ddba8;border:1px solid rgba(13,219,168,.3)">關卡 G</span>
+        </div>
+        <div class="text-lg font-black mb-1" style="color:#0ddba8">懸停挑戰</div>
+        <div class="text-[10px] text-slate-400 leading-relaxed mb-3">在縮小圓圈正上方懸停，抵抗隨機風力干擾。出圈扣分，練穩定操控！</div>
+        <div class="flex gap-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(13,219,168,.12);color:#5eead4">💨 隨機風力</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(13,219,168,.10);color:#5eead4">⭕ 縮小圈</span>
+        </div>
+        <div id="score-6" class="mt-2 text-[8px] text-slate-600 font-mono"></div>
+      </div>
+    </div>
+
+    <!-- H: 追蹤訓練 -->
+    <div class="card-wrap" id="card-7" tabindex="0" onclick="goLevel(7)">
+      <div class="card glass card-inner rounded-2xl p-5 h-full" style="border-color:rgba(249,115,22,.25);box-shadow:0 0 24px rgba(249,115,22,.08)">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-4xl">🏃</span>
+          <span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.3)">關卡 H</span>
+        </div>
+        <div class="text-lg font-black mb-1" style="color:#f97316">追蹤訓練</div>
+        <div class="text-[10px] text-slate-400 leading-relaxed mb-3">追上粉紅 AI 無人機並觸碰標記！AI 做蛇形閃避，Combo 加乘高分！</div>
+        <div class="flex gap-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(249,115,22,.12);color:#fdba74">🤖 逃跑 AI</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(249,115,22,.10);color:#fdba74">🔥 Combo</span>
+        </div>
+        <div id="score-7" class="mt-2 text-[8px] text-slate-600 font-mono"></div>
+      </div>
+    </div>
+
+    <!-- I: 多目標防守 -->
+    <div class="card-wrap" id="card-8" tabindex="0" onclick="goLevel(8)">
+      <div class="card glass card-inner rounded-2xl p-5 h-full" style="border-color:rgba(124,58,237,.25);box-shadow:0 0 24px rgba(124,58,237,.08)">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-4xl">⚡</span>
+          <span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="background:rgba(124,58,237,.15);color:#8b5cf6;border:1px solid rgba(124,58,237,.3)">關卡 I</span>
+        </div>
+        <div class="text-lg font-black mb-1" style="color:#8b5cf6">多目標防守</div>
+        <div class="text-[10px] text-slate-400 leading-relaxed mb-3">場地有 3 個球門，攻擊者隨機衝向不同目標，快速換位攔截！</div>
+        <div class="flex gap-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(124,58,237,.12);color:#c4b5fd">3 個球門</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(124,58,237,.10);color:#c4b5fd">⏱ 60秒</span>
+        </div>
+        <div id="score-8" class="mt-2 text-[8px] text-slate-600 font-mono"></div>
+      </div>
+    </div>
+
+    <!-- J: 投遞任務 -->
+    <div class="card-wrap" id="card-9" tabindex="0" onclick="goLevel(9)">
+      <div class="card glass card-inner rounded-2xl p-5 h-full" style="border-color:rgba(245,158,11,.25);box-shadow:0 0 24px rgba(245,158,11,.08)">
+        <div class="flex items-start justify-between mb-3">
+          <span class="text-4xl">📦</span>
+          <span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)">關卡 J</span>
+        </div>
+        <div class="text-lg font-black mb-1" style="color:#f59e0b">投遞任務</div>
+        <div class="text-[10px] text-slate-400 leading-relaxed mb-3">抓取貨物飛到 3 個落點精準投下，飛太快或碰牆貨物掉落！</div>
+        <div class="flex gap-1 flex-wrap">
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(245,158,11,.12);color:#fde68a">⚡ 速度限制</span>
+          <span class="text-[8px] px-1.5 py-0.5 rounded" style="background:rgba(245,158,11,.10);color:#fde68a">📍 3 落點</span>
+        </div>
+        <div id="score-9" class="mt-2 text-[8px] text-slate-600 font-mono"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 回訓練總覽 -->
+<a href="../index.html" class="hidden sm:flex fixed top-4 left-4 z-10 items-center gap-1.5 glass rounded-full px-3 py-1.5 text-[9px] font-bold text-slate-400 hover:text-slate-200 transition">← 訓練總覽</a>
+<!-- 搖桿狀態 -->
+<div id="gp-status" class="hidden glass rounded-full px-3 py-1 text-[9px] font-bold text-sky-400 flex items-center gap-1.5">
+  <span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>🎮 搖桿已連接
+</div>
+
+<!-- 底部操作提示 -->
+<div id="nav-hint" class="glass rounded-xl px-4 py-2 text-[9px] text-slate-500 flex gap-4">
+  <span>⌨ <span class="text-slate-400">←→ 選擇</span></span>
+  <span class="text-slate-700">|</span>
+  <span>⌨ <span class="text-slate-400">Enter 進入</span></span>
+  <span class="text-slate-700">|</span>
+  <span>🎮 <span class="text-slate-400">D-pad 選擇・A 進入</span></span>
+</div>
+<script>
+'use strict';
+
+// ─── 關卡連結 ─────────────────────────────────────────────
+const LEVELS=[
+  {url:'exp-agri.html',       color:0x3d6518, hex:'#4ade80'},
+  {url:'exp-inspection.html', color:0x1e40af, hex:'#60a5fa'},
+  {url:'exp-rescue.html',     color:0xff5500, hex:'#fb923c'},
+  {url:'exp-bridge.html',     color:0xffcc00, hex:'#fbbf24'},
+  {url:'exp-goalkeeper.html', color:0xcc0033, hex:'#ff4466'},
+  {url:'exp-infinite.html',   color:0xd946ef, hex:'#d946ef'},
+  {url:'exp-hover.html',      color:0x0ddba8, hex:'#0ddba8'},
+  {url:'exp-chase.html',      color:0xf97316, hex:'#f97316'},
+  {url:'exp-multidef.html',   color:0x7c3aed, hex:'#8b5cf6'},
+  {url:'exp-cargo.html',      color:0xf59e0b, hex:'#f59e0b'},
+];
+
+function goLevel(idx){window.location.href=LEVELS[idx].url;}
+
+// ─── 最高分讀取（各關卡用 localStorage 儲存）────────────────
+const SCORE_KEYS=['drone_agri_best','drone_insp_best','drone_resc_best','drone_brdg_best','exp-goalkeeper-best',
+  'exp-infinite-best','exp-hover-best','exp-chase-best','exp-multidef-best','exp-cargo-best'];
+SCORE_KEYS.forEach((key,i)=>{
+  const v=localStorage.getItem(key);
+  if(v){const el=document.getElementById('score-'+i);if(el)el.textContent='最高分：'+v+' pt';}
+});
+
+// ─── Three.js 背景 ────────────────────────────────────────
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.setClearColor(0x030508,1);
+document.getElementById('bg').appendChild(renderer.domElement);
+window.addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,200);
+camera.position.set(0,0,22);
+
+scene.add(new THREE.AmbientLight(0xffffff,0.6));
+const dLight=new THREE.DirectionalLight(0x8888ff,0.8);dLight.position.set(5,10,5);scene.add(dLight);
+const pL1=new THREE.PointLight(0x4488ff,1.2,40);pL1.position.set(-8,4,0);scene.add(pL1);
+const pL2=new THREE.PointLight(0xff6600,0.8,30);pL2.position.set(8,-3,0);scene.add(pL2);
+
+// 星點背景
+(function(){
+  const count=200,pos=new Float32Array(count*3);
+  for(let i=0;i<count;i++){pos[i*3]=(Math.random()-.5)*80;pos[i*3+1]=(Math.random()-.5)*60;pos[i*3+2]=(Math.random()-.5)*40-5;}
+  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size:0.1,transparent:true,opacity:0.5})));
+})();
+
+// 迷你無人機
+function buildMiniDrone(color){
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.18,8,6),new THREE.MeshStandardMaterial({color,metalness:0.5,roughness:0.3})));
+  const aM=new THREE.MeshStandardMaterial({color,metalness:0.4});
+  [0,Math.PI/2].forEach(ry=>{const a=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.04,0.06),aM);a.rotation.y=ry;g.add(a);});
+  const pM=new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.35});
+  [[-1,0],[1,0],[0,-1],[0,1]].forEach(([mx,mz])=>{const pd=new THREE.Mesh(new THREE.CircleGeometry(0.12,10),pM.clone());pd.rotation.x=-Math.PI/2;pd.position.set(mx*0.3,0.07,mz*0.3);g.add(pd);});
+  const led=new THREE.PointLight(color,0.6,3);g.add(led);
+  return g;
+}
+
+const drones=LEVELS.map((lv,i)=>{
+  const m=buildMiniDrone(lv.color);
+  // 均分在畫面各角
+  const angle=(i/LEVELS.length)*Math.PI*2;
+  const r=7+i*0.8;
+  m.position.set(Math.cos(angle)*r,(i%2===0?3:-3)+Math.random()*2,Math.sin(angle)*r*0.4-2);
+  m.scale.setScalar(0.7+i*0.04);
+  scene.add(m);
+  return{mesh:m,
+    vel:new THREE.Vector3((Math.random()-.5)*0.8,(Math.random()-.5)*0.4,(Math.random()-.5)*0.3),
+    phase:Math.random()*Math.PI*2,
+    speed:0.3+Math.random()*0.3};
+});
+
+let _t=performance.now();
+function animateBg(){
+  requestAnimationFrame(animateBg);
+  const now=performance.now(),dt=Math.min((now-_t)/1000,0.05);_t=now;
+  const elapsed=now/1000;
+  drones.forEach((d,i)=>{
+    d.mesh.position.addScaledVector(d.vel,dt);
+    d.mesh.position.y+=Math.sin(elapsed*d.speed+d.phase)*dt*0.4;
+    d.mesh.rotation.y+=dt*(0.4+i*0.1);
+    // 邊界回彈
+    if(Math.abs(d.mesh.position.x)>13)d.vel.x*=-1;
+    if(Math.abs(d.mesh.position.y)>6) d.vel.y*=-1;
+    if(Math.abs(d.mesh.position.z)>6) d.vel.z*=-1;
+  });
+  // 相機緩慢搖擺
+  camera.position.x=Math.sin(elapsed*0.08)*1.2;
+  camera.position.y=Math.cos(elapsed*0.06)*0.6;
+  camera.lookAt(0,0,0);
+  renderer.render(scene,camera);
+}
+animateBg();
+// ─── 鍵盤/搖桿導航 ────────────────────────────────────────
+let focusIdx=0;
+const TOTAL=LEVELS.length;
+function setFocus(idx){
+  focusIdx=((idx%TOTAL)+TOTAL)%TOTAL;
+  for(let i=0;i<TOTAL;i++){
+    const w=document.getElementById('card-'+i);
+    if(w)w.classList.toggle('gp-focus',i===focusIdx);
+  }
+}
+setFocus(0);
+
+window.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown')setFocus(focusIdx+1);
+  else if(e.key==='ArrowLeft'||e.key==='ArrowUp')setFocus(focusIdx-1);
+  else if(e.key==='Enter'||e.key===' ')goLevel(focusIdx);
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
+});
+
+// 卡片 hover 更新焦點
+for(let i=0;i<TOTAL;i++){
+  const w=document.getElementById('card-'+i);
+  if(w)w.addEventListener('mouseenter',()=>setFocus(i));
+}
+
+// 搖桿
+const _gpPrev={};
+(function gpLoop(){
+  requestAnimationFrame(gpLoop);
+  const gp=navigator.getGamepads?.()[0];
+  if(!gp)return;
+  const b0=!!gp.buttons[0]?.pressed;
+  const b12=!!gp.buttons[12]?.pressed,b13=!!gp.buttons[13]?.pressed;
+  const b14=!!gp.buttons[14]?.pressed,b15=!!gp.buttons[15]?.pressed;
+  if((b14&&!_gpPrev[14])||(b12&&!_gpPrev[12]))setFocus(focusIdx-1);
+  if((b15&&!_gpPrev[15])||(b13&&!_gpPrev[13]))setFocus(focusIdx+1);
+  if(b0&&!_gpPrev[0])goLevel(focusIdx);
+  _gpPrev[0]=b0;_gpPrev[12]=b12;_gpPrev[13]=b13;_gpPrev[14]=b14;_gpPrev[15]=b15;
+})();
+
+window.addEventListener('gamepadconnected',()=>document.getElementById('gp-status').classList.remove('hidden'));
+window.addEventListener('gamepaddisconnected',()=>{
+  const gps=navigator.getGamepads?navigator.getGamepads():[];
+  if(![...gps].some(g=>g))document.getElementById('gp-status').classList.add('hidden');
+});
+setTimeout(()=>{
+  const gps=navigator.getGamepads?navigator.getGamepads():[];
+  if([...gps].some(g=>g))document.getElementById('gp-status').classList.remove('hidden');
+},500);
+</script>
+</body>
+</html>

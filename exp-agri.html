@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>農業精準噴藥 | 無人機體驗關卡</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0a1a0a}
+body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-select:none}
+#canvas-container{position:fixed;inset:0;z-index:0}
+#canvas-container canvas{display:block;width:100%!important;height:100%!important}
+.glass{background:rgba(8,20,8,.88);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.08)}
+.neon-g{border-color:rgba(34,197,94,.6)!important;box-shadow:0 0 16px rgba(34,197,94,.25)}
+.neon-a{border-color:rgba(251,191,36,.6)!important;box-shadow:0 0 14px rgba(251,191,36,.22)}
+.neon-r{border-color:rgba(239,68,68,.6)!important;box-shadow:0 0 14px rgba(239,68,68,.22)}
+.neon-c{border-color:rgba(6,182,212,.6)!important;box-shadow:0 0 14px rgba(6,182,212,.22)}
+.tg{color:#4ade80;text-shadow:0 0 8px rgba(74,222,128,.5)}
+.ta{color:#fbbf24}.tr{color:#f87171}.tc{color:#22d3ee}
+.key{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  background:rgba(20,40,20,.9);border:1px solid rgba(74,222,128,.3);border-radius:4px;
+  font-size:8px;font-weight:700;color:#4ade80;transition:all .08s}
+.key.on{background:rgba(34,197,94,.3);border-color:#4ade80;box-shadow:0 0 6px rgba(34,197,94,.5)}
+@keyframes pulse2{0%,100%{opacity:1}50%{opacity:.45}}.pulse2{animation:pulse2 1.4s ease-in-out infinite}
+@keyframes scanline{0%{transform:translateY(-80px)}100%{transform:translateY(110vh)}}
+.scanline{pointer-events:none;position:fixed;top:0;left:0;width:100%;height:80px;
+  background:linear-gradient(transparent,rgba(74,222,128,.018),transparent);
+  animation:scanline 11s linear infinite;z-index:2}
+/* Coverage bar */
+#cov-bar-fill{height:100%;transition:width .3s;border-radius:4px}
+/* 搖桿焦點 */
+.gp-focus{outline:3px solid rgba(255,255,255,.85)!important;box-shadow:0 0 12px rgba(255,255,255,.45)!important}
+
+/* ── Virtual Joystick ── */
+#vj-wrap{display:none;position:fixed;bottom:0;left:0;right:0;
+  min-height:200px;z-index:25;
+  padding:12px 24px;
+  padding-bottom:max(20px,env(safe-area-inset-bottom,20px));
+  align-items:flex-end;justify-content:space-between;pointer-events:none;}
+#vj-wrap.show{display:flex;}
+.vj-area{position:relative;width:clamp(112px,30vw,144px);height:clamp(112px,30vw,144px);
+  border-radius:50%;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;}
+.vj-base{position:absolute;inset:0;border-radius:50%;
+  background:rgba(74,222,128,.45);border:2px solid rgba(74,222,128,.9);}
+.vj-area.vj-r .vj-base{background:rgba(132,204,22,.35);border-color:rgba(132,204,22,.85);}
+.vj-knob{position:absolute;width:clamp(44px,9vw,58px);height:clamp(44px,9vw,58px);border-radius:50%;
+  background:rgba(74,222,128,.9);border:2px solid rgba(74,222,128,.9);
+  top:50%;left:50%;transform:translate(-50%,-50%);}
+.vj-area.vj-r .vj-knob{background:rgba(132,204,22,.85);border-color:rgba(132,204,22,.85);}
+.vj-label{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);white-space:nowrap;
+  font-size:9px;font-family:'Share Tech Mono',monospace;color:rgba(74,222,128,.9);letter-spacing:.05em;}
+.vj-area.vj-r .vj-label{color:rgba(132,204,22,.85);}
+#vj-btn-b{pointer-events:auto;align-self:flex-end;margin-bottom:12px;
+  width:clamp(54px,14vw,70px);height:clamp(54px,14vw,70px);border-radius:50%;
+  background:rgba(74,222,128,.45);border:2px solid rgba(74,222,128,.9);color:#fff;
+  font-size:clamp(16px,4vw,22px);line-height:1;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  transition:transform .1s,opacity .1s;-webkit-tap-highlight-color:transparent;}
+#vj-btn-b span{font-size:8px;font-family:'Share Tech Mono',monospace;opacity:.8;}
+#vj-btn-b.active{transform:scale(.88);opacity:.7;}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+<div id="canvas-container"></div>
+
+<!-- ▌ HUD -->
+<div id="hud" class="hidden fixed inset-0 pointer-events-none z-10">
+
+  <!-- TOP: Coverage + Timer -->
+  <div class="absolute top-3 left-1/2 -translate-x-1/2 flex items-stretch gap-2">
+    <div class="glass neon-g rounded-2xl px-4 py-2 flex flex-col items-center min-w-[130px]">
+      <div class="text-[7px] tg tracking-widest font-bold mb-1">噴藥覆蓋率</div>
+      <div class="w-full bg-slate-800/60 rounded h-3 mb-1" style="min-width:110px">
+        <div id="cov-bar-fill" style="width:0%;background:linear-gradient(90deg,#4ade80,#22d3ee)"></div>
+      </div>
+      <div class="text-[10px] font-mono text-white"><span id="cov-count">0</span><span class="text-slate-500">/40格</span>　<span id="cov-pct" class="tg font-black">0%</span></div>
+    </div>
+    <div class="glass rounded-2xl px-4 py-2 text-center" style="border-color:rgba(100,116,139,.25)">
+      <div class="text-[7px] text-slate-400 tracking-widest font-bold">剩餘時間</div>
+      <div id="timer" class="text-3xl font-black text-white font-mono leading-tight">2:00</div>
+      <div id="timer-warn" class="hidden text-[8px] tr font-bold pulse2">⚠ 加速！</div>
+    </div>
+    <div class="glass rounded-2xl px-4 py-2 text-center min-w-[80px]" style="border-color:rgba(100,116,139,.25)">
+      <div class="text-[7px] text-slate-400 tracking-widest font-bold">碰撞</div>
+      <div id="collision-count" class="text-2xl font-black tr leading-tight">0</div>
+      <div class="text-[8px] text-slate-500 font-mono">次</div>
+    </div>
+  </div>
+
+  <!-- TOP LEFT: Status -->
+  <div class="absolute top-3 left-3 flex flex-col gap-1.5">
+    <div class="glass neon-g rounded-xl px-2.5 py-1.5">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">任務</div>
+      <div id="diff-label" class="text-[10px] font-bold tg">🌾 初級</div>
+    </div>
+    <div class="glass rounded-xl px-2.5 py-1.5" style="border-color:rgba(100,116,139,.25)">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">視角 [C]</div>
+      <div id="camlab" class="text-[10px] font-bold text-white">地面視角</div>
+    </div>
+    <div class="glass rounded-xl px-2.5 py-1.5" style="border-color:rgba(100,116,139,.2)">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">飛行速度</div>
+      <div id="vel-spd" class="text-[10px] font-mono text-slate-300">0.0 m/s</div>
+    </div>
+    <div class="glass rounded-xl px-2.5 py-1.5" style="border-color:rgba(100,116,139,.2)">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">高度</div>
+      <div id="alt-disp" class="text-[10px] font-mono text-slate-300">0.0 m</div>
+    </div>
+    <div class="glass rounded-xl px-2.5 py-1.5" style="border-color:rgba(100,116,139,.2)">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">⚡ 電量</div>
+      <div class="w-full bg-slate-800/60 rounded h-2 mt-0.5" style="min-width:56px">
+        <div id="bat-fill" style="width:100%;height:100%;border-radius:3px;background:#4ade80;transition:width .4s,background .4s"></div>
+      </div>
+      <div id="bat-pct" class="text-[9px] font-mono tg">100%</div>
+    </div>
+    <div class="glass rounded-xl px-2.5 py-1.5" style="border-color:rgba(100,116,139,.2)">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">💧 藥水</div>
+      <div class="w-full bg-slate-800/60 rounded h-2 mt-0.5" style="min-width:56px">
+        <div id="liq-fill" style="width:100%;height:100%;border-radius:3px;background:#22d3ee;transition:width .4s,background .4s"></div>
+      </div>
+      <div id="liq-pct" class="text-[9px] font-mono tc">100%</div>
+    </div>
+    <div id="refill-ind" class="hidden glass neon-a rounded-xl px-2.5 py-1.5">
+      <div class="text-[10px] ta font-bold pulse2">⚠ 返回補給站</div>
+    </div>
+    <div id="spray-ind" class="glass neon-c rounded-xl px-2.5 py-1.5 hidden">
+      <div class="text-[10px] tc font-bold pulse2">💧 噴藥中</div>
+    </div>
+    <div id="spray-off-ind" class="hidden glass rounded-xl px-2.5 py-1.5" style="border-color:rgba(239,68,68,.4)">
+      <div class="text-[10px] tr font-bold">🚫 噴藥關閉</div>
+    </div>
+    <div id="gp-status" class="hidden glass neon-g rounded-full px-2 py-0.5 text-[8px] font-bold tg flex items-center gap-1">
+      <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>🎮 搖桿
+    </div>
+  </div>
+
+  <!-- TOP RIGHT: Wind indicator (medium/hard) -->
+  <div id="wind-panel" class="hidden absolute top-3 right-3 flex flex-col gap-1.5 items-end">
+    <div class="glass neon-a rounded-xl px-2.5 py-1.5 text-right">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">風向</div>
+      <div class="flex items-center gap-1 justify-end mt-0.5">
+        <div id="wind-arrow" class="text-base" style="display:inline-block;transform-origin:center">➤</div>
+        <div id="wind-str" class="text-[10px] ta font-bold">微弱</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM: Controls -->
+  <div class="absolute bottom-3 left-1/2 -translate-x-1/2">
+    <div class="glass neon-g rounded-2xl px-5 py-2.5 flex items-center gap-5">
+      <div class="flex flex-col items-center gap-1">
+        <div class="text-[7px] text-slate-500 font-mono">油門 偏航</div>
+        <div class="grid grid-cols-3 gap-0.5">
+          <div></div><div id="kW" class="key">W</div><div></div>
+          <div id="kA" class="key">A</div><div></div><div id="kD" class="key">D</div>
+          <div></div><div id="kS" class="key">S</div><div></div>
+        </div>
+      </div>
+      <div class="w-px h-10 bg-slate-700/50"></div>
+      <div class="flex flex-col items-center gap-1">
+        <div class="text-[7px] text-slate-500 font-mono">俯仰 翻滾</div>
+        <div class="grid grid-cols-3 gap-0.5">
+          <div></div><div id="kUp" class="key">↑</div><div></div>
+          <div id="kLeft" class="key">←</div><div></div><div id="kRight" class="key">→</div>
+          <div></div><div id="kDown" class="key">↓</div><div></div>
+        </div>
+      </div>
+      <div class="w-px h-10 bg-slate-700/50"></div>
+      <div class="flex flex-col gap-0.5 text-[8px] font-mono text-slate-400">
+        <div><span class="tg font-bold">C</span> 切換視角</div>
+        <div><span class="tg font-bold">P</span> 暫停</div>
+        <div><span class="ta">高度 &lt;3m 才噴藥</div>
+      </div>
+      <!-- 搖桿提示（連接時替換鍵盤提示） -->
+      <div id="gp-bar" class="hidden border-l border-slate-700/50 pl-4 flex flex-col gap-0.5 text-[8px] font-mono">
+        <div class="text-[7px] text-blue-400/70 font-bold mb-0.5">🎮 搖桿</div>
+        <div class="text-slate-400"><span class="text-blue-300 font-bold">左桿</span> 油門↕ 偏航↔</div>
+        <div class="text-slate-400"><span class="text-blue-300 font-bold">右桿</span> 俯仰↕ 翻滾↔</div>
+        <div class="text-slate-400"><span class="text-blue-300 font-bold">START</span> 視角　<span class="text-blue-300 font-bold">SELECT</span> 換位</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pause indicator -->
+  <div id="w-pause" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass rounded-2xl px-8 py-4 text-center" style="border-color:rgba(100,116,139,.4)">
+    <div class="text-lg font-black text-white">⏸ 暫停</div>
+    <div class="text-[10px] text-slate-400 font-mono mt-1">[P] 繼續</div>
+  </div>
+
+</div><!-- /hud -->
+
+<!-- ▌ MINIMAP -->
+<canvas id="minimap" class="glass hidden fixed bottom-20 right-3 z-15" width="120" height="75"
+  style="border-radius:8px;z-index:15"></canvas>
+
+<!-- ▌ INTRO -->
+<div id="intro" class="fixed inset-0 bg-slate-950/93 backdrop-blur-xl z-40 flex items-center justify-center p-4 overflow-y-auto">
+  <div class="glass neon-g rounded-3xl p-6 max-w-md w-full flex flex-col gap-4 text-center my-auto">
+    <!-- 標題 -->
+    <div>
+      <div class="text-[9px] tg tracking-[.35em] font-bold uppercase">體驗關卡 A · Agricultural Precision Spraying</div>
+      <h1 class="text-3xl font-black tg mt-1">🌾 農業精準噴藥</h1>
+      <div class="text-[10px] text-slate-400 font-mono mt-1">8×5 農田 · 40 格 · FAI 無人機農噴模擬</div>
+    </div>
+
+    <!-- 真實用途 -->
+    <div class="glass rounded-xl p-3 text-left">
+      <div class="text-[9px] tg font-bold uppercase tracking-widest mb-2">🌍 真實用途</div>
+      <div class="text-[11px] text-slate-300 leading-relaxed">
+        農業無人機在台灣廣泛應用於水稻、茶園、果園的農藥噴灑，大幅減少人工風險與成本。
+      </div>
+      <div class="grid grid-cols-4 gap-1.5 mt-2.5">
+        <div class="bg-green-950/60 border border-green-800/30 rounded-lg p-1.5 text-center">
+          <div class="text-[13px] font-black tg">4–10</div>
+          <div class="text-[8px] text-slate-500 leading-tight mt-0.5">公頃/小時<br>依機型</div>
+        </div>
+        <div class="bg-green-950/60 border border-green-800/30 rounded-lg p-1.5 text-center">
+          <div class="text-[13px] font-black tg">40×</div>
+          <div class="text-[8px] text-slate-500 leading-tight mt-0.5">比人工<br>效率高</div>
+        </div>
+        <div class="bg-green-950/60 border border-green-800/30 rounded-lg p-1.5 text-center">
+          <div class="text-[13px] font-black tg">−30%</div>
+          <div class="text-[8px] text-slate-500 leading-tight mt-0.5">農藥用量<br>更精準</div>
+        </div>
+        <div class="bg-green-950/60 border border-green-800/30 rounded-lg p-1.5 text-center">
+          <div class="text-[13px] font-black tg">−97%</div>
+          <div class="text-[8px] text-slate-500 leading-tight mt-0.5">用水量<br>10→750L</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 任務目標 + 評分 -->
+    <div class="grid grid-cols-2 gap-2 text-left text-[11px] font-mono">
+      <div class="glass rounded-xl p-2.5">
+        <div class="tg font-bold mb-0.5">🎯 任務目標</div>
+        <div class="text-slate-400">低空飛行覆蓋農田<br>高度 &lt;3m 才能噴藥<br>覆蓋越多格分越高</div>
+      </div>
+      <div class="glass rounded-xl p-2.5">
+        <div class="ta font-bold mb-0.5">📊 評分方式</div>
+        <div class="text-slate-400">覆蓋率 70 分<br>+ 剩餘時間 20 分<br>+ 零碰撞 10 分</div>
+      </div>
+    </div>
+
+    <!-- 操作說明（鍵盤/搖桿 tab） -->
+    <div class="glass rounded-xl p-3 text-left">
+      <div class="text-[9px] tg font-bold uppercase tracking-widest mb-2">🕹 操作說明</div>
+      <div class="flex gap-1.5 mb-2">
+        <button id="ctrl-tab-kb" onclick="agriCtrlTab('kb')"
+          class="flex-1 text-[10px] font-bold py-1 rounded-lg border border-green-600/50 bg-green-900/30 tg transition">⌨️ 鍵盤</button>
+        <button id="ctrl-tab-gp" onclick="agriCtrlTab('gp')"
+          class="flex-1 text-[10px] font-bold py-1 rounded-lg border border-slate-700/50 text-slate-500 transition hover:border-slate-500/50">🎮 搖桿</button>
+      </div>
+      <div id="ctrl-kb" class="text-[11px] font-mono text-slate-400 flex flex-col gap-1">
+        <div class="flex justify-between"><span class="text-slate-500">W / S</span><span>升高 / 降低高度</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">A / D</span><span>左右偏航旋轉</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">↑ ↓ ← →</span><span>前後左右飛行</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">C</span><span>切換視角</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">P / ESC</span><span>暫停</span></div>
+      </div>
+      <div id="ctrl-gp" class="text-[11px] font-mono text-slate-400 flex flex-col gap-1 hidden">
+        <div class="flex justify-between"><span class="text-blue-400">左搖桿</span><span>油門（↕）/ 偏航（↔）</span></div>
+        <div class="flex justify-between"><span class="text-blue-400">右搖桿</span><span>前後（↕）/ 橫移（↔）</span></div>
+        <div class="flex justify-between"><span class="text-blue-400">START</span><span>切換視角</span></div>
+        <div class="flex justify-between"><span class="text-blue-400">SELECT</span><span>換飛手地面位置</span></div>
+        <div class="flex justify-between"><span class="text-blue-400">A 鍵</span><span>確認選單</span></div>
+        <div class="flex justify-between"><span class="text-blue-400">D-pad ↕</span><span>選單上下導航</span></div>
+      </div>
+    </div>
+
+    <!-- 選難度 -->
+    <div class="glass rounded-xl p-3 flex flex-col gap-2">
+      <div class="text-[9px] tg font-bold uppercase tracking-widest">選擇難度</div>
+      <div class="flex gap-2">
+        <button id="btn-easy" onclick="startGame('easy')"
+          class="flex-1 flex flex-col items-center gap-1 border border-green-500/50 rounded-xl py-3 hover:bg-green-900/30 transition cursor-pointer">
+          <span class="text-xl">😊</span>
+          <span class="text-sm font-black tg">初級</span>
+          <span class="text-[9px] text-slate-400 font-mono">無障礙 · 120秒<br>噴藥半徑 1.0m</span>
+        </button>
+        <button id="btn-med" onclick="startGame('med')"
+          class="flex-1 flex flex-col items-center gap-1 border border-amber-500/50 rounded-xl py-3 hover:bg-amber-900/20 transition cursor-pointer">
+          <span class="text-xl">⚡</span>
+          <span class="text-sm font-black ta">中級</span>
+          <span class="text-[9px] text-slate-400 font-mono">4棵樹+微風 · 120秒<br>噴藥半徑 0.85m</span>
+        </button>
+        <button id="btn-hard" onclick="startGame('hard')"
+          class="flex-1 flex flex-col items-center gap-1 border border-red-500/50 rounded-xl py-3 hover:bg-red-900/20 transition cursor-pointer">
+          <span class="text-xl">💀</span>
+          <span class="text-sm font-black tr">高級</span>
+          <span class="text-[9px] text-slate-400 font-mono">樹+電線桿+風 · 100秒<br>噴藥半徑 0.70m</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 搖桿提示 -->
+    <div id="gp-hint" style="display:none" class="glass rounded-xl px-3 py-2 text-[10px] text-blue-300/70 font-mono">
+      🎮 搖桿已連接 — D-pad 選難度 · A 確認 · START 視角 · SELECT 換位置
+    </div>
+
+    <a href="../index.html" class="text-[9px] text-slate-600 hover:text-slate-400 font-mono">← 返回訓練總覽</a>
+  </div>
+</div>
+
+<!-- ▌ RESULT -->
+<div id="result" class="hidden fixed inset-0 bg-slate-950/93 backdrop-blur-xl z-40 flex items-center justify-center p-4">
+  <div id="result-box" class="glass rounded-3xl p-6 max-w-sm w-full flex flex-col gap-4 text-center">
+    <div id="grade-display" class="text-7xl font-black"></div>
+    <div id="result-title" class="text-xl font-black"></div>
+    <div class="glass rounded-xl p-3 text-left text-[11px] font-mono flex flex-col gap-1.5">
+      <div class="flex justify-between"><span class="text-slate-400">覆蓋率</span><span id="r-cov" class="tg font-bold"></span></div>
+      <div class="flex justify-between"><span class="text-slate-400">覆蓋得分</span><span id="r-cov-pts" class="text-white"></span></div>
+      <div class="flex justify-between"><span class="text-slate-400">時間剩餘</span><span id="r-time" class="text-white"></span></div>
+      <div class="flex justify-between"><span class="text-slate-400">時間加分</span><span id="r-time-pts" class="tc"></span></div>
+      <div class="flex justify-between"><span class="text-slate-400">碰撞次數</span><span id="r-col" class="text-white"></span></div>
+      <div class="flex justify-between"><span class="text-slate-400">安全得分</span><span id="r-col-pts" class="text-white"></span></div>
+      <div class="border-t border-slate-700 my-1"></div>
+      <div class="flex justify-between text-base"><span class="font-black text-white">總分</span><span id="r-total" class="font-black tg text-lg"></span></div>
+    </div>
+    <div class="flex gap-2">
+      <button id="btn-retry" class="flex-1 glass hover:bg-green-900/30 tg rounded-xl py-2 text-xs font-bold uppercase tracking-wider transition" style="border-color:rgba(34,197,94,.45)">再試一次</button>
+      <button id="btn-select" onclick="document.getElementById('result').classList.add('hidden');document.getElementById('intro').classList.remove('hidden');gpSetFocus(['btn-easy','btn-med','btn-hard'],0)"
+        class="flex-1 glass hover:bg-slate-700/40 text-slate-300 rounded-xl py-2 text-xs font-bold uppercase tracking-wider transition" style="border-color:rgba(100,116,139,.35)">選難度</button>
+      <a id="btn-menu" href="menu.html" class="flex-1 glass hover:bg-slate-700/40 text-slate-400 rounded-xl py-2 text-xs font-bold uppercase tracking-wider transition flex items-center justify-center" style="border-color:rgba(100,116,139,.35)">🏠 主選單</a>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<script>
+'use strict';
+
+// ──────────────────────────────────────────────
+//  DIFFICULTY CONFIG
+// ──────────────────────────────────────────────
+const DIFF_CFG = {
+  easy: { label:'🌾 初級', time:120, sprayR:1.0,  wind:0,   obstacles:[] },
+  med:  { label:'⚡ 中級', time:120, sprayR:0.85, wind:0.8, obstacles:'trees' },
+  hard: { label:'💀 高級', time:100, sprayR:0.70, wind:1.8, obstacles:'all' },
+};
+
+// Fixed obstacle positions (consistent challenge)
+const TREE_POSITIONS = [
+  [1.5, 0.5], [-2.5, -1.0], [3.0, 1.5], [-1.0, 1.5]
+];
+const POLE_POSITIONS = [
+  [-2.0, 0.0], [2.0, 0.0]
+];
+
+// ──────────────────────────────────────────────
+//  FARM CONSTANTS
+// ──────────────────────────────────────────────
+const COLS=8, ROWS=5;
+const CELL_W=1.0, CELL_D=1.0;
+const FARM_W=COLS*CELL_W; // 8m
+const FARM_D=ROWS*CELL_D; // 5m
+const TOTAL_CELLS=COLS*ROWS; // 40
+const MAX_SPRAY_H=3.0; // must fly below 3m to spray
+const TREE_R=0.22;     // tree collision radius
+const TREE_H=3.2;      // tree height
+const POLE_R=0.08;     // pole collision radius
+const POLE_H=5.0;      // pole height
+
+// ──────────────────────────────────────────────
+//  DRONE PHYSICS CONSTANTS
+// ──────────────────────────────────────────────
+const HOVER=9.81, THRMAX=16, PITCHMAX=20, YAWMAX=2.6, DRAG=0.88, GRAVITY=-9.81;
+const FBOUNCE=0.15, WBOUNCE=0.4;
+
+// ──────────────────────────────────────────────
+//  GLOBALS
+// ──────────────────────────────────────────────
+let renderer, scene, camera, clock;
+let drone, droneMesh, sprayDiscMesh, camTgt=new THREE.Vector3();
+const _gpPrev={};
+// 飛手地面位置（SELECT 循環切換）
+const PILOT_POSITIONS=[
+  new THREE.Vector3(-4,1.5,-5), // 西南
+  new THREE.Vector3(4,1.5,-5),  // 東南
+  new THREE.Vector3(4,1.5,5),   // 東北
+  new THREE.Vector3(-4,1.5,5),  // 西北
+];
+let _pilotPosIdx=0, _gpFocusBtns=[], _gpFocusIdx=0;
+function gpSetFocus(ids,idx){
+  document.querySelectorAll('.gp-focus').forEach(el=>el.classList.remove('gp-focus'));
+  _gpFocusBtns=ids; _gpFocusIdx=Math.max(0,Math.min(idx,ids.length-1));
+  const el=document.getElementById(ids[_gpFocusIdx]); if(el)el.classList.add('gp-focus');
+}
+function gpNav(d){if(!_gpFocusBtns.length)return;gpSetFocus(_gpFocusBtns,(_gpFocusIdx+d+_gpFocusBtns.length)%_gpFocusBtns.length);}
+function gpConfirm(){if(!_gpFocusBtns.length)return;const el=document.getElementById(_gpFocusBtns[_gpFocusIdx]);if(el)el.click();}
+function cycleGroundCam(){_pilotPosIdx=(_pilotPosIdx+1)%PILOT_POSITIONS.length;GROUND_CAM_POS.copy(PILOT_POSITIONS[_pilotPosIdx]);}
+let cells=[], obstacles=[];
+let sprayedCount=0, collisionCount=0;
+let gameTimer=120, totalTime=120;
+let phase='intro'; // intro|playing|done
+let paused=false;
+let camMode='ground';
+const CAM_MODES=['ground','fpv','follow'];
+const CAM_LABELS={ground:'地面視角', fpv:'FPV 第一人稱', follow:'跟機輔助'};
+const GROUND_CAM_POS=new THREE.Vector3(-4, 1.5, -5);
+let wind={x:0, z:0};
+let sprayR=1.0;
+let currentDiff='easy';
+// 電池 & 藥水
+let batteryPct=100, liquidPct=100;
+const BAT_DRAIN=0.55;  // %/s 持續耗電
+const LIQ_DRAIN=9.0;   // %/s 噴藥時耗水
+const REFILL_RATE=45;  // %/s 在補給站回充
+const BASE_REFILL_POS=new THREE.Vector3(-FARM_W/2-1.4,0,-FARM_D/2-1.4);
+// 粒子系統
+let _spParts=[],_spGeo=null,_spMesh=null;
+let _wpParts=[],_wpGeo=null,_wpMesh=null;
+let sfxCtx=null;
+
+const KEYS={};
+function getACtx(){
+  if(!sfxCtx)sfxCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(sfxCtx.state==='suspended')sfxCtx.resume();
+  return sfxCtx;
+}
+function playNote(f,t,dur,vol=0.2,type='sine'){
+  const ctx=getACtx();
+  const o=ctx.createOscillator(), g=ctx.createGain();
+  o.connect(g);g.connect(ctx.destination);
+  o.type=type;o.frequency.value=f;
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(vol,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.start(t);o.stop(t+dur+0.01);
+}
+function sfxSpray(){
+  const t=getACtx().currentTime;
+  playNote(880,t,.06,.04,'sine');
+}
+function sfxCollision(){
+  const ctx=getACtx(),t=ctx.currentTime;
+  playNote(120,t,.18,.25,'sawtooth');
+  playNote(80,t+.05,.15,.20,'sawtooth');
+}
+function sfxComplete(grade){
+  const ctx=getACtx(),t=ctx.currentTime;
+  const ns=grade==='S'?[523,659,784,880,1047]:
+            grade==='A'?[523,659,784,1047]:
+            grade==='B'?[440,523,659]:
+                        [330,415];
+  ns.forEach((f,i)=>playNote(f,t+i*.13,.28,.22,'square'));
+}
+function sfxCountdown(){
+  const t=getACtx().currentTime;
+  playNote(880,t,.07,.16,'sine');
+}
+
+// ──────────────────────────────────────────────
+//  THREE INIT
+// ──────────────────────────────────────────────
+function initThree(){
+  const cont=document.getElementById('canvas-container');
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true;
+  cont.appendChild(renderer.domElement);
+
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x0d1f0d);
+  scene.fog=new THREE.FogExp2(0x0a180a,0.025);
+
+  camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.05,200);
+  camera.position.set(0,5,-8);
+  camera.lookAt(0,0,0);
+
+  // Lighting
+  scene.add(new THREE.AmbientLight(0x143214,4));
+  const sun=new THREE.DirectionalLight(0xfff5cc,1.1);
+  sun.position.set(6,12,4); sun.castShadow=true; scene.add(sun);
+  const fill=new THREE.DirectionalLight(0x88ccff,.35);
+  fill.position.set(-4,5,-3); scene.add(fill);
+
+  clock=new THREE.Clock();
+  window.addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+}
+
+// ──────────────────────────────────────────────
+//  BUILD SCENE
+// ──────────────────────────────────────────────
+function buildScene(diff){
+  // Clear old objects except lights
+  while(scene.children.length>3)scene.remove(scene.children[scene.children.length-1]);
+  cells=[];obstacles=[];sprayedCount=0;
+
+  // Ground (large, earthy)
+  const gnd=new THREE.Mesh(
+    new THREE.PlaneGeometry(40,40),
+    new THREE.MeshStandardMaterial({color:0x3d2a1a,roughness:.95})
+  );
+  gnd.rotation.x=-Math.PI/2; gnd.position.y=-.01; scene.add(gnd);
+
+  // Farm soil base
+  const soil=new THREE.Mesh(
+    new THREE.PlaneGeometry(FARM_W+.3, FARM_D+.3),
+    new THREE.MeshStandardMaterial({color:0x5c3d1e,roughness:.9})
+  );
+  soil.rotation.x=-Math.PI/2; soil.position.y=.001; scene.add(soil);
+
+  // Crop cells (8×5 grid)
+  const cellGeo=new THREE.BoxGeometry(CELL_W-.06, .08, CELL_D-.06);
+  for(let c=0;c<COLS;c++){
+    for(let r=0;r<ROWS;r++){
+      const cx=-FARM_W/2+(c+.5)*CELL_W;
+      const cz=-FARM_D/2+(r+.5)*CELL_D;
+      const mat=new THREE.MeshStandardMaterial({
+        color:0x1a4a1a, roughness:.7, metalness:0,
+        emissive:0x0a200a, emissiveIntensity:.2
+      });
+      const mesh=new THREE.Mesh(cellGeo,mat);
+      mesh.position.set(cx,.04,cz);
+      scene.add(mesh);
+      cells.push({c,r,x:cx,z:cz,sprayed:false,mesh,mat});
+    }
+  }
+
+  // Grid lines on soil
+  const lm=new THREE.LineBasicMaterial({color:0x2d5a2d,transparent:true,opacity:.4});
+  for(let c=0;c<=COLS;c++){
+    const x=-FARM_W/2+c*CELL_W;
+    const pts=[new THREE.Vector3(x,.005,-FARM_D/2),new THREE.Vector3(x,.005,FARM_D/2)];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),lm));
+  }
+  for(let r=0;r<=ROWS;r++){
+    const z=-FARM_D/2+r*CELL_D;
+    const pts=[new THREE.Vector3(-FARM_W/2,.005,z),new THREE.Vector3(FARM_W/2,.005,z)];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),lm));
+  }
+
+  // Farm border markers
+  const borderM=new THREE.MeshStandardMaterial({color:0xcc8833,roughness:.8});
+  const postG=new THREE.CylinderGeometry(.04,.04,.5,6);
+  [[-FARM_W/2,-FARM_D/2],[FARM_W/2,-FARM_D/2],[-FARM_W/2,FARM_D/2],[FARM_W/2,FARM_D/2]].forEach(([x,z])=>{
+    const p=new THREE.Mesh(postG,borderM);p.position.set(x,.25,z);scene.add(p);
+  });
+
+  // Spray disc indicator
+  const discGeo=new THREE.CircleGeometry(1,40);
+  const discMat=new THREE.MeshBasicMaterial({color:0x00ffcc,transparent:true,opacity:.3,side:THREE.DoubleSide});
+  sprayDiscMesh=new THREE.Mesh(discGeo,discMat);
+  sprayDiscMesh.rotation.x=-Math.PI/2;
+  sprayDiscMesh.position.y=.015;
+  sprayDiscMesh.visible=false;
+  scene.add(sprayDiscMesh);
+
+  // Obstacles
+  const cfg=DIFF_CFG[diff];
+  if(cfg.obstacles==='trees'||cfg.obstacles==='all'){
+    TREE_POSITIONS.forEach(([x,z])=>addTree(x,z));
+  }
+  if(cfg.obstacles==='all'){
+    POLE_POSITIONS.forEach(([x,z])=>addPole(x,z));
+  }
+
+  // Drone
+  buildDrone();
+
+  // Wind
+  const wAng=Math.random()*Math.PI*2;
+  wind.x=Math.cos(wAng)*cfg.wind;
+  wind.z=Math.sin(wAng)*cfg.wind;
+  sprayR=cfg.sprayR;
+  // 補給站（閃爍黃綠平台）
+  const baseMat=new THREE.MeshStandardMaterial({color:0x88ff44,emissive:0x44aa00,emissiveIntensity:.8,roughness:.4});
+  const basePad=new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,.06,16),baseMat);
+  basePad.position.set(-FARM_W/2-1.4,.03,-FARM_D/2-1.4);
+  scene.add(basePad);
+  const baseLight=new THREE.PointLight(0x88ff44,.8,1.8);
+  baseLight.position.set(-FARM_W/2-1.4,.3,-FARM_D/2-1.4);
+  scene.add(baseLight);
+  // 初始化粒子系統
+  initSprayParticles();
+  initWindParticles();
+}
+
+function addTree(x,z){
+  const grp=new THREE.Group();
+  // Trunk
+  const trunk=new THREE.Mesh(
+    new THREE.CylinderGeometry(.09,.12,TREE_H,8),
+    new THREE.MeshStandardMaterial({color:0x5c3510,roughness:.9})
+  );
+  trunk.position.y=TREE_H/2; grp.add(trunk);
+  // Foliage (3 stacked spheres)
+  [[0,TREE_H-.2,.55],[0,TREE_H+.4,.45],[0,TREE_H+.9,.35]].forEach(([dx,dy,r])=>{
+    const s=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),
+      new THREE.MeshStandardMaterial({color:0x1e6b1e,roughness:.8,emissive:0x0a2a0a,emissiveIntensity:.3}));
+    s.position.set(dx,dy,0); grp.add(s);
+  });
+  grp.position.set(x,0,z);
+  scene.add(grp);
+  obstacles.push({type:'tree',pos:new THREE.Vector3(x,0,z),r:TREE_R,h:TREE_H,mesh:grp});
+}
+
+function addPole(x,z){
+  const grp=new THREE.Group();
+  const poleMat=new THREE.MeshStandardMaterial({color:0x8888aa,roughness:.5,metalness:.6});
+  // Main pole
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.04,.05,POLE_H,6),poleMat);
+  pole.position.y=POLE_H/2; grp.add(pole);
+  // Crossbar at top
+  const bar=new THREE.Mesh(new THREE.BoxGeometry(1.2,.06,.06),poleMat);
+  bar.position.y=POLE_H-.25; grp.add(bar);
+  // Insulators
+  [-0.5,0.5].forEach(bx=>{
+    const ins=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.12,6),
+      new THREE.MeshStandardMaterial({color:0xcc4444}));
+    ins.position.set(bx,POLE_H-.22,0); grp.add(ins);
+  });
+  grp.position.set(x,0,z);
+  scene.add(grp);
+  obstacles.push({type:'pole',pos:new THREE.Vector3(x,0,z),r:POLE_R,h:POLE_H,mesh:grp});
+}
+
+function buildDrone(){
+  if(droneMesh)scene.remove(droneMesh);
+  const g=new THREE.Group();
+  // 農業噴灑機：草綠機身
+  const body=new THREE.Mesh(new THREE.SphereGeometry(.12,10,8),
+    new THREE.MeshStandardMaterial({color:0x3d6518,metalness:.5,roughness:.4}));
+  g.add(body);
+  // 機臂
+  const armM=new THREE.MeshStandardMaterial({color:0x4a7a20,metalness:.4});
+  [0,Math.PI/2].forEach(ry=>{
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(.52,.03,.05),armM);
+    arm.rotation.y=ry; g.add(arm);
+  });
+  // 螺旋槳（黃綠）
+  const propM=new THREE.MeshBasicMaterial({color:0x99dd44,transparent:true,opacity:.40});
+  [[-1,0],[1,0],[0,-1],[0,1]].forEach(([mx,mz])=>{
+    const pd=new THREE.Mesh(new THREE.CircleGeometry(.09,16),propM);
+    pd.rotation.x=-Math.PI/2;pd.position.set(mx*.26,.06,mz*.26);g.add(pd);
+  });
+  // 鼻頭（黃色，+Z 前方）
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(.06,.12,6),
+    new THREE.MeshStandardMaterial({color:0xffcc00,emissive:0x886600,emissiveIntensity:.8}));
+  nose.rotation.x=Math.PI/2;nose.position.z=.16;g.add(nose);
+  // 噴藥頭（往下，農業特徵）
+  const nozzle=new THREE.Mesh(new THREE.CylinderGeometry(.02,.03,.08,6),
+    new THREE.MeshStandardMaterial({color:0x00ccff,emissive:0x006688,emissiveIntensity:.5}));
+  nozzle.position.y=-.16;g.add(nozzle);
+  // 農業機發光
+  g.add(new THREE.PointLight(0xaaff44,.6,.8));
+  scene.add(g);
+  droneMesh=g;
+  drone={
+    pos:new THREE.Vector3(-FARM_W/2+.5, 1.0, -FARM_D/2+.5),
+    vel:new THREE.Vector3(),
+    yaw:0
+  };
+  g.position.copy(drone.pos);
+}
+
+// ──────────────────────────────────────────────
+//  PHYSICS
+// ──────────────────────────────────────────────
+const BOUNDS_X=FARM_W/2+2, BOUNDS_Z=FARM_D/2+2, BOUNDS_Y_MAX=8;
+
+function physicsDrone(dt, roll, thrust, pitch, yr){
+  drone.yaw+=yr*dt;
+  const sy=Math.sin(drone.yaw), cy=Math.cos(drone.yaw);
+  drone.vel.x+=(roll*cy +pitch*sy)*dt;
+  drone.vel.y+=(thrust+GRAVITY)*dt;
+  drone.vel.z+=(roll*-sy+pitch*cy)*dt;
+  // Wind effect
+  drone.vel.x+=wind.x*dt*4.0;
+  drone.vel.z+=wind.z*dt*4.0;
+  drone.vel.multiplyScalar(DRAG);
+  drone.pos.x+=drone.vel.x*dt;
+  drone.pos.y+=drone.vel.y*dt;
+  drone.pos.z+=drone.vel.z*dt;
+  // Floor bounce
+  if(drone.pos.y<.12){drone.pos.y=.12;drone.vel.y=Math.abs(drone.vel.y)*FBOUNCE;}
+  // Ceiling
+  if(drone.pos.y>BOUNDS_Y_MAX){drone.pos.y=BOUNDS_Y_MAX;drone.vel.y=0;}
+  // Soft boundary walls
+  if(drone.pos.x<-BOUNDS_X){drone.pos.x=-BOUNDS_X;drone.vel.x=Math.abs(drone.vel.x)*WBOUNCE;}
+  if(drone.pos.x> BOUNDS_X){drone.pos.x= BOUNDS_X;drone.vel.x=-Math.abs(drone.vel.x)*WBOUNCE;}
+  if(drone.pos.z<-BOUNDS_Z){drone.pos.z=-BOUNDS_Z;drone.vel.z=Math.abs(drone.vel.z)*WBOUNCE;}
+  if(drone.pos.z> BOUNDS_Z){drone.pos.z= BOUNDS_Z;drone.vel.z=-Math.abs(drone.vel.z)*WBOUNCE;}
+  droneMesh.position.copy(drone.pos);
+  droneMesh.rotation.y=drone.yaw;
+}
+
+// ──────────────────────────────────────────────
+//  OBSTACLE COLLISION
+// ──────────────────────────────────────────────
+let lastCollisionTime=-999;
+function checkObstacleCollisions(){
+  const now=Date.now()*.001;
+  if(now-lastCollisionTime<1.2)return; // 1.2s cooldown
+  for(const ob of obstacles){
+    const dx=drone.pos.x-ob.pos.x;
+    const dz=drone.pos.z-ob.pos.z;
+    const dist2d=Math.sqrt(dx*dx+dz*dz);
+    if(dist2d<(ob.r+.12)&&drone.pos.y<ob.h){
+      collisionCount++;
+      lastCollisionTime=now;
+      // Push back
+      const pushDir=new THREE.Vector3(dx,0,dz).normalize().multiplyScalar(.6);
+      drone.vel.addScaledVector(pushDir,3);
+      drone.vel.y+=1.5;
+      sfxCollision();
+      document.getElementById('collision-count').textContent=collisionCount;
+      // Flash obstacle red
+      ob.mesh.traverse(m=>{if(m.isMesh&&m.material.color)m.material.color.setHex(0xff3300);});
+      setTimeout(()=>ob.mesh.traverse(m=>{
+        if(m.isMesh&&m.material.color&&ob.type==='tree')m.material.color.setHex(0x1e6b1e);
+        if(m.isMesh&&m.material.color&&ob.type==='pole')m.material.color.setHex(0x8888aa);
+      }),400);
+      break;
+    }
+  }
+}
+
+// ──────────────────────────────────────────────
+//  SPRAY SYSTEM
+// ──────────────────────────────────────────────
+let sprayPulse=0, sprayOn=true;
+function checkSpray(dt){
+  const atBase=drone.pos.distanceTo(BASE_REFILL_POS)<1.4;
+  const spraying=drone.pos.y<MAX_SPRAY_H&&liquidPct>0&&!atBase&&sprayOn;
+  document.getElementById('spray-off-ind').classList.toggle('hidden',sprayOn||atBase);
+  document.getElementById('spray-ind').classList.toggle('hidden',!spraying);
+
+  // Update spray disc
+  if(spraying){
+    const effR=sprayR*(1-(drone.pos.y/MAX_SPRAY_H)*.35); // radius shrinks at higher altitude
+    sprayDiscMesh.visible=true;
+    sprayDiscMesh.scale.set(effR,effR,effR);
+    sprayDiscMesh.position.x=drone.pos.x;
+    sprayDiscMesh.position.z=drone.pos.z;
+    sprayDiscMesh.material.opacity=.25*(1-drone.pos.y/MAX_SPRAY_H)+.05;
+    // Animate disc
+    sprayPulse+=dt*4;
+    sprayDiscMesh.material.opacity*=(.7+.3*Math.sin(sprayPulse));
+  } else {
+    sprayDiscMesh.visible=false;
+  }
+
+  if(!spraying)return;
+
+  let newlySprayed=false;
+  cells.forEach(cell=>{
+    if(cell.sprayed)return;
+    const dx=drone.pos.x-cell.x, dz=drone.pos.z-cell.z;
+    if(Math.sqrt(dx*dx+dz*dz)<sprayR){
+      cell.sprayed=true;
+      sprayedCount++;
+      newlySprayed=true;
+      // Update cell appearance
+      cell.mat.color.setHex(0x2adb6a);
+      cell.mat.emissive.setHex(0x0d6630);
+      cell.mat.emissiveIntensity=.55;
+    }
+  });
+  if(newlySprayed) sfxSpray();
+}
+
+// ──────────────────────────────────────────────
+//  CAMERA
+// ──────────────────────────────────────────────
+function updateCamera(){
+  const {x,y,z}=drone.pos;
+  const sy=Math.sin(drone.yaw), cy=Math.cos(drone.yaw);
+  switch(camMode){
+    case 'ground':{
+      // 地面視角：操作者站在固定位置目視無人機
+      camera.position.lerp(GROUND_CAM_POS,.15);
+      camera.lookAt(x,y,z); break;
+    }
+    case 'fpv':{
+      // FPV 第一人稱
+      camera.position.set(x+sy*.1,y+.02,z+cy*.1);
+      camera.lookAt(x+sy*5,y-.1,z+cy*5); break;
+    }
+    case 'follow':{
+      // 跟機輔助（訓練用）
+      const bx=-sy*3.5, by=1.8, bz=-cy*3.5;
+      camera.position.lerp(new THREE.Vector3(x+bx,y+by,z+bz),.10);
+      camTgt.lerp(new THREE.Vector3(x,y+.2,z),.10);
+      camera.lookAt(camTgt); break;
+    }
+  }
+}
+
+// ──────────────────────────────────────────────
+//  SPRAY PARTICLES
+// ──────────────────────────────────────────────
+const SP_MAX=100;
+function initSprayParticles(){
+  _spParts=[];
+  for(let i=0;i<SP_MAX;i++)_spParts.push({alive:false,x:0,y:0,z:0,vx:0,vy:0,vz:0,life:0});
+  _spGeo=new THREE.BufferGeometry();
+  const pos=new Float32Array(SP_MAX*3).fill(1e5);
+  _spGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const mat=new THREE.PointsMaterial({color:0x44ddff,size:.055,transparent:true,opacity:.75,depthWrite:false,sizeAttenuation:true});
+  _spMesh=new THREE.Points(_spGeo,mat);
+  scene.add(_spMesh);
+}
+function tickSprayParticles(dt){
+  if(!_spGeo)return;
+  const atBase=drone&&drone.pos.distanceTo(BASE_REFILL_POS)<1.4;
+  const spraying=drone&&drone.pos.y<MAX_SPRAY_H&&phase==='playing'&&!paused&&liquidPct>0&&!atBase&&sprayOn;
+  if(spraying){
+    for(let s=0;s<7;s++){
+      const p=_spParts.find(x=>!x.alive);if(!p)break;
+      const angle=Math.random()*Math.PI*2,r=Math.random()*sprayR*.85;
+      p.alive=true;p.x=drone.pos.x+Math.cos(angle)*r;p.y=drone.pos.y-.05;p.z=drone.pos.z+Math.sin(angle)*r;
+      p.vx=(Math.random()-.5)*.4+wind.x*.15;p.vy=-2-Math.random()*2;p.vz=(Math.random()-.5)*.4+wind.z*.15;
+      p.life=.28+Math.random()*.3;
+    }
+  }
+  const pos=_spGeo.attributes.position.array;
+  for(let i=0;i<SP_MAX;i++){
+    const p=_spParts[i];
+    if(p.alive){p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;if(p.life<=0||p.y<0)p.alive=false;}
+    pos[i*3]=p.alive?p.x:1e5;pos[i*3+1]=p.alive?p.y:0;pos[i*3+2]=p.alive?p.z:1e5;
+  }
+  _spGeo.attributes.position.needsUpdate=true;
+}
+
+// ──────────────────────────────────────────────
+//  WIND PARTICLES
+// ──────────────────────────────────────────────
+const WP_MAX=60;
+function initWindParticles(){
+  _wpParts=[];
+  for(let i=0;i<WP_MAX;i++)_wpParts.push({x:(Math.random()-.5)*(FARM_W+2),y:.3+Math.random()*3.5,z:(Math.random()-.5)*(FARM_D+2)});
+  _wpGeo=new THREE.BufferGeometry();
+  const pos=new Float32Array(WP_MAX*3);
+  _wpParts.forEach((p,i)=>{pos[i*3]=p.x;pos[i*3+1]=p.y;pos[i*3+2]=p.z;});
+  _wpGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const mat=new THREE.PointsMaterial({color:0xaaccff,size:.05,transparent:true,opacity:.28,depthWrite:false,sizeAttenuation:true});
+  _wpMesh=new THREE.Points(_wpGeo,mat);
+  scene.add(_wpMesh);
+}
+function tickWindParticles(dt){
+  if(!_wpGeo)return;
+  const spd=Math.sqrt(wind.x*wind.x+wind.z*wind.z);
+  _wpMesh.visible=spd>.05;
+  if(spd<.05)return;
+  const pos=_wpGeo.attributes.position.array;
+  for(let i=0;i<WP_MAX;i++){
+    const p=_wpParts[i];
+    p.x+=wind.x*dt*2.2;p.z+=wind.z*dt*2.2;
+    if(p.x>FARM_W/2+2||p.x<-FARM_W/2-2||p.z>FARM_D/2+2||p.z<-FARM_D/2-2){
+      const wx=wind.x/spd,wz=wind.z/spd;
+      p.x=-wx*(FARM_W/2)+(Math.random()-.5)*FARM_W;
+      p.z=-wz*(FARM_D/2)+(Math.random()-.5)*FARM_D;
+      p.y=.3+Math.random()*3.5;
+    }
+    pos[i*3]=p.x;pos[i*3+1]=p.y;pos[i*3+2]=p.z;
+  }
+  _wpGeo.attributes.position.needsUpdate=true;
+}
+
+// ──────────────────────────────────────────────
+//  BATTERY / LIQUID RESOURCE
+// ──────────────────────────────────────────────
+function tickResources(dt){
+  if(phase!=='playing'||paused)return;
+  // 電池持續耗電
+  batteryPct=Math.max(0,batteryPct-BAT_DRAIN*dt);
+  // 藥水只在噴藥時耗
+  const _atBase=drone.pos.distanceTo(BASE_REFILL_POS)<1.4;
+  if(drone.pos.y<MAX_SPRAY_H&&liquidPct>0&&!_atBase&&sprayOn)liquidPct=Math.max(0,liquidPct-LIQ_DRAIN*dt);
+  // 補給站：飛回去自動回充
+  const distBase=drone.pos.distanceTo(BASE_REFILL_POS);
+  if(distBase<1.2){
+    liquidPct=Math.min(100,liquidPct+REFILL_RATE*dt);
+    batteryPct=Math.min(100,batteryPct+REFILL_RATE*dt);
+  }
+  // HUD 更新
+  const batC=batteryPct>30?'#4ade80':batteryPct>15?'#fbbf24':'#f87171';
+  const liqC=liquidPct>30?'#22d3ee':liquidPct>15?'#fbbf24':'#f87171';
+  document.getElementById('bat-fill').style.cssText=`width:${batteryPct}%;height:100%;border-radius:3px;background:${batC};transition:width .4s,background .4s`;
+  document.getElementById('bat-pct').textContent=Math.round(batteryPct)+'%';
+  document.getElementById('bat-pct').style.color=batC;
+  document.getElementById('liq-fill').style.cssText=`width:${liquidPct}%;height:100%;border-radius:3px;background:${liqC};transition:width .4s,background .4s`;
+  document.getElementById('liq-pct').textContent=Math.round(liquidPct)+'%';
+  document.getElementById('liq-pct').style.color=liqC;
+  // 補給提示
+  const needsRefill=liquidPct<20||batteryPct<20;
+  document.getElementById('refill-ind').classList.toggle('hidden',!needsRefill||distBase<1.2);
+  // 電池歸零 = 強制結束
+  if(batteryPct<=0){phase='done';showResult();}
+}
+
+// ──────────────────────────────────────────────
+//  MINIMAP
+// ──────────────────────────────────────────────
+function drawMinimap(){
+  const cv=document.getElementById('minimap');
+  const ctx=cv.getContext('2d');
+  const cw=cv.width, ch=cv.height;
+  const scX=cw/FARM_W, scZ=ch/FARM_D;
+  // 相機在(0,5,-8)往+Z看：X 軸翻轉（世界+X = 畫面左）、Z 軸翻轉（世界+Z = 畫面上=北）
+  const toMX=x=>cw-(x+FARM_W/2)*scX;
+  const toMZ=z=>ch-(z+FARM_D/2)*scZ;
+  ctx.clearRect(0,0,cw,ch);
+  ctx.fillStyle='rgba(4,12,4,.85)';ctx.fillRect(0,0,cw,ch);
+  // Cells
+  cells.forEach(cell=>{
+    const mx=toMX(cell.x), mz=toMZ(cell.z);
+    const w=CELL_W*scX-.5, h=CELL_D*scZ-.5;
+    ctx.fillStyle=cell.sprayed?'rgba(42,219,106,.85)':'rgba(26,74,26,.7)';
+    ctx.fillRect(mx-w/2,mz-h/2,w,h);
+  });
+  // Obstacles
+  obstacles.forEach(ob=>{
+    const mx=toMX(ob.pos.x), mz=toMZ(ob.pos.z);
+    ctx.fillStyle=ob.type==='tree'?'rgba(30,107,30,.9)':'rgba(136,136,170,.9)';
+    ctx.beginPath();ctx.arc(mx,mz,ob.r*scX*2.5,0,Math.PI*2);ctx.fill();
+  });
+  // Drone
+  const dx=toMX(drone.pos.x), dz=toMZ(drone.pos.z);
+  ctx.beginPath();ctx.arc(dx,dz,4,0,Math.PI*2);
+  ctx.fillStyle='#00ffcc';ctx.fill();
+  ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();
+  // Drone direction（X、Z 均翻轉）
+  ctx.strokeStyle='#00ffcc';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(dx,dz);
+  ctx.lineTo(dx-Math.sin(drone.yaw)*6,dz-Math.cos(drone.yaw)*6);ctx.stroke();
+  // N/S/W/E 方位標示
+  ctx.font='bold 7px monospace';
+  ctx.fillStyle='rgba(74,222,128,.9)';
+  ctx.fillText('N',cw/2-3,8);
+  ctx.fillStyle='rgba(148,163,184,.7)';
+  ctx.fillText('S',cw/2-3,ch-2);
+  ctx.fillText('W',1,ch/2+3);
+  ctx.fillText('E',cw-9,ch/2+3);
+}
+
+// ──────────────────────────────────────────────
+//  INPUT
+// ──────────────────────────────────────────────
+function playerInput(dt){
+  let thr=0,yaw=0,pitch=0,roll=0;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+  if(KEYS['w']||KEYS['W'])thr+=1;
+  if(KEYS['s']||KEYS['S'])thr-=1;
+  if(KEYS['a']||KEYS['A'])yaw+=1;
+  if(KEYS['d']||KEYS['D'])yaw-=1;
+  if(KEYS['ArrowUp'])   pitch+=1;
+  if(KEYS['ArrowDown']) pitch-=1;
+  if(KEYS['ArrowLeft']) roll+=1;
+  if(KEYS['ArrowRight'])roll-=1;
+
+  const gp=navigator.getGamepads?.()[0];
+  if(gp){
+    document.getElementById('gp-status').classList.remove('hidden');
+    document.getElementById('gp-bar').classList.remove('hidden');
+    const dz=v=>Math.abs(v)>.12?v:0;
+    thr  +=clamp(-dz(gp.axes[1]),-1,1);
+    yaw  +=clamp(-dz(gp.axes[0]),-1,1);
+    pitch+=clamp(-dz(gp.axes[3]),-1,1);
+    roll +=clamp(-dz(gp.axes[2]),-1,1);
+  }else{
+    document.getElementById('gp-status').classList.add('hidden');
+    document.getElementById('gp-bar').classList.add('hidden');
+  }
+  if(window._vjState?.active){
+    thr  +=window._vjState.throttle;
+    yaw  +=window._vjState.yaw;
+    pitch+=window._vjState.pitch;
+    roll +=window._vjState.roll;
+  }
+
+  thr=clamp(thr,-1,1);yaw=clamp(yaw,-1,1);pitch=clamp(pitch,-1,1);roll=clamp(roll,-1,1);
+
+  [['kW','w'],['kS','s'],['kA','a'],['kD','d'],
+   ['kUp','ArrowUp'],['kDown','ArrowDown'],['kLeft','ArrowLeft'],['kRight','ArrowRight']]
+  .forEach(([id,k])=>{document.getElementById(id).className='key'+(KEYS[k]?' on':'');});
+
+  physicsDrone(dt, roll*PITCHMAX, HOVER+thr*THRMAX, pitch*PITCHMAX, yaw*YAWMAX);
+}
+
+// ──────────────────────────────────────────────
+//  HUD UPDATE
+// ──────────────────────────────────────────────
+const fmt=s=>{s=Math.max(0,s);return`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`};
+let lastBeepSec=-1;
+function updateHUD(){
+  const pct=Math.round(sprayedCount/TOTAL_CELLS*100);
+  document.getElementById('cov-count').textContent=sprayedCount;
+  document.getElementById('cov-pct').textContent=pct+'%';
+  document.getElementById('cov-bar-fill').style.width=pct+'%';
+  document.getElementById('timer').textContent=fmt(gameTimer);
+  document.getElementById('vel-spd').textContent=drone.vel.length().toFixed(1)+' m/s';
+  document.getElementById('alt-disp').textContent=drone.pos.y.toFixed(1)+' m';
+
+  // Countdown warning
+  const warn=gameTimer<=10;
+  document.getElementById('timer-warn').classList.toggle('hidden',!warn);
+  if(warn){
+    const sec=Math.ceil(gameTimer);
+    if(sec!==lastBeepSec){lastBeepSec=sec;sfxCountdown();}
+  }
+
+  // Wind arrow（箭頭指向無人機被吹走的方向；來源方向用文字標示）
+  if(DIFF_CFG[currentDiff].wind>0){
+    const ang=Math.atan2(-wind.z,-wind.x)*180/Math.PI; // 兩軸補償：Z、X 均因相機方向翻轉
+    document.getElementById('wind-arrow').style.transform=`rotate(${ang}deg)`;
+    const dirs=['東','東南','南','西南','西','西北','北','東北'];
+    const srcAngle=((ang+180)%360+360)%360;
+    document.getElementById('wind-str').textContent=dirs[Math.round(srcAngle/45)%8]+'風';
+  }
+}
+
+// ──────────────────────────────────────────────
+//  SCORE + RESULT
+// ──────────────────────────────────────────────
+function calcScore(){
+  const covPts=Math.round((sprayedCount/TOTAL_CELLS)*70);
+  const timePts=Math.round((gameTimer/totalTime)*20);
+  const safetyPts=Math.max(0,10-collisionCount*5);
+  const total=covPts+timePts+safetyPts;
+  const grade=total>=90?'S':total>=75?'A':total>=55?'B':total>=35?'C':'D';
+  return{covPts,timePts,safetyPts,total,grade};
+}
+
+function showResult(){
+  const {covPts,timePts,safetyPts,total,grade}=calcScore();
+  const pct=Math.round(sprayedCount/TOTAL_CELLS*100);
+  const timeLeft=Math.max(0,gameTimer);
+
+  document.getElementById('grade-display').textContent=grade;
+  document.getElementById('grade-display').className='text-7xl font-black '+
+    (grade==='S'?'tg':grade==='A'?'tc':grade==='B'?'ta':'tr');
+  document.getElementById('result-title').textContent=
+    grade==='S'?'完美覆蓋！':grade==='A'?'優秀噴藥！':grade==='B'?'良好表現':grade==='C'?'繼續努力':'需要改善';
+  document.getElementById('result-title').className='text-xl font-black '+
+    (grade==='S'?'tg':grade==='A'?'tc':grade==='B'?'ta':'tr');
+  document.getElementById('r-cov').textContent=`${sprayedCount}/40格（${pct}%）`;
+  document.getElementById('r-cov-pts').textContent=`${covPts}/70 分`;
+  document.getElementById('r-time').textContent=`${timeLeft.toFixed(0)}秒`;
+  document.getElementById('r-time-pts').textContent=`+${timePts}/20 分`;
+  document.getElementById('r-col').textContent=`${collisionCount}次`;
+  document.getElementById('r-col-pts').textContent=`${safetyPts}/10 分`;
+  document.getElementById('r-total').textContent=`${total}/100`;
+
+  // Set box border by grade
+  const box=document.getElementById('result-box');
+  box.className='glass '+(grade==='S'?'neon-g':grade==='A'?'neon-c':grade==='B'?'neon-a':'neon-r')+
+    ' rounded-3xl p-6 max-w-sm w-full flex flex-col gap-4 text-center';
+
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('minimap').classList.add('hidden');
+  document.getElementById('result').classList.remove('hidden');
+  sfxComplete(grade);
+  gpSetFocus(['btn-retry','btn-select','btn-menu'],0);
+}
+
+// ──────────────────────────────────────────────
+//  GAME LOOP
+// ──────────────────────────────────────────────
+let hudTick=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.05);
+
+  // 搖桿按鈕（邊緣觸發）
+  {const _g=navigator.getGamepads?.()[0];
+  if(_g){
+    const b0=!!_g.buttons[0]?.pressed,b1=!!_g.buttons[1]?.pressed,b8=!!_g.buttons[8]?.pressed,b9=!!_g.buttons[9]?.pressed;
+    const b12=!!_g.buttons[12]?.pressed,b13=!!_g.buttons[13]?.pressed,b14=!!_g.buttons[14]?.pressed,b15=!!_g.buttons[15]?.pressed;
+    // START = 切換視角
+    if(b9&&!_gpPrev[9]&&phase==='playing'){camMode=CAM_MODES[(CAM_MODES.indexOf(camMode)+1)%CAM_MODES.length];document.getElementById('camlab').textContent=CAM_LABELS[camMode];}
+    // SELECT = 切換飛手地面位置（地面視角時有效）
+    if(b8&&!_gpPrev[8]&&camMode==='ground'){cycleGroundCam();}
+    // B = 噴藥開關（遊戲中）
+    if(b1&&!_gpPrev[1]&&phase==='playing'){sprayOn=!sprayOn;}
+    // A = 確認選單焦點按鈕
+    if(b0&&!_gpPrev[0]){gpConfirm();}
+    // D-pad 選單導航
+    if((b12||b14)&&!(_gpPrev[12]||_gpPrev[14])){gpNav(-1);}
+    if((b13||b15)&&!(_gpPrev[13]||_gpPrev[15])){gpNav(1);}
+    _gpPrev[0]=b0;_gpPrev[1]=b1;_gpPrev[8]=b8;_gpPrev[9]=b9;
+    _gpPrev[12]=b12;_gpPrev[13]=b13;_gpPrev[14]=b14;_gpPrev[15]=b15;
+  }}
+
+  if(phase==='playing'&&!paused){
+    gameTimer-=dt;
+    if(gameTimer<=0){gameTimer=0;phase='done';showResult();return;}
+    playerInput(dt);
+    checkSpray(dt);
+    if(sprayedCount>=TOTAL_CELLS){phase='done';showResult();return;}
+    checkObstacleCollisions();
+    tickResources(dt);
+    tickSprayParticles(dt);
+    tickWindParticles(dt);
+    if(++hudTick%3===0){updateHUD();drawMinimap();}
+  }
+
+  updateCamera();
+  renderer.render(scene,camera);
+}
+
+// ──────────────────────────────────────────────
+//  START GAME
+// ──────────────────────────────────────────────
+function startGame(diff){
+  currentDiff=diff;
+  const cfg=DIFF_CFG[diff];
+  gameTimer=cfg.time;
+  totalTime=cfg.time;
+  collisionCount=0;
+  lastBeepSec=-1;
+  sprayedCount=0;
+  paused=false;
+  batteryPct=100;liquidPct=100;
+  buildScene(diff);
+  document.getElementById('intro').classList.add('hidden');
+  document.getElementById('result').classList.add('hidden');
+  document.getElementById('camlab').textContent=CAM_LABELS[camMode];
+  document.getElementById('diff-label').textContent=cfg.label;
+  document.getElementById('collision-count').textContent='0';
+  document.getElementById('wind-panel').classList.toggle('hidden', cfg.wind===0);
+  document.getElementById('minimap').classList.remove('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  phase='playing'; sprayOn=true;
+  updateHUD();
+}
+
+// ──────────────────────────────────────────────
+//  KEYBOARD INPUT
+// ──────────────────────────────────────────────
+function setupKeys(){
+  window.addEventListener('keydown',e=>{
+    KEYS[e.key]=true;
+    if(e.key==='f'||e.key==='F'){
+      if(phase==='playing'){sprayOn=!sprayOn;}
+    }
+    if(e.key==='c'||e.key==='C'){
+      if(phase==='playing'){
+        camMode=CAM_MODES[(CAM_MODES.indexOf(camMode)+1)%CAM_MODES.length];
+        document.getElementById('camlab').textContent=CAM_LABELS[camMode];
+      }
+    }
+    if((e.key==='p'||e.key==='P'||e.key==='Escape')&&phase==='playing'){
+      paused=!paused;
+    }
+  });
+  window.addEventListener('keyup',e=>{KEYS[e.key]=false;});
+}
+
+// ──────────────────────────────────────────────
+//  INTRO TAB SWITCHER (鍵盤/搖桿 說明切換)
+// ──────────────────────────────────────────────
+function agriCtrlTab(id){
+  document.getElementById('ctrl-kb').classList.toggle('hidden', id!=='kb');
+  document.getElementById('ctrl-gp').classList.toggle('hidden', id!=='gp');
+  const kbTab=document.getElementById('ctrl-tab-kb');
+  const gpTab=document.getElementById('ctrl-tab-gp');
+  if(id==='kb'){
+    kbTab.className='flex-1 text-[10px] font-bold py-1 rounded-lg border border-green-600/50 bg-green-900/30 tg transition';
+    gpTab.className='flex-1 text-[10px] font-bold py-1 rounded-lg border border-slate-700/50 text-slate-500 transition hover:border-slate-500/50';
+  } else {
+    gpTab.className='flex-1 text-[10px] font-bold py-1 rounded-lg border border-blue-600/50 bg-blue-900/20 text-blue-300 transition';
+    kbTab.className='flex-1 text-[10px] font-bold py-1 rounded-lg border border-slate-700/50 text-slate-500 transition hover:border-slate-500/50';
+  }
+}
+
+// ──────────────────────────────────────────────
+//  GAMEPAD HINT
+// ──────────────────────────────────────────────
+window.addEventListener('gamepadconnected',()=>{
+  document.getElementById('gp-hint').style.display='block';
+});
+window.addEventListener('gamepaddisconnected',()=>{
+  document.getElementById('gp-hint').style.display='none';
+});
+
+// ──────────────────────────────────────────────
+//  BOOTSTRAP
+// ──────────────────────────────────────────────
+initThree();
+buildScene('easy');
+animate();
+setupKeys();
+document.getElementById('btn-retry').onclick=()=>startGame(currentDiff);
+gpSetFocus(['btn-easy','btn-med','btn-hard'],0);
+// ── Virtual Joystick (touch) ──
+(function(){
+  const vjs=window._vjState={active:false,throttle:0,yaw:0,pitch:0,roll:0};
+  const wrap=document.getElementById('vj-wrap');
+  const btnB=document.getElementById('vj-btn-b');
+  let lOn=false,rOn=false;
+  function syncActive(){vjs.active=lOn||rOn;}
+
+  function makeStick(aId,kId,isLeft){
+    const area=document.getElementById(aId),knob=document.getElementById(kId);
+    if(!area||!knob)return;
+    let tid=null,ox=0,oy=0;
+    area.addEventListener('touchstart',e=>{
+      e.preventDefault();if(tid!==null)return;
+      const t=e.changedTouches[0];tid=t.identifier;
+      const r=area.getBoundingClientRect();ox=r.left+r.width/2;oy=r.top+r.height/2;
+      if(isLeft)lOn=true;else rOn=true;syncActive();
+    },{passive:false});
+    area.addEventListener('touchmove',e=>{
+      e.preventDefault();
+      for(let i=0;i<e.changedTouches.length;i++){
+        const t=e.changedTouches[i];if(t.identifier!==tid)continue;
+        const VJR=(area.offsetWidth||112)*0.46;
+        let dx=t.clientX-ox,dy=t.clientY-oy;
+        const d=Math.sqrt(dx*dx+dy*dy);if(d>VJR){dx*=VJR/d;dy*=VJR/d;}
+        knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
+        const nx=dx/VJR,ny=dy/VJR;
+        if(isLeft){vjs.yaw=nx;vjs.throttle=-ny;}else{vjs.roll=nx;vjs.pitch=ny;}
+      }
+    },{passive:false});
+    const end=e=>{
+      for(let i=0;i<e.changedTouches.length;i++){
+        if(e.changedTouches[i].identifier!==tid)continue;
+        tid=null;knob.style.transform='translate(-50%,-50%)';
+        if(isLeft){vjs.yaw=0;vjs.throttle=0;lOn=false;}
+        else{vjs.roll=0;vjs.pitch=0;rOn=false;}
+        syncActive();
+      }
+    };
+    area.addEventListener('touchend',end,{passive:false});
+    area.addEventListener('touchcancel',end,{passive:false});
+  }
+
+  makeStick('vj-left','vj-lk',true);
+  makeStick('vj-right','vj-rk',false);
+
+  if(btnB){
+    btnB.addEventListener('touchstart',e=>{
+      e.preventDefault();
+      if(typeof sprayOn!=='undefined'&&(typeof phase==='undefined'||phase==='playing')){sprayOn=!sprayOn;}
+      btnB.classList.add('active');
+    },{passive:false});
+    btnB.addEventListener('touchend',e=>{e.preventDefault();btnB.classList.remove('active');},{passive:false});
+  }
+
+  function checkShow(){
+    const hasGp=!!(navigator.getGamepads&&[...navigator.getGamepads()].find(g=>g));
+    const isTouch=navigator.maxTouchPoints>0||window.matchMedia('(pointer:coarse)').matches;
+    if(wrap)wrap.style.display=(isTouch&&!hasGp)?'flex':'none';
+  }
+  window.addEventListener('gamepadconnected',()=>{if(wrap)wrap.style.display='none';});
+  window.addEventListener('gamepaddisconnected',checkShow);
+  window.addEventListener('touchstart',checkShow,{once:true,passive:true});
+  checkShow();
+})();
+</script>
+<div id="vj-wrap">
+  <div class="vj-area" id="vj-left">
+    <div class="vj-base"></div>
+    <div class="vj-knob" id="vj-lk"></div>
+    <div class="vj-label">油門 / 偏航</div>
+  </div>
+  <button id="vj-btn-b">🌿<br><span>噴藥</span></button>
+  <div class="vj-area vj-r" id="vj-right">
+    <div class="vj-base"></div>
+    <div class="vj-knob" id="vj-rk"></div>
+    <div class="vj-label">前後 / 左右</div>
+  </div>
+</div>
+</body>
+</html>
