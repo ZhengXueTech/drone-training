@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>投遞任務 · Cargo Drop</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080500;color:#fef3c7;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;height:100dvh}
+canvas{display:block}
+.abs{position:absolute}
+/* HUD */
+#hud{top:0;left:0;right:0;pointer-events:none;z-index:10}
+.hud-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 14px 0;gap:10px}
+.hud-pill{background:rgba(20,12,0,.75);border:1px solid rgba(251,191,36,.35);border-radius:10px;padding:5px 12px;backdrop-filter:blur(6px);font-size:.72rem;line-height:1.3;white-space:nowrap}
+.hud-timer{font-size:1.5rem;font-weight:700;color:#fde68a;min-width:64px;text-align:center}
+.hud-lbl{color:#d97706;font-size:.62rem;letter-spacing:.04em}
+.hud-val{color:#fef9ee;font-weight:600}
+.hud-danger{color:#f87171;animation:pulse-red .5s ease-in-out infinite alternate}
+@keyframes pulse-red{from{opacity:.65}to{opacity:1}}
+/* delivery progress */
+#delivery-strip{top:60px;left:50%;transform:translateX(-50%);z-index:10;display:flex;align-items:center;gap:8px;background:rgba(20,12,0,.78);border:1px solid rgba(251,191,36,.3);border-radius:20px;padding:6px 16px;pointer-events:none}
+.step-chip{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;font-size:.8rem;font-weight:700;border:2px solid rgba(255,255,255,.25);transition:all .25s;opacity:.4}
+.step-chip.active{opacity:1;animation:chipPulse .8s ease-in-out infinite alternate}
+.step-chip.done{opacity:.9;border-color:transparent}
+@keyframes chipPulse{from{transform:scale(1)}to{transform:scale(1.15)}}
+.step-arrow{color:#78716c;font-size:.75rem;opacity:.6}
+/* speed bar */
+#speed-hud{bottom:52px;left:50%;transform:translateX(-50%);z-index:10;background:rgba(20,12,0,.78);border:1px solid rgba(251,191,36,.3);border-radius:12px;padding:7px 14px;pointer-events:none;min-width:200px}
+.spd-label{display:flex;justify-content:space-between;font-size:.63rem;color:#d97706;margin-bottom:4px}
+.spd-track{height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden;position:relative}
+#speed-bar{height:100%;border-radius:4px;background:linear-gradient(90deg,#22c55e,#4ade80);transition:width .1s,background .2s}
+.spd-limit{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,.5);pointer-events:none}
+/* status alert */
+#status-banner{top:110px;left:50%;transform:translateX(-50%);z-index:20;border-radius:20px;padding:4px 18px;font-size:.78rem;font-weight:700;pointer-events:none;display:none;text-align:center}
+/* camera label */
+#cam-lbl{top:10px;right:14px;background:rgba(20,12,0,.7);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:3px 10px;font-size:.65rem;color:#fde68a;pointer-events:none;z-index:10}
+/* floats */
+#floats{top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:30}
+.float-txt{position:absolute;font-weight:700;font-size:.95rem;animation:floatUp 1.2s ease-out forwards;pointer-events:none;text-shadow:0 0 8px currentColor}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-65px)}}
+/* intro modal */
+#intro-modal{inset:0;background:rgba(8,5,0,.88);z-index:50;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
+.intro-box{background:linear-gradient(145deg,#1a1000,#2d1800);border:1px solid rgba(251,191,36,.45);border-radius:18px;padding:30px 34px;max-width:500px;width:92%;text-align:center}
+.intro-title{font-size:1.5rem;font-weight:800;color:#fde68a;margin-bottom:4px}
+.intro-sub{font-size:.78rem;color:#a16207;margin-bottom:18px}
+.intro-desc{font-size:.77rem;color:#d4b47c;line-height:1.65;margin-bottom:22px;text-align:left;background:rgba(251,191,36,.07);border-radius:10px;padding:12px 14px}
+.diff-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:8px}
+.btn-diff{padding:9px 22px;border-radius:10px;border:2px solid rgba(251,191,36,.4);background:rgba(251,191,36,.1);color:#fde68a;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-diff:hover,.btn-diff.gp-focus{border-color:#fbbf24;background:rgba(251,191,36,.3);color:#fff;outline:3px solid rgba(255,255,255,.85)}
+#gp-hint{margin-top:14px;font-size:.72rem;color:#78570a;display:none}
+/* done modal */
+#done-modal{inset:0;background:rgba(8,5,0,.88);z-index:50;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
+.done-box{background:linear-gradient(145deg,#1a1000,#2d1800);border:1px solid rgba(251,191,36,.45);border-radius:18px;padding:28px 32px;max-width:440px;width:92%;text-align:center}
+.grade{font-size:3.5rem;font-weight:900;margin:6px 0}
+.grade-S{color:#fde68a}.grade-A{color:#86efac}.grade-B{color:#93c5fd}.grade-C{color:#f9a8d4}
+.stat-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}
+.stat-item{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:8px}
+.stat-lbl{font-size:.6rem;color:#d97706;letter-spacing:.05em}
+.stat-val{font-size:1rem;font-weight:700;color:#fef9ee}
+.action-row{display:flex;gap:10px;justify-content:center;margin-top:18px}
+.btn-action{padding:9px 24px;border-radius:10px;border:2px solid rgba(251,191,36,.4);background:rgba(251,191,36,.12);color:#fde68a;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-action:hover,.btn-action.gp-focus{border-color:#fbbf24;background:rgba(251,191,36,.35);color:#fff;outline:3px solid rgba(255,255,255,.85)}
+.back-link{display:block;margin-top:14px;font-size:.72rem;color:#78570a;text-decoration:none}
+.back-link:hover{color:#d97706}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div id="cam-lbl" class="abs">跟機視角</div>
+
+<!-- HUD -->
+<div id="hud" class="abs">
+  <div class="hud-row">
+    <div class="hud-pill">
+      <div class="hud-lbl">投遞任務 ─ <span id="hud-diff">中級</span></div>
+      <div><span class="hud-lbl">🏆 完整投遞 </span><span id="hud-runs" class="hud-val">0</span>
+           &nbsp;|&nbsp;<span class="hud-lbl">💥 掉落 </span><span id="hud-drops" class="hud-val">0</span></div>
+    </div>
+    <div class="hud-pill hud-timer" id="hud-timer">90</div>
+    <div class="hud-pill">
+      <div class="hud-lbl">得分</div>
+      <div id="hud-score" class="hud-val" style="font-size:1rem">0</div>
+    </div>
+  </div>
+</div>
+
+<!-- Delivery progress strip -->
+<div id="delivery-strip" class="abs">
+  <div class="step-chip" id="step-0" style="background:#1a0f00;border-color:#f59e0b">📦</div>
+  <div class="step-arrow">→</div>
+  <div class="step-chip" id="step-1" style="background:#052e16;border-color:#22c55e">①</div>
+  <div class="step-arrow">→</div>
+  <div class="step-chip" id="step-2" style="background:#172554;border-color:#3b82f6">②</div>
+  <div class="step-arrow">→</div>
+  <div class="step-chip" id="step-3" style="background:#2d0a3e;border-color:#ec4899">③</div>
+</div>
+
+<!-- Status banner -->
+<div id="status-banner" class="abs"></div>
+
+<!-- Speed HUD -->
+<div id="speed-hud" class="abs">
+  <div class="spd-label">
+    <span>水平速度</span>
+    <span id="hud-speed-val">0.0 m/s</span>
+    <span id="hud-speed-limit" style="color:#fbbf24"></span>
+  </div>
+  <div class="spd-track">
+    <div id="speed-bar"></div>
+    <div class="spd-limit" id="spd-limit-marker"></div>
+  </div>
+</div>
+
+<!-- Floats -->
+<div id="floats" class="abs"></div>
+
+<!-- Intro Modal -->
+<div id="intro-modal" class="abs">
+  <div class="intro-box">
+    <div class="intro-title">📦 投遞任務</div>
+    <div class="intro-sub">Cargo Drop — 關卡 J</div>
+    <div class="intro-desc">
+      從<strong>起點抓取貨物</strong>（靠近即自動拾取），<br>
+      依序飛到 <strong>3 個落點</strong>精準投下（低速靠近即成功）。<br><br>
+      ⚡ <strong>水平速度超限</strong>（持續超速）→ 貨物掉落<br>
+      🚧 <strong>碰觸邊界牆壁</strong> → 貨物掉落<br><br>
+      完整投遞一輪 +200 分，無掉落完美輪 +100 分加成。<br>
+      訓練重點：<strong>飛行穩定性 × 路線規劃</strong>
+      <div style="margin-top:10px;padding:8px 10px;background:rgba(0,0,0,.35);border-radius:8px;font-size:.67rem;color:#b39a60;line-height:1.9">
+        <div style="color:#fde68a;font-weight:700;margin-bottom:3px">⌨ 鍵盤操控</div>
+        <div><code>W/S</code> 前後 &ensp; <code>A/D</code> 左右橫移 &ensp; <code>↑↓</code> 俯仰 &ensp; <code>←→</code> 偏航</div>
+        <div><code>Space</code> 上升 &ensp; <code>Shift</code> 下降 &ensp; <code>C</code> 切換視角</div>
+      </div>
+    </div>
+    <div class="diff-row">
+      <button class="btn-diff" id="btn-easy" onclick="startGame('easy')">初級<br><small style="opacity:.7">限速 5 m/s・大落點</small></button>
+      <button class="btn-diff" id="btn-med"  onclick="startGame('med')">中級<br><small style="opacity:.7">限速 3.5 m/s</small></button>
+      <button class="btn-diff" id="btn-hard" onclick="startGame('hard')">高級<br><small style="opacity:.7">限速 2.5 m/s・小落點</small></button>
+    </div>
+    <div id="gp-hint">🎮 搖桿已連接 — D-pad 選難度・A 確認・START 視角・SELECT 換位置</div>
+    <a class="back-link" href="../index.html">← 返回主選單</a>
+  </div>
+</div>
+
+<!-- Done Modal -->
+<div id="done-modal" class="abs hidden">
+  <div class="done-box">
+    <div style="font-size:1.1rem;font-weight:700;color:#fde68a">任務完成</div>
+    <div id="done-grade" class="grade grade-A">A</div>
+    <div id="done-msg" style="font-size:.8rem;color:#a16207;margin-bottom:8px"></div>
+    <div class="stat-row">
+      <div class="stat-item"><div class="stat-lbl">最終得分</div><div id="ds-score" class="stat-val">0</div></div>
+      <div class="stat-item"><div class="stat-lbl">完整投遞</div><div id="ds-runs" class="stat-val">0</div></div>
+      <div class="stat-item"><div class="stat-lbl">貨物掉落</div><div id="ds-drops" class="stat-val">0</div></div>
+      <div class="stat-item"><div class="stat-lbl">完美輪</div><div id="ds-perfect" class="stat-val">0</div></div>
+    </div>
+    <div class="action-row">
+      <button class="btn-action" id="btn-retry"  onclick="retryGame()">再試一次</button>
+      <button class="btn-action" id="btn-select" onclick="backToIntro()">選難度</button>
+    </div>
+    <a class="back-link" href="../index.html">← 返回主選單</a>
+  </div>
+</div>
+
+<script>
+// ─── THREE.JS ─────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setSize(innerWidth, innerHeight);
+window.addEventListener('resize', () => {
+    renderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+});
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x080500);
+scene.fog = new THREE.Fog(0x080500, 25, 55);
+
+const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(0, 6, 8);
+camera.lookAt(0, 2, 0);
+
+const clock = new THREE.Clock();
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const DRONE_COLOR  = 0xf59e0b;
+const CARGO_COLOR  = 0xfbbf24;
+const ZONE_COLORS  = [0x22c55e, 0x3b82f6, 0xec4899];
+const ZONE_LABELS  = ['①', '②', '③'];
+
+// Drop zone world positions
+const ZONE_POS = [
+    new THREE.Vector3(-6,  0.1, -3),
+    new THREE.Vector3( 6,  0.1, -5),
+    new THREE.Vector3( 0,  0.1, -9),
+];
+
+// Cargo spawn position
+const CARGO_SPAWN_POS = new THREE.Vector3(0, 1.5, 3);
+const PICKUP_R = 1.4;   // pickup detection radius
+const DELIVERY_Y = 2.5; // max altitude for delivery
+
+// Difficulty
+const DIFF_CFG = {
+    easy: { maxSpd:5.0, delivR:2.2, graceSec:0.5, label:'初級' },
+    med:  { maxSpd:3.5, delivR:1.6, graceSec:0.3, label:'中級' },
+    hard: { maxSpd:2.5, delivR:1.1, graceSec:0.15,label:'高級' },
+};
+
+// Arena
+const ARENA = { minX:-10, maxX:10, minY:0.3, maxY:7, minZ:-11, maxZ:5 };
+
+// Physics
+const GRAVITY      = -9.81;
+const MAX_TILT     = Math.PI / 7;
+const DRAG_H       = 1.2;
+const DRAG_V       = 3.5;
+const PITCH_RATE   = 2.2;
+const ROLL_RATE    = 2.2;
+const YAW_RATE     = 1.6;
+const FWD_FORCE    = 12.0;
+const STRAFE_FORCE = 10.0;
+
+// Camera
+const CAM_MODES_LIST = ['follow','fpv','ground'];
+const CAM_LABELS_MAP = { follow:'跟機視角', fpv:'FPV視角', ground:'地面視角' };
+let camMode = 'follow';
+
+const PILOT_POSITIONS = [
+    new THREE.Vector3(0, 3, 7),
+    new THREE.Vector3(9, 3, 7),
+    new THREE.Vector3(-9, 3, 7),
+    new THREE.Vector3(0, 6, 12),
+];
+let _pilotPosIdx = 0;
+const GROUND_CAM_POS = PILOT_POSITIONS[0].clone();
+const camTarget = new THREE.Vector3();
+
+// ─── GAME STATE ───────────────────────────────────────────────────────────────
+let phase         = 'intro';
+let pDiff         = 'med';
+let timer         = 90;
+let score         = 0;
+let runsCompleted = 0;
+let cargoDrops    = 0;
+let perfectRuns   = 0;
+
+let cargoHeld     = false;   // holding cargo?
+let deliveryStep  = 0;       // 0=pickup, 1/2/3=drop at zone[step-1]
+let speedViolTimer= 0;       // seconds above speed limit
+let perfectRun    = true;    // no drops this run?
+let wallFlash     = 0;       // border flash timer
+
+// Three.js object handles (set in buildScene)
+let cargoSpawnMesh = null;    // cargo at spawn
+let cargoDroneGroup= null;    // cargo attached to drone
+let navArrow       = null;    // navigation arrow
+let dropZoneObjs   = [];      // THREE.Group per zone
+let wallLineMat    = null;    // arena wall material
+
+// ─── SCENE ────────────────────────────────────────────────────────────────────
+const drone = {
+    pos: new THREE.Vector3(0, 2.5, 3),
+    vel: new THREE.Vector3(),
+    pitch:0, roll:0, yaw:0,
+    mesh: null,
+};
+
+function buildScene() {
+    // Lights
+    scene.add(new THREE.AmbientLight(0x1a1000, 3.0));
+    const sun = new THREE.DirectionalLight(0xfde68a, 1.0);
+    sun.position.set(3, 12, 5); sun.castShadow = true; scene.add(sun);
+    scene.add(new THREE.HemisphereLight(0x2a1a00, 0x080500, 0.8));
+
+    // Floor
+    const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(30, 25),
+        new THREE.MeshStandardMaterial({ color:0x0d0800, roughness:.95 })
+    );
+    floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+    scene.add(new THREE.GridHelper(30, 30, 0x2a1a00, 0x130b00));
+
+    // Arena walls (line frame)
+    wallLineMat = new THREE.LineBasicMaterial({ color:0xf59e0b, transparent:true, opacity:.2 });
+    const corners = [[-10,ARENA.minZ],[10,ARENA.minZ],[10,ARENA.maxZ],[-10,ARENA.maxZ]];
+    const topY = ARENA.maxY, botY = 0.02;
+    const bPts = [...corners, corners[0]].map(([x,z]) => new THREE.Vector3(x, botY, z));
+    const tPts = [...corners, corners[0]].map(([x,z]) => new THREE.Vector3(x, topY, z));
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(bPts), wallLineMat));
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(tPts), wallLineMat));
+    corners.forEach(([x,z]) => {
+        const vPts = [new THREE.Vector3(x,botY,z), new THREE.Vector3(x,topY,z)];
+        scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(vPts), wallLineMat));
+    });
+
+    // Drop zones
+    dropZoneObjs = ZONE_POS.map((pos, i) => {
+        const g = new THREE.Group();
+        // Ground disc
+        const disc = new THREE.Mesh(
+            new THREE.CircleGeometry(DIFF_CFG['med'].delivR, 48),
+            new THREE.MeshBasicMaterial({ color:ZONE_COLORS[i], transparent:true, opacity:.12, side:THREE.DoubleSide })
+        );
+        disc.rotation.x = -Math.PI/2; disc.position.y = 0.01; g.add(disc);
+        // Outer ring line
+        const ringPts = [];
+        for (let j=0; j<=64; j++) {
+            const a = (j/64)*Math.PI*2;
+            ringPts.push(new THREE.Vector3(Math.cos(a)*DIFF_CFG['med'].delivR, 0, Math.sin(a)*DIFF_CFG['med'].delivR));
+        }
+        const ringLine = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(ringPts),
+            new THREE.LineBasicMaterial({ color:ZONE_COLORS[i] })
+        );
+        ringLine.rotation.x = -Math.PI/2; ringLine.position.y = 0.02; g.add(ringLine);
+        // Glow post
+        const post = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.04,0.04, DELIVERY_Y+0.5, 6),
+            new THREE.MeshBasicMaterial({ color:ZONE_COLORS[i], transparent:true, opacity:.3 })
+        );
+        post.position.y = (DELIVERY_Y+0.5)/2 + 0.02; g.add(post);
+        // Point light
+        const lgt = new THREE.PointLight(ZONE_COLORS[i], 0.8, 5);
+        lgt.position.y = 0.5; g.add(lgt);
+
+        g.position.copy(pos);
+        scene.add(g);
+        return { group: g, disc, ringLine, lgt, done: false, pos };
+    });
+
+    // Cargo at spawn
+    cargoSpawnMesh = new THREE.Group();
+    const csBox = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.6, 0.6),
+        new THREE.MeshStandardMaterial({ color:CARGO_COLOR, emissive:CARGO_COLOR, emissiveIntensity:.8, metalness:.3 })
+    );
+    cargoSpawnMesh.add(csBox);
+    // Hover ring on ground
+    const hrPts = [];
+    for (let j=0; j<=40; j++) {
+        const a=(j/40)*Math.PI*2;
+        hrPts.push(new THREE.Vector3(Math.cos(a)*0.9, 0, Math.sin(a)*0.9));
+    }
+    const hr = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(hrPts),
+        new THREE.LineBasicMaterial({ color:CARGO_COLOR, transparent:true, opacity:.6 })
+    );
+    hr.rotation.x = -Math.PI/2; hr.position.y = -1.4; cargoSpawnMesh.add(hr);
+    cargoSpawnMesh.add(new THREE.PointLight(CARGO_COLOR, 1.2, 4));
+    cargoSpawnMesh.position.copy(CARGO_SPAWN_POS);
+    scene.add(cargoSpawnMesh);
+}
+
+// ─── DRONE ────────────────────────────────────────────────────────────────────
+function buildDroneMesh() {
+    const g = new THREE.Group();
+    // Body
+    g.add(Object.assign(new THREE.Mesh(
+        new THREE.BoxGeometry(0.34,0.12,0.34),
+        new THREE.MeshStandardMaterial({ color:DRONE_COLOR, metalness:.7, roughness:.3 })
+    ), {}));
+    // Arms + rotors
+    [[-1,0,-1],[-1,0,1],[1,0,-1],[1,0,1]].forEach(([sx,,sz]) => {
+        const arm = new THREE.Mesh(
+            new THREE.BoxGeometry(0.55,0.04,0.04),
+            new THREE.MeshStandardMaterial({ color:0x78350f })
+        );
+        arm.position.set(sx*.32,0,sz*.32); arm.rotation.y = Math.atan2(sz,sx); g.add(arm);
+        const rotor = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.17,0.17,0.025,10),
+            new THREE.MeshStandardMaterial({ color:DRONE_COLOR, transparent:true, opacity:.5 })
+        );
+        rotor.position.set(sx*.42,0.06,sz*.42); g.add(rotor);
+    });
+    g.add(new THREE.PointLight(DRONE_COLOR, 1.2, 3));
+
+    // Cargo attached to drone (hidden initially)
+    cargoDroneGroup = new THREE.Group();
+    const cbx = new THREE.Mesh(
+        new THREE.BoxGeometry(0.38,0.38,0.38),
+        new THREE.MeshStandardMaterial({ color:CARGO_COLOR, emissive:CARGO_COLOR, emissiveIntensity:.9, metalness:.3 })
+    );
+    cbx.position.y = -0.75; cargoDroneGroup.add(cbx);
+    // Wire
+    const wirePts = [new THREE.Vector3(0,0,0), new THREE.Vector3(0,-0.75,0)];
+    cargoDroneGroup.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(wirePts),
+        new THREE.LineBasicMaterial({ color:0x888888 })
+    ));
+    cargoDroneGroup.add(new THREE.PointLight(CARGO_COLOR, 0.8, 2));
+    cargoDroneGroup.visible = false;
+    g.add(cargoDroneGroup);
+
+    return g;
+}
+
+// Nav arrow (points to next target)
+function buildNavArrow() {
+    navArrow = new THREE.ArrowHelper(
+        new THREE.Vector3(0,0,-1), new THREE.Vector3(0,3,0), 2.0, 0xfbbf24, 0.5, 0.3
+    );
+    navArrow.visible = false;
+    scene.add(navArrow);
+}
+
+function getNavTarget() {
+    if (deliveryStep === 0) return CARGO_SPAWN_POS;
+    if (deliveryStep >= 1 && deliveryStep <= 3) return ZONE_POS[deliveryStep-1];
+    return null;
+}
+
+function updateNavArrow() {
+    const target = getNavTarget();
+    if (!target || !cargoHeld && deliveryStep !== 0) { navArrow.visible = false; return; }
+    const dir = target.clone().sub(drone.pos);
+    const dist = dir.length();
+    navArrow.visible = dist > 2.5;
+    if (navArrow.visible && dist > 0.01) {
+        navArrow.setDirection(dir.normalize());
+        navArrow.position.copy(drone.pos);
+        // Color: amber for pickup, zone color for delivery
+        const color = deliveryStep === 0 ? 0xfbbf24 : ZONE_COLORS[deliveryStep-1];
+        navArrow.line.material.color.setHex(color);
+        navArrow.cone.material.color.setHex(color);
+    }
+}
+
+// ─── GAME LOGIC ───────────────────────────────────────────────────────────────
+function checkPickup() {
+    if (cargoHeld || deliveryStep !== 0) return;
+    if (drone.pos.distanceTo(CARGO_SPAWN_POS) < PICKUP_R) {
+        cargoHeld = true;
+        deliveryStep = 1;
+        cargoSpawnMesh.visible = false;
+        cargoDroneGroup.visible = true;
+        showFloat('📦 拿到貨物！→ 落點 ①', 'text-amber-400');
+        updateStripUI();
+    }
+}
+
+function checkDelivery() {
+    if (!cargoHeld || deliveryStep === 0 || deliveryStep > 3) return;
+    const zone = ZONE_POS[deliveryStep - 1];
+    const dx = drone.pos.x - zone.x;
+    const dz = drone.pos.z - zone.z;
+    if (Math.sqrt(dx*dx + dz*dz) < DIFF_CFG[pDiff].delivR && drone.pos.y < DELIVERY_Y) {
+        const step = deliveryStep;
+        score += 100;
+        deliveryStep++;
+        // Mark zone done
+        const zo = dropZoneObjs[step-1];
+        zo.done = true;
+        zo.disc.material.opacity = 0.32;
+        const labels = ['①','②','③'];
+        showFloat(`✅ 落點 ${labels[step-1]} +100`, 'text-emerald-400');
+
+        if (deliveryStep > 3) {
+            // Run complete
+            runsCompleted++;
+            const bonus = 200 + (perfectRun ? 100 : 0);
+            if (perfectRun) perfectRuns++;
+            score += bonus;
+            showFloat(`🏆 完整投遞！+${bonus}`, 'text-yellow-400');
+            updateHUD();
+            // Reset after short pause
+            setTimeout(() => startNewRun(), 900);
+        } else {
+            updateStripUI();
+            updateHUD();
+        }
+    }
+}
+
+function dropCargo(reason) {
+    if (!cargoHeld) return;
+    cargoHeld = false;
+    cargoDrops++;
+    perfectRun = false;
+    deliveryStep = 0;
+    speedViolTimer = 0;
+    cargoSpawnMesh.visible = true;
+    cargoDroneGroup.visible = false;
+    dropZoneObjs.forEach(z => { z.done = false; z.disc.material.opacity = .12; });
+    wallFlash = 0.5;
+    showFloat(`💥 ${reason}！貨物掉落`, 'text-red-500');
+    updateStripUI();
+    updateHUD();
+}
+
+function startNewRun() {
+    if (phase !== 'play') return;
+    cargoHeld    = false;
+    deliveryStep = 0;
+    perfectRun   = true;
+    speedViolTimer = 0;
+    cargoSpawnMesh.visible = true;
+    cargoDroneGroup.visible = false;
+    dropZoneObjs.forEach(z => { z.done = false; z.disc.material.opacity = .12; });
+    updateStripUI();
+    updateHUD();
+}
+
+// Arena collision
+function checkArena() {
+    let hit = false;
+    if (drone.pos.x < ARENA.minX) { drone.pos.x = ARENA.minX; drone.vel.x = Math.max(0, drone.vel.x); hit = true; }
+    if (drone.pos.x > ARENA.maxX) { drone.pos.x = ARENA.maxX; drone.vel.x = Math.min(0, drone.vel.x); hit = true; }
+    if (drone.pos.z < ARENA.minZ) { drone.pos.z = ARENA.minZ; drone.vel.z = Math.max(0, drone.vel.z); hit = true; }
+    if (drone.pos.z > ARENA.maxZ) { drone.pos.z = ARENA.maxZ; drone.vel.z = Math.min(0, drone.vel.z); hit = true; }
+    if (drone.pos.y > ARENA.maxY) { drone.pos.y = ARENA.maxY; drone.vel.y = Math.min(0, drone.vel.y); hit = true; }
+    if (drone.pos.y < ARENA.minY) { drone.pos.y = ARENA.minY; drone.vel.y = Math.max(0, drone.vel.y); }
+    if (hit && cargoHeld) dropCargo('碰觸邊界');
+}
+
+// Speed monitoring
+function checkSpeed(dt) {
+    if (!cargoHeld) { speedViolTimer = 0; return; }
+    const maxSpd = DIFF_CFG[pDiff].maxSpd;
+    const horizSpd = Math.sqrt(drone.vel.x**2 + drone.vel.z**2);
+    if (horizSpd > maxSpd) {
+        speedViolTimer += dt;
+        if (speedViolTimer > DIFF_CFG[pDiff].graceSec) dropCargo('速度過快');
+    } else {
+        speedViolTimer = Math.max(0, speedViolTimer - dt * 2);
+    }
+}
+
+// ─── HUD UPDATE ───────────────────────────────────────────────────────────────
+function updateStripUI() {
+    const steps = [
+        { id:'step-0', active: deliveryStep===0, done: cargoHeld },
+        { id:'step-1', active: deliveryStep===1, done: dropZoneObjs[0]?.done || deliveryStep > 1 },
+        { id:'step-2', active: deliveryStep===2, done: dropZoneObjs[1]?.done || deliveryStep > 2 },
+        { id:'step-3', active: deliveryStep===3, done: dropZoneObjs[2]?.done },
+    ];
+    steps.forEach(s => {
+        const el = document.getElementById(s.id);
+        el.classList.toggle('active', s.active);
+        el.classList.toggle('done', s.done && !s.active);
+        if (s.done && !s.active) el.style.background = 'rgba(0,80,0,.4)';
+    });
+}
+
+function updateSpeedBar() {
+    if (phase !== 'play') return;
+    const maxSpd = DIFF_CFG[pDiff].maxSpd;
+    const horizSpd = Math.sqrt(drone.vel.x**2 + drone.vel.z**2);
+    const pct = Math.min(100, horizSpd / maxSpd * 100);
+    const bar = document.getElementById('speed-bar');
+    bar.style.width = pct + '%';
+    if (pct > 95) bar.style.background = 'linear-gradient(90deg,#ef4444,#f87171)';
+    else if (pct > 75) bar.style.background = 'linear-gradient(90deg,#f59e0b,#fbbf24)';
+    else bar.style.background = 'linear-gradient(90deg,#22c55e,#4ade80)';
+    document.getElementById('hud-speed-val').textContent = horizSpd.toFixed(1) + ' m/s';
+    document.getElementById('hud-speed-limit').textContent = '限 ' + maxSpd + ' m/s';
+
+    // Limit marker
+    const marker = document.getElementById('spd-limit-marker');
+    marker.style.left = '100%'; // always at end (100% = limit)
+}
+
+function updateHUD() {
+    document.getElementById('hud-timer').textContent  = Math.ceil(timer);
+    document.getElementById('hud-timer').className    = 'hud-pill hud-timer' + (timer < 15 ? ' hud-danger' : '');
+    document.getElementById('hud-runs').textContent   = runsCompleted;
+    document.getElementById('hud-drops').textContent  = cargoDrops;
+    document.getElementById('hud-score').textContent  = score;
+}
+
+// Drop zone pulse
+function updateZoneVisuals(dt) {
+    const t = clock.getElapsedTime();
+    dropZoneObjs.forEach((z, i) => {
+        if (z.done) return;
+        const isActive = (deliveryStep - 1 === i) && cargoHeld;
+        const pulse = 0.5 + 0.5 * Math.sin(t * (isActive ? 5 : 1.5));
+        z.lgt.intensity = isActive ? (1.2 + pulse * 0.8) : (0.3 + pulse * 0.2);
+        z.disc.material.opacity = isActive ? (0.2 + pulse * 0.12) : 0.12;
+    });
+
+    // Wall flash
+    if (wallFlash > 0) {
+        wallFlash -= dt;
+        wallLineMat.color.setHex(0xef4444);
+        wallLineMat.opacity = 0.6;
+    } else {
+        wallLineMat.color.setHex(0xf59e0b);
+        wallLineMat.opacity = 0.2;
+    }
+
+    // Speed violation warning (pulsing status banner)
+    const maxSpd = DIFF_CFG[pDiff].maxSpd;
+    const horizSpd = Math.sqrt(drone.vel.x**2 + drone.vel.z**2);
+    const banner = document.getElementById('status-banner');
+    if (cargoHeld && horizSpd > maxSpd * 0.85) {
+        banner.style.display = 'block';
+        const crit = horizSpd > maxSpd;
+        banner.style.background = crit ? 'rgba(120,0,0,.7)' : 'rgba(100,60,0,.7)';
+        banner.style.borderColor = crit ? '#ef4444' : '#f59e0b';
+        banner.style.border = '1px solid ' + (crit ? '#ef4444' : '#f59e0b');
+        banner.style.color  = crit ? '#fca5a5' : '#fde68a';
+        banner.textContent = crit ? '⚡ 速度過快！減速！' : '⚠️ 接近速度上限';
+    } else {
+        banner.style.display = 'none';
+    }
+
+    // Cargo spawn pulse
+    if (cargoSpawnMesh && cargoSpawnMesh.visible) {
+        const csBox = cargoSpawnMesh.children[0];
+        csBox.material.emissiveIntensity = 0.5 + 0.4 * Math.sin(t * 3);
+        cargoSpawnMesh.children[0].rotation.y = t * 1.2;
+    }
+}
+
+// ─── PHYSICS ──────────────────────────────────────────────────────────────────
+const keys = {};
+document.addEventListener('keydown', e => { keys[e.code] = true; if (e.code==='KeyC') cycleCam(); });
+document.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+function updatePhysics(dt) {
+    const yDir = (keys['ArrowLeft'] ? 1:0) - (keys['ArrowRight'] ? 1:0);
+    drone.yaw += yDir * YAW_RATE * dt;
+
+    const fw = (keys['KeyW']||keys['ArrowUp'] ? 1:0) - (keys['KeyS']||keys['ArrowDown'] ? 1:0);
+    const sr = (keys['KeyD'] ? 1:0) - (keys['KeyA'] ? 1:0);
+    const targetPitch = fw * MAX_TILT;
+    const targetRoll  = -sr * MAX_TILT;
+    drone.pitch += (targetPitch - drone.pitch) * PITCH_RATE * dt;
+    drone.roll  += (targetRoll  - drone.roll)  * ROLL_RATE  * dt;
+
+    const sinY = Math.sin(drone.yaw), cosY = Math.cos(drone.yaw);
+    const ax = (cosY*sr + sinY*fw) * STRAFE_FORCE;
+    const az = (-sinY*sr + cosY*fw) * FWD_FORCE;
+
+    const targetYVel = (keys['Space'] ? 1:0) - (keys['ShiftLeft']||keys['ShiftRight'] ? 1:0);
+    const ay = (targetYVel*5 - drone.vel.y) * 12.0 + 9.81;
+
+    drone.vel.x += ax * dt;
+    drone.vel.y += (ay + GRAVITY) * dt;
+    drone.vel.z += az * dt;
+    drone.vel.x -= drone.vel.x * DRAG_H * dt;
+    drone.vel.z -= drone.vel.z * DRAG_H * dt;
+    drone.vel.y -= drone.vel.y * DRAG_V * dt;
+
+    drone.pos.addScaledVector(drone.vel, dt);
+    checkArena();
+
+    if (drone.mesh) {
+        drone.mesh.position.copy(drone.pos);
+        drone.mesh.rotation.y = drone.yaw;
+        drone.mesh.rotation.x = drone.pitch;
+        drone.mesh.rotation.z = drone.roll;
+    }
+}
+
+// ─── GAMEPAD ──────────────────────────────────────────────────────────────────
+let _gpFocusBtns=[], _gpFocusIdx=0;
+function gpSetFocus(ids, idx) {
+    _gpFocusBtns=ids; _gpFocusIdx=idx;
+    ids.forEach(id=>document.getElementById(id)?.classList.remove('gp-focus'));
+    document.getElementById(ids[idx])?.classList.add('gp-focus');
+}
+function gpNav(d) {
+    if(!_gpFocusBtns.length) return;
+    document.getElementById(_gpFocusBtns[_gpFocusIdx])?.classList.remove('gp-focus');
+    _gpFocusIdx=(_gpFocusIdx+d+_gpFocusBtns.length)%_gpFocusBtns.length;
+    document.getElementById(_gpFocusBtns[_gpFocusIdx])?.classList.add('gp-focus');
+}
+function gpConfirm() { document.getElementById(_gpFocusBtns[_gpFocusIdx])?.click(); }
+
+function cycleGroundCam() {
+    _pilotPosIdx=(_pilotPosIdx+1)%PILOT_POSITIONS.length;
+    GROUND_CAM_POS.copy(PILOT_POSITIONS[_pilotPosIdx]);
+}
+
+const gpPrev={};
+function pollGamepad() {
+    const gps=navigator.getGamepads?navigator.getGamepads():[];
+    for (const gp of gps) {
+        if (!gp) continue;
+        const p=gpPrev[gp.index]||{};
+        const btn=(i,n)=>{const v=gp.buttons[i]?.pressed;if(v&&!p[n]){p[n]=true;return true;}if(!v)p[n]=false;return false;};
+        if(btn(9,'start'))  cycleCam();
+        if(btn(8,'select')&&camMode==='ground') cycleGroundCam();
+        if(btn(0,'a'))      gpConfirm();
+        if(btn(12,'dup')||btn(14,'dleft'))   gpNav(-1);
+        if(btn(13,'dd')||btn(15,'dright'))   gpNav(1);
+        const ax0=gp.axes[0]||0,ax1=gp.axes[1]||0,ax2=gp.axes[2]||0,ax3=gp.axes[3]||0;
+        keys['KeyA']=ax0<-.3;keys['KeyD']=ax0>.3;
+        keys['KeyW']=ax1<-.3;keys['KeyS']=ax1>.3;
+        keys['ArrowLeft']=ax2<-.3;keys['ArrowRight']=ax2>.3;
+        keys['Space']=ax3<-.3;keys['ShiftLeft']=ax3>.3;
+        gpPrev[gp.index]=p;
+    }
+}
+
+window.addEventListener('gamepadconnected', () => {
+    document.getElementById('gp-hint').style.display='block';
+    if(phase==='intro') gpSetFocus(['btn-easy','btn-med','btn-hard'],1);
+});
+window.addEventListener('gamepaddisconnected',()=>{ document.getElementById('gp-hint').style.display='none'; });
+
+// ─── CAMERA ───────────────────────────────────────────────────────────────────
+function cycleCam() {
+    const i=CAM_MODES_LIST.indexOf(camMode);
+    camMode=CAM_MODES_LIST[(i+1)%CAM_MODES_LIST.length];
+    document.getElementById('cam-lbl').textContent=CAM_LABELS_MAP[camMode];
+}
+
+function updateCamera() {
+    if (camMode==='fpv') {
+        camera.position.copy(drone.pos).add(new THREE.Vector3(0,.15,0));
+        camTarget.copy(drone.pos).add(
+            new THREE.Vector3(Math.sin(drone.yaw),Math.sin(drone.pitch)*2,-Math.cos(drone.yaw)).normalize()
+        );
+        camera.lookAt(camTarget);
+    } else if (camMode==='ground') {
+        camera.position.copy(GROUND_CAM_POS);
+        camera.lookAt(drone.pos);
+    } else {
+        const off=new THREE.Vector3(-Math.sin(drone.yaw)*5,3.5,-Math.cos(drone.yaw)*5);
+        camera.position.lerp(drone.pos.clone().add(off),.08);
+        camTarget.lerp(drone.pos.clone().add(new THREE.Vector3(0,.5,0)),.1);
+        camera.lookAt(camTarget);
+    }
+}
+
+// ─── FLOAT TEXT ───────────────────────────────────────────────────────────────
+const COLOR_MAP={'text-amber-400':'#fb923c','text-emerald-400':'#34d399','text-red-500':'#ef4444',
+    'text-yellow-400':'#facc15','text-violet-300':'#c4b5fd','text-red-400':'#f87171'};
+function showFloat(text,cls) {
+    const el=document.createElement('div');
+    el.className='float-txt'; el.textContent=text;
+    el.style.color=COLOR_MAP[cls]||'#fff';
+    el.style.left=(30+Math.random()*40)+'%';
+    el.style.top=(38+Math.random()*20)+'%';
+    document.getElementById('floats').appendChild(el);
+    setTimeout(()=>el.remove(),1300);
+}
+
+// ─── GAME PHASES ──────────────────────────────────────────────────────────────
+function startGame(diff) {
+    pDiff=diff; phase='play';
+    timer=90; score=0; runsCompleted=0; cargoDrops=0; perfectRuns=0;
+    cargoHeld=false; deliveryStep=0; speedViolTimer=0; perfectRun=true; wallFlash=0;
+
+    document.getElementById('hud-diff').textContent=DIFF_CFG[diff].label;
+    document.getElementById('intro-modal').classList.add('hidden');
+    document.getElementById('done-modal').classList.add('hidden');
+
+    drone.pos.set(0,2.5,3); drone.vel.set(0,0,0); drone.pitch=0; drone.roll=0; drone.yaw=0;
+    if (!drone.mesh) { drone.mesh=buildDroneMesh(); scene.add(drone.mesh); }
+    cargoDroneGroup=drone.mesh.children.find(c=>c.type==='Group');
+
+    // Update zone radii to match difficulty
+    const delivR=DIFF_CFG[diff].delivR;
+    dropZoneObjs.forEach((z,i)=>{
+        z.done=false; z.disc.material.opacity=.12;
+        // Rescale ring and disc
+        z.disc.geometry.dispose();
+        z.disc.geometry=new THREE.CircleGeometry(delivR,48);
+        const ringPts=[];
+        for(let j=0;j<=64;j++){const a=(j/64)*Math.PI*2;ringPts.push(new THREE.Vector3(Math.cos(a)*delivR,0,Math.sin(a)*delivR));}
+        z.ringLine.geometry.dispose();
+        z.ringLine.geometry=new THREE.BufferGeometry().setFromPoints(ringPts);
+    });
+
+    cargoSpawnMesh.visible=true;
+    if(cargoDroneGroup) cargoDroneGroup.visible=false;
+    navArrow.visible=false;
+
+    updateStripUI();
+    updateHUD();
+}
+
+function finishGame() {
+    phase='done';
+    navArrow.visible=false;
+    let grade='C';
+    if (runsCompleted>=5||perfectRuns>=3) grade='S';
+    else if (runsCompleted>=3||perfectRuns>=1) grade='A';
+    else if (runsCompleted>=1) grade='B';
+    const msgs={S:'完美控制！穩如磐石',A:'優秀投遞！試試更難的難度',B:'不錯！繼續練習路線規劃',C:'慢慢來！控制速度是關鍵'};
+    document.getElementById('done-grade').textContent=grade;
+    document.getElementById('done-grade').className=`grade grade-${grade}`;
+    document.getElementById('done-msg').textContent=msgs[grade];
+    document.getElementById('ds-score').textContent=score;
+    document.getElementById('ds-runs').textContent=runsCompleted;
+    document.getElementById('ds-drops').textContent=cargoDrops;
+    document.getElementById('ds-perfect').textContent=perfectRuns;
+    document.getElementById('done-modal').classList.remove('hidden');
+    gpSetFocus(['btn-retry','btn-select'],0);
+}
+
+function retryGame()  { startGame(pDiff); }
+function backToIntro() {
+    phase='intro';
+    document.getElementById('intro-modal').classList.remove('hidden');
+    document.getElementById('done-modal').classList.add('hidden');
+    document.getElementById('status-banner').style.display='none';
+    gpSetFocus(['btn-easy','btn-med','btn-hard'],1);
+}
+
+// ─── ANIMATE LOOP ─────────────────────────────────────────────────────────────
+function animate() {
+    requestAnimationFrame(animate);
+    pollGamepad();
+    const dt=Math.min(clock.getDelta(), 0.05);
+
+    if (phase==='play') {
+        updatePhysics(dt);
+        checkSpeed(dt);
+        checkPickup();
+        checkDelivery();
+        updateNavArrow();
+        updateZoneVisuals(dt);
+        updateSpeedBar();
+        timer-=dt;
+        if (timer<=0) { timer=0; finishGame(); }
+        updateHUD();
+    }
+
+    updateCamera();
+    renderer.render(scene,camera);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+buildScene();
+buildNavArrow();
+gpSetFocus(['btn-easy','btn-med','btn-hard'],1);
+animate();
+</script>
+</body>
+</html>
