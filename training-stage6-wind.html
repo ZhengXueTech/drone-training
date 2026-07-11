@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>無人機飛行員培訓 - 第六階段：逆風飛行</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -38,13 +38,15 @@
     /* ── Virtual Joystick (touch) ── */
     #vj-wrap {
         display: none; position: fixed; bottom: 0; left: 0; right: 0;
-        height: 180px; z-index: 25; padding: 16px 28px;
+        min-height: 200px; z-index: 25;
+        padding: 12px 24px;
+        padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
         align-items: flex-end; justify-content: space-between;
         pointer-events: none;
     }
     #vj-wrap.show { display: flex; }
     .vj-area {
-        position: relative; width: 112px; height: 112px;
+        position: relative; width: clamp(112px,30vw,144px); height: clamp(112px,30vw,144px);
         border-radius: 50%; pointer-events: auto;
         touch-action: none; user-select: none; -webkit-user-select: none;
     }
@@ -56,7 +58,7 @@
         background: rgba(217,70,239,0.10); border-color: rgba(217,70,239,0.40);
     }
     .vj-knob {
-        position: absolute; width: 46px; height: 46px; border-radius: 50%;
+        position: absolute; width: clamp(44px,9vw,58px); height: clamp(44px,9vw,58px); border-radius: 50%;
         background: rgba(6,182,212,0.50); border: 2px solid rgba(6,182,212,0.85);
         top: 50%; left: 50%; transform: translate(-50%,-50%);
     }
@@ -829,7 +831,6 @@ function animate() {
   var wrap = document.getElementById('vj-wrap');
   var lOn = false, rOn = false;
   function syncActive(){ vjs.active = lOn || rOn; }
-  var VJ_R = 56;
 
   function makeStick(aId, kId, isLeft){
     var area = document.getElementById(aId);
@@ -852,10 +853,11 @@ function animate() {
         var t=e.changedTouches[i];
         if(t.identifier!==tid) continue;
         var dx=t.clientX-ox, dy=t.clientY-oy;
+        var VJR=(area.offsetWidth||112)*0.46;
         var d=Math.sqrt(dx*dx+dy*dy);
-        if(d>VJ_R){dx*=VJ_R/d; dy*=VJ_R/d;}
+        if(d>VJR){dx*=VJR/d; dy*=VJR/d;}
         knob.style.transform='translate(calc(-50% + '+dx+'px),calc(-50% + '+dy+'px))';
-        var nx=dx/VJ_R, ny=dy/VJ_R;
+        var nx=dx/VJR, ny=dy/VJR;
         if(isLeft){vjs.yaw=nx; vjs.throttle=-ny;}
         else{vjs.roll=nx; vjs.pitch=ny;}
       }

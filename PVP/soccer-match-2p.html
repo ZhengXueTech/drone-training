@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>雙人無人機足球 2P | FAI F9A-B</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#040810}
+body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-select:none}
+#canvas-container{position:fixed;inset:0;z-index:0}
+#canvas-container canvas{display:block;width:100%!important;height:100%!important}
+.glass{background:rgba(8,18,36,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.07)}
+.neon-c{border-color:rgba(6,182,212,.6)!important;box-shadow:0 0 18px rgba(6,182,212,.28)}
+.neon-r{border-color:rgba(239,68,68,.6)!important;box-shadow:0 0 18px rgba(239,68,68,.28)}
+.neon-a{border-color:rgba(251,191,36,.55)!important;box-shadow:0 0 14px rgba(251,191,36,.22)}
+.neon-g{border-color:rgba(34,197,94,.55)!important;box-shadow:0 0 14px rgba(34,197,94,.22)}
+.neon-o{border-color:rgba(249,115,22,.6)!important;box-shadow:0 0 18px rgba(249,115,22,.28)}
+.tc{color:#22d3ee;text-shadow:0 0 10px rgba(34,211,238,.7)}
+.tr{color:#f87171;text-shadow:0 0 10px rgba(248,113,113,.7)}
+.to{color:#fb923c;text-shadow:0 0 10px rgba(251,146,60,.7)}
+.tg{color:#4ade80}.ta{color:#fbbf24}
+.key{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  background:rgba(30,41,59,.95);border:1px solid rgba(100,116,139,.45);border-radius:4px;
+  font-size:8px;font-weight:700;color:#64748b;transition:all .08s}
+.key.on{background:rgba(6,182,212,.25);border-color:#22d3ee;color:#22d3ee;box-shadow:0 0 6px rgba(6,182,212,.5)}
+.key2{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  background:rgba(30,41,59,.95);border:1px solid rgba(100,116,139,.45);border-radius:4px;
+  font-size:8px;font-weight:700;color:#64748b;transition:all .08s}
+.key2.on{background:rgba(249,115,22,.25);border-color:#fb923c;color:#fb923c;box-shadow:0 0 6px rgba(249,115,22,.5)}
+@keyframes scanline{0%{transform:translateY(-80px)}100%{transform:translateY(110vh)}}
+.scanline{pointer-events:none;position:fixed;top:0;left:0;width:100%;height:80px;
+  background:linear-gradient(transparent,rgba(34,211,238,.022),transparent);
+  animation:scanline 9s linear infinite;z-index:2}
+@keyframes pulse2{0%,100%{opacity:1}50%{opacity:.45}}.pulse2{animation:pulse2 1.4s ease-in-out infinite}
+@keyframes goalPop{0%{transform:scale(.3) rotate(-6deg);opacity:0}45%{transform:scale(1.1) rotate(2deg);opacity:1}100%{transform:scale(1);opacity:1}}
+.goal-pop{animation:goalPop .45s cubic-bezier(.2,1.4,.4,1) forwards}
+/* Split-screen divider */
+#split-divider{position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:2px;z-index:8;pointer-events:none;
+  background:linear-gradient(to bottom,transparent,rgba(34,211,238,.35) 15%,rgba(34,211,238,.5) 50%,rgba(34,211,238,.35) 85%,transparent);
+  box-shadow:0 0 8px rgba(34,211,238,.3)}
+/* Minimap */
+#minimap{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);width:90px;height:135px;z-index:15;border-radius:8px;overflow:hidden}
+/* Speed/diff buttons */
+.spd-btn{flex:1;border:1px solid rgba(100,116,139,.35);border-radius:8px;padding:4px 2px;font-size:9px;font-weight:700;color:#94a3b8;background:rgba(15,23,42,.6);cursor:pointer;transition:all .15s;text-align:center}
+.spd-btn:hover,.spd-btn.active{border-color:rgba(6,182,212,.7);color:#22d3ee;background:rgba(6,182,212,.12);box-shadow:0 0 8px rgba(6,182,212,.2)}
+input[type=range]{accent-color:#22d3ee}
+.diff-btn{flex:1;border:1px solid rgba(100,116,139,.35);border-radius:8px;padding:4px 6px;font-size:9px;font-weight:700;color:#94a3b8;background:rgba(15,23,42,.6);cursor:pointer;transition:all .15s;pointer-events:auto}
+.diff-btn:hover,.diff-btn.active{border-color:rgba(168,85,247,.7);color:#d946ef;background:rgba(168,85,247,.12);box-shadow:0 0 8px rgba(168,85,247,.2)}
+.p1c{color:#22d3ee}.p2c{color:#fb923c}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+<div id="canvas-container"></div>
+<canvas id="minimap" class="glass" width="90" height="135"></canvas>
+
+<!-- Split-screen divider (hidden in tactic view) -->
+<div id="split-divider"></div>
+
+<!-- ▌ HUD -->
+<div id="hud" class="hidden fixed inset-0 pointer-events-none z-10">
+
+  <!-- CENTER TOP: Score + Timer -->
+  <div class="absolute top-3 left-1/2 -translate-x-1/2 flex items-stretch gap-2 z-20">
+    <div class="glass neon-c rounded-2xl px-3 py-1.5 text-center min-w-[72px]">
+      <div class="text-[8px] p1c tracking-[.2em] font-bold">P1 ●</div>
+      <div id="sa" class="text-3xl font-black p1c leading-none">0</div>
+      <div id="swa" class="text-[8px] text-slate-400 font-mono mt-0.5">節勝 0</div>
+    </div>
+    <div class="glass rounded-2xl px-3 py-1.5 text-center" style="border-color:rgba(100,116,139,.25)">
+      <div id="set-label" class="text-[8px] text-slate-400 tracking-widest font-bold">第 1 節</div>
+      <div id="timer" class="text-2xl font-black text-white font-mono leading-tight">3:00</div>
+      <div id="gstatus" class="text-[7px] tg font-mono pulse2">比賽進行中</div>
+    </div>
+    <div class="glass neon-o rounded-2xl px-3 py-1.5 text-center min-w-[72px]">
+      <div class="text-[8px] p2c tracking-[.2em] font-bold">● P2</div>
+      <div id="sb" class="text-3xl font-black p2c leading-none">0</div>
+      <div id="swb" class="text-[8px] text-slate-400 font-mono mt-0.5">節勝 0</div>
+    </div>
+  </div>
+
+  <!-- P1: TOP LEFT info -->
+  <div class="absolute top-3 left-3 flex flex-col gap-1.5">
+    <div class="glass neon-c rounded-xl px-2.5 py-1.5">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">P1 視角 [C]</div>
+      <div id="p1-camlab" class="text-[10px] font-bold p1c">TPV 追蹤</div>
+    </div>
+    <div class="glass rounded-xl px-2.5 py-1.5" style="border-color:rgba(100,116,139,.25)">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">飛手 [V]</div>
+      <div id="p1-pilotlab" class="text-[10px] font-bold text-white">右側 →</div>
+    </div>
+    <div id="p1-crouch" class="hidden glass neon-g rounded-xl px-2.5 py-1.5">
+      <div class="text-[10px] tg font-bold pulse2">🦵 蹲下</div>
+    </div>
+    <div id="p1-return" class="hidden glass neon-a rounded-xl px-2.5 py-1.5">
+      <div class="text-[9px] ta font-bold pulse2">⚠ 返回己方半場</div>
+    </div>
+    <div id="p1-gp" class="hidden glass neon-g rounded-full px-2 py-0.5 text-[8px] font-bold tg flex items-center gap-1">
+      <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>🎮 GP0
+    </div>
+  </div>
+
+  <!-- P2: TOP RIGHT info -->
+  <div class="absolute top-3 right-3 flex flex-col gap-1.5 items-end">
+    <div class="glass neon-o rounded-xl px-2.5 py-1.5 text-right">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">P2 視角 [N]</div>
+      <div id="p2-camlab" class="text-[10px] font-bold p2c">TPV 追蹤</div>
+    </div>
+    <div class="glass rounded-xl px-2.5 py-1.5 text-right" style="border-color:rgba(100,116,139,.25)">
+      <div class="text-[7px] text-slate-400 uppercase tracking-wider">飛手 [M]</div>
+      <div id="p2-pilotlab" class="text-[10px] font-bold text-white">右側 →</div>
+    </div>
+    <div id="p2-crouch" class="hidden glass neon-g rounded-xl px-2.5 py-1.5">
+      <div class="text-[10px] tg font-bold pulse2">🦵 蹲下</div>
+    </div>
+    <div id="p2-return" class="hidden glass neon-a rounded-xl px-2.5 py-1.5">
+      <div class="text-[9px] ta font-bold pulse2">⚠ 返回己方半場</div>
+    </div>
+    <div id="p2-gp" class="hidden glass neon-g rounded-full px-2 py-0.5 text-[8px] font-bold tg flex items-center gap-1">
+      <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>🎮 GP1
+    </div>
+  </div>
+
+  <!-- Tactic view indicator -->
+  <div id="tac-ind" class="hidden absolute top-3 left-1/2 -translate-x-1/2 mt-16 glass neon-a rounded-xl px-4 py-1">
+    <div class="text-[9px] ta font-bold tracking-widest">📡 戰術視角  [T] / Y△ 切換</div>
+  </div>
+
+  <!-- P1 BOTTOM-LEFT: Controls -->
+  <div class="absolute bottom-3 left-3">
+    <div class="glass neon-c rounded-xl px-3 py-2 flex items-center gap-3">
+      <div class="flex flex-col items-center gap-0.5">
+        <div class="text-[6px] text-slate-500 font-mono">油門/偏航</div>
+        <div class="grid grid-cols-3 gap-0.5">
+          <div></div><div id="kW" class="key">W</div><div></div>
+          <div id="kA" class="key">A</div><div></div><div id="kD" class="key">D</div>
+          <div></div><div id="kS" class="key">S</div><div></div>
+        </div>
+      </div>
+      <div class="w-px h-8 bg-slate-700/50"></div>
+      <div class="flex flex-col items-center gap-0.5">
+        <div class="text-[6px] text-slate-500 font-mono">俯仰/翻滾</div>
+        <div class="grid grid-cols-3 gap-0.5">
+          <div></div><div id="kUp" class="key">↑</div><div></div>
+          <div id="kLeft" class="key">←</div><div></div><div id="kRight" class="key">→</div>
+          <div></div><div id="kDown" class="key">↓</div><div></div>
+        </div>
+      </div>
+      <div class="w-px h-8 bg-slate-700/50"></div>
+      <div class="text-[7px] font-mono text-slate-400 leading-loose">
+        <div><span class="p1c font-bold">C</span> 視角 <span class="p1c font-bold">V</span> 站位</div>
+        <div><span class="p1c font-bold">Z</span>/L1 蹲（按住）</div>
+        <div><span class="p1c font-bold">T</span>/Y△ 戰術視角</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- P2 BOTTOM-RIGHT: Controls -->
+  <div class="absolute bottom-3 right-3">
+    <div class="glass neon-o rounded-xl px-3 py-2 flex items-center gap-3">
+      <div class="text-[7px] font-mono text-slate-400 leading-loose">
+        <div><span class="p2c font-bold">N</span> 視角 <span class="p2c font-bold">M</span> 站位</div>
+        <div><span class="p2c font-bold">Shift</span>/L1 蹲（按住）</div>
+        <div><span class="p2c font-bold">T</span>/Y△ 戰術視角</div>
+      </div>
+      <div class="w-px h-8 bg-slate-700/50"></div>
+      <div class="flex flex-col items-center gap-0.5">
+        <div class="text-[6px] text-slate-500 font-mono">油門/偏航</div>
+        <div class="grid grid-cols-3 gap-0.5">
+          <div></div><div id="kI" class="key2">I</div><div></div>
+          <div id="kJ" class="key2">J</div><div></div><div id="kL" class="key2">L</div>
+          <div></div><div id="kK" class="key2">K</div><div></div>
+        </div>
+      </div>
+      <div class="w-px h-8 bg-slate-700/50"></div>
+      <div class="flex flex-col items-center gap-0.5">
+        <div class="text-[6px] text-slate-500 font-mono">俯仰/翻滾</div>
+        <div class="grid grid-cols-3 gap-0.5">
+          <div></div><div id="k8" class="key2">8</div><div></div>
+          <div id="k4" class="key2">4</div><div></div><div id="k6" class="key2">6</div>
+          <div></div><div id="k2" class="key2">2</div><div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vel / pause -->
+  <div class="absolute bottom-16 left-1/2 -translate-x-1/2 flex gap-2 items-center">
+    <div id="w-pause" class="hidden glass rounded-xl px-3 py-1" style="border-color:rgba(100,116,139,.35)">
+      <div class="text-[9px] text-slate-300 font-bold">⏸ 暫停  [P] 繼續</div>
+    </div>
+  </div>
+
+</div><!-- /hud -->
+
+<!-- ▌ GOAL OVERLAY -->
+<div id="goal-ov" class="hidden fixed inset-0 z-20 flex items-center justify-center pointer-events-none">
+  <div class="text-center">
+    <div id="goal-word" class="text-7xl font-black tracking-wider"></div>
+    <div id="goal-sub"  class="text-lg font-bold text-white mt-2 font-mono"></div>
+  </div>
+</div>
+
+<!-- ▌ INTRO -->
+<div id="intro" class="fixed inset-0 bg-slate-950/93 backdrop-blur-xl z-40 flex items-center justify-center p-4">
+  <div class="glass neon-c rounded-3xl p-6 max-w-lg w-full flex flex-col gap-4 text-center">
+    <div>
+      <div class="text-[9px] tc tracking-[.35em] font-bold uppercase">FAI F9A-B · 2-Player · Drone Soccer</div>
+      <h1 class="text-3xl font-black mt-1"><span class="p1c">P1</span> <span class="text-white">vs</span> <span class="p2c">P2</span></h1>
+      <h2 class="text-lg font-black text-white mt-0.5">雙人無人機足球</h2>
+      <div class="text-[9px] text-slate-500 font-mono mt-1">場地 6×3×3 m · 球徑 20 cm · 球門內徑 40 cm</div>
+    </div>
+
+    <!-- Controls legend -->
+    <div class="grid grid-cols-2 gap-2 text-left text-[10px] font-mono">
+      <div class="glass rounded-xl p-2.5 border border-cyan-500/40">
+        <div class="p1c font-bold mb-1">● P1（青色無人機）</div>
+        <div class="text-slate-400 leading-relaxed">
+          油門/偏航：<span class="text-white">WASD</span><br>
+          俯仰/翻滾：<span class="text-white">↑↓←→</span><br>
+          蹲下：<span class="text-white">Z 按住</span>｜視角：<span class="text-white">C</span>｜站位：<span class="text-white">V</span><br>
+          或 Gamepad <span class="text-white">#0</span>
+        </div>
+      </div>
+      <div class="glass rounded-xl p-2.5 border border-orange-500/40">
+        <div class="p2c font-bold mb-1">● P2（橙色無人機）</div>
+        <div class="text-slate-400 leading-relaxed">
+          油門/偏航：<span class="text-white">IJKL</span><br>
+          俯仰/翻滾：<span class="text-white">Numpad 8246</span><br>
+          蹲下：<span class="text-white">Shift 按住</span>｜視角：<span class="text-white">N</span>｜站位：<span class="text-white">M</span><br>
+          或 Gamepad <span class="text-white">#1</span>
+        </div>
+      </div>
+      <div class="glass rounded-xl p-2.5">
+        <div class="tg font-bold mb-0.5">🏆 賽制</div>
+        <div class="text-slate-400 leading-relaxed">3 節 × 3 分鐘<br>率先得 <span class="ta font-bold">5 球</span>即贏得本節<br>贏得 2 節即獲勝</div>
+      </div>
+      <div class="glass rounded-xl p-2.5">
+        <div class="ta font-bold mb-0.5">↩ 進球規則</div>
+        <div class="text-slate-400 leading-relaxed">進球後<br>得分方全員須退回<br>己方半場才能繼續</div>
+      </div>
+    </div>
+
+    <!-- Mode selection -->
+    <div class="glass rounded-xl p-3 flex flex-col gap-2">
+      <div class="text-[9px] tc font-bold uppercase tracking-widest">選擇模式</div>
+      <div class="flex gap-2">
+        <button id="btn-1v1" onclick="enterMatch(false)"
+          class="flex-1 bg-gradient-to-r from-cyan-500 to-orange-400 hover:scale-105 active:scale-100 transition text-slate-950 font-black py-2.5 rounded-xl text-sm uppercase tracking-wider shadow-lg">
+          ⚔ 純 1v1
+        </button>
+        <div class="flex flex-col gap-1 flex-1">
+          <button id="btn-gk" onclick="showGKOptions()"
+            class="w-full bg-gradient-to-r from-purple-500 to-pink-400 hover:scale-105 active:scale-100 transition text-slate-950 font-black py-2.5 rounded-xl text-sm uppercase tracking-wider shadow-lg">
+            🥅 加入守門員
+          </button>
+        </div>
+      </div>
+      <!-- GK difficulty (shown on demand) -->
+      <div id="gk-options" class="hidden glass rounded-xl p-2 flex items-center gap-2">
+        <div class="text-[8px] text-slate-400 font-mono whitespace-nowrap">守門員難度</div>
+        <div class="flex gap-1 flex-1">
+          <button id="diff-easy" class="diff-btn" onclick="setPDiff('easy')">😊 簡單</button>
+          <button id="diff-med"  class="diff-btn active" onclick="setPDiff('med')">⚡ 中等</button>
+          <button id="diff-hard" class="diff-btn" onclick="setPDiff('hard')">💀 困難</button>
+        </div>
+        <button onclick="enterMatch(true)"
+          class="ml-1 bg-gradient-to-r from-purple-500 to-pink-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-xs uppercase tracking-wider hover:scale-105 transition" style="pointer-events:auto">
+          出發 →
+        </button>
+      </div>
+    </div>
+
+    <!-- Speed -->
+    <div class="glass rounded-xl p-2.5 flex flex-col gap-1.5" style="pointer-events:auto">
+      <div class="text-[8px] tc font-bold uppercase tracking-wider">⚡ 飛行速度</div>
+      <div class="flex gap-1">
+        <button class="spd-btn" onclick="applySF(.55,'慢速')">慢速<br><span class="text-[7px] font-mono text-slate-500">×0.55</span></button>
+        <button class="spd-btn active" id="spd-mid" onclick="applySF(1.0,'標準')">標準<br><span class="text-[7px] font-mono">×1.0</span></button>
+        <button class="spd-btn" onclick="applySF(1.8,'競速')">競速<br><span class="text-[7px] font-mono text-slate-500">×1.8</span></button>
+        <button class="spd-btn" onclick="applySF(2.5,'極速')">極速<br><span class="text-[7px] font-mono text-slate-500">×2.5</span></button>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-[7px] text-slate-500 font-mono">慢</span>
+        <input type="range" id="spd-slider" min="30" max="280" value="100" class="flex-1 h-1" oninput="applySF(this.value/100,'自訂')">
+        <span class="text-[7px] text-slate-500 font-mono">快</span>
+        <span id="spd-pct" class="text-xs tc font-mono font-black">×1.0</span>
+      </div>
+    </div>
+
+    <a href="../index.html" class="text-[9px] text-slate-600 hover:text-slate-400 font-mono">← 返回訓練總覽</a>
+  </div>
+</div>
+
+<!-- ▌ SET END -->
+<div id="set-end" class="hidden fixed inset-0 bg-slate-950/75 backdrop-blur-md z-30 flex items-center justify-center p-4">
+  <div class="glass neon-c rounded-2xl p-6 text-center max-w-xs w-full flex flex-col gap-3">
+    <div id="se-title" class="text-lg font-black tc"></div>
+    <div id="se-score" class="text-5xl font-black text-white"></div>
+    <div id="se-result" class="text-sm font-mono"></div>
+    <div id="se-sets"  class="text-[10px] font-mono text-slate-500"></div>
+    <button onclick="nextSet()" class="bg-gradient-to-r from-cyan-500 to-teal-400 text-slate-950 font-black py-2.5 rounded-xl text-xs uppercase tracking-widest hover:scale-105 transition">下一節 →</button>
+  </div>
+</div>
+
+<!-- ▌ MATCH END -->
+<div id="match-end" class="hidden fixed inset-0 bg-slate-950/93 backdrop-blur-xl z-40 flex items-center justify-center p-4">
+  <div id="me-box" class="glass rounded-2xl p-6 text-center max-w-xs w-full flex flex-col gap-3">
+    <div id="me-icon"  class="text-5xl"></div>
+    <div id="me-title" class="text-2xl font-black"></div>
+    <div id="me-score" class="text-base font-mono text-slate-300"></div>
+    <div id="me-sets"  class="text-[10px] font-mono text-slate-500"></div>
+    <div class="flex gap-2 mt-1">
+      <button onclick="restartMatch()" class="flex-1 glass hover:bg-cyan-900/40 tc rounded-xl py-2 text-xs font-bold uppercase tracking-wider transition" style="border-color:rgba(6,182,212,.45)">再來一場</button>
+      <a href="../index.html" class="flex-1 glass hover:bg-slate-700/50 text-slate-300 rounded-xl py-2 text-xs font-bold uppercase tracking-wider transition flex items-center justify-center" style="border-color:rgba(100,116,139,.35)">返回總覽</a>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<script>
+'use strict';
+
+// ──────────────────────────────────────────────
+//  FAI F9A-B CONSTANTS
+// ──────────────────────────────────────────────
+const FL=6, FW=3, FH=3;
+const HL=FL/2, HW=FW/2;
+const BR=0.11;           // ball/drone radius (m)
+const GR=0.20;           // goal ring radius (inner bore = 40cm → radius 20cm)
+const GO=GR+0.04;        // goal ring outer radius
+const GI=GR-0.01;        // goal detection threshold
+const GT=0.025;          // goal torus tube radius
+const GZ=HL-0.70;        // goal ring Z position (留 70cm 給無人機穿門後飛出)
+const GY=1.5;            // goal ring height
+const HOVER=9.81;        // hover thrust
+const THRMAX=14;         // max extra thrust
+const PITCHMAX=18;       // max pitch/roll accel
+const YAWMAX=2.8;        // max yaw rate
+const DRAG=0.88;         // velocity drag factor
+const GRAVITY=-9.81;     // gravity
+const FBOUNCE=0.25;      // floor bounce
+const WBOUNCE=0.55;      // wall bounce
+const CAM_MODES=['tpv','fpv','pilot'];
+const CAM_LABELS={tpv:'TPV 追蹤',fpv:'FPV 第一人稱',pilot:'👤 飛手視角'};
+const PILOT_SIDES=['left','mid','right'];
+const TA='A', TB='B';
+const SET_DUR=180, N_SETS=3, GOALS_WIN_SET=5;
+const GK_SPD={easy:3.2, med:5.5, hard:9.5};
+
+// ──────────────────────────────────────────────
+//  AUDIO  (Web Audio API 程序合成，不需音效檔)
+// ──────────────────────────────────────────────
+let _audioCtx=null;
+function getACtx(){
+  if(!_audioCtx) _audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(_audioCtx.state==='suspended') _audioCtx.resume();
+  return _audioCtx;
+}
+
+// 單音符播放
+// freq:頻率  type:波形  vol:音量  start:開始時間  dur:持續  fadeIn:淡入  fadeOut:淡出
+function playNote(freq,type,vol,start,dur,fadeIn=0.01,fadeOut=0.08){
+  const ctx=getACtx();
+  const osc=ctx.createOscillator();
+  const gain=ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.type=type; osc.frequency.value=freq;
+  gain.gain.setValueAtTime(0,start);
+  gain.gain.linearRampToValueAtTime(vol,start+fadeIn);
+  gain.gain.setValueAtTime(vol,start+dur-fadeOut);
+  gain.gain.exponentialRampToValueAtTime(0.0001,start+dur);
+  osc.start(start); osc.stop(start+dur+0.01);
+}
+
+// P1 得分：方波上行琶音（明亮）C5→E5→G5→C6
+function sfxGoalP1(){
+  const ctx=getACtx(), t=ctx.currentTime;
+  [[523,'square',.28],[659,'square',.26],[784,'square',.24],[1047,'square',.32]]
+  .forEach(([f,tp,v],i)=>playNote(f,tp,v,t+i*.11,.25,.01,.10));
+  // 短促 bass 底音
+  playNote(130,'sine',.18,t,.3,.01,.12);
+}
+
+// P2 得分：鋸齒波上行琶音（渾厚）A4→C#5→E5→A5
+function sfxGoalP2(){
+  const ctx=getACtx(), t=ctx.currentTime;
+  [[440,'sawtooth',.22],[554,'sawtooth',.20],[659,'sawtooth',.18],[880,'sawtooth',.26]]
+  .forEach(([f,tp,v],i)=>playNote(f,tp,v,t+i*.11,.25,.01,.10));
+  playNote(110,'sine',.18,t,.3,.01,.12);
+}
+
+// 節勝：5 音上升 fanfare
+function sfxSetWin(){
+  const ctx=getACtx(), t=ctx.currentTime;
+  [[523,'square',.25],[659,'square',.25],[784,'square',.25],[880,'square',.25],[1047,'square',.35]]
+  .forEach(([f,tp,v],i)=>playNote(f,tp,v,t+i*.13,.32,.01,.12));
+  playNote(130,'sine',.20,t,.7,.02,.2);
+}
+
+// 比賽勝利：完整 fanfare（7 音符）
+function sfxMatchWin(){
+  const ctx=getACtx(), t=ctx.currentTime;
+  const seq=[[523,.15],[523,.15],[523,.15],[415,.35],[494,.15],[523,.5]];
+  let at=t;
+  seq.forEach(([f,d])=>{
+    playNote(f,'square',.30,at,d,.01,.06);
+    // 加入五度和音讓它更豐富
+    playNote(f*1.5,'square',.15,at,d,.01,.06);
+    at+=d+0.02;
+  });
+  playNote(130,'sine',.20,t,at-t,.02,.2);
+}
+
+// 倒數 beep（最後 10 秒每秒一響，最後 3 秒快）
+let _lastBeepSec=-1;
+function tickCountdownBeep(){
+  if(phase!=='playing'||setTimer>10)return;
+  const sec=Math.ceil(setTimer);
+  if(sec===_lastBeepSec)return;
+  _lastBeepSec=sec;
+  const ctx=getACtx(), t=ctx.currentTime;
+  const freq=sec<=3?880:660;
+  const vol=sec<=3?0.22:0.14;
+  playNote(freq,'sine',vol,t,.08,.005,.04);
+}
+
+// ──────────────────────────────────────────────
+//  GLOBALS
+// ──────────────────────────────────────────────
+let renderer, scene, camera1, camera2, cameraOverhead, clock;
+let camTgt1=new THREE.Vector3(), camTgt2=new THREE.Vector3();
+let goalMeshes=[], goalLights=[];
+let drones=[];
+let phase='intro';
+let curSet=1, setTimer=SET_DUR;
+let scores={A:0,B:0}, setsWon={A:0,B:0}, setGoals={A:0,B:0}, setLog=[];
+let paused=false;
+let hasGK=false;
+let pDiff='med';
+let SF=1.0;
+
+// Per-player camera/pilot state
+let camMode1='tpv', camMode2='tpv';
+let pilotSide1='right', pilotSide2='right';
+let pilotCrouching1=false, pilotCrouching2=false;
+let tacticView=false;
+
+// Gamepad prev-button tracking
+let gpCamPrev0=false, gpPilotPrev0=false, gpTacPrev0=false;
+let gpCamPrev1=false, gpPilotPrev1=false, gpTacPrev1=false;
+
+// Keyboard state
+const KEYS={};
+const CODES={}; // e.code for numpad disambiguation
+
+// ──────────────────────────────────────────────
+//  UTILS
+// ──────────────────────────────────────────────
+const fmt=s=>{s=Math.max(0,s);return`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+// ──────────────────────────────────────────────
+//  THREE INIT
+// ──────────────────────────────────────────────
+function initThree(){
+  const cont=document.getElementById('canvas-container');
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true;
+  cont.appendChild(renderer.domElement);
+
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x040810);
+  scene.fog=new THREE.FogExp2(0x04080e,0.032);
+
+  const halfAspect=(innerWidth/2)/innerHeight;
+
+  camera1=new THREE.PerspectiveCamera(68,halfAspect,.04,150);
+  camera1.position.set(0,2.5,-5.5);
+  camera1.lookAt(0,1.5,0);
+
+  camera2=new THREE.PerspectiveCamera(68,halfAspect,.04,150);
+  camera2.position.set(0,2.5,5.5);
+  camera2.lookAt(0,1.5,0);
+
+  cameraOverhead=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.04,150);
+  cameraOverhead.position.set(0,8.5,.01);
+  cameraOverhead.lookAt(0,0,0);
+
+  scene.add(new THREE.AmbientLight(0x0a1830,3.5));
+  const dl=new THREE.DirectionalLight(0x4488aa,.8);
+  dl.position.set(2,8,-2); scene.add(dl);
+  const dl2=new THREE.DirectionalLight(0x223355,.35);
+  dl2.position.set(-3,4,4); scene.add(dl2);
+  const tl=new THREE.PointLight(0x0e2244,1.2,10);
+  tl.position.set(0,FH+.5,0); scene.add(tl);
+
+  clock=new THREE.Clock();
+
+  window.addEventListener('resize',()=>{
+    const ha=(innerWidth/2)/innerHeight;
+    camera1.aspect=ha; camera1.updateProjectionMatrix();
+    camera2.aspect=ha; camera2.updateProjectionMatrix();
+    cameraOverhead.aspect=innerWidth/innerHeight; cameraOverhead.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+}
+
+// ──────────────────────────────────────────────
+//  FIELD
+// ──────────────────────────────────────────────
+function buildField(){
+  const flr=new THREE.Mesh(
+    new THREE.PlaneGeometry(FW,FL),
+    new THREE.MeshStandardMaterial({color:0x08122a,roughness:.95,metalness:.05})
+  );
+  flr.rotation.x=-Math.PI/2; scene.add(flr);
+  scene.add(new THREE.GridHelper(Math.max(FW,FL),12,0x0c1e3c,0x0c1e3c));
+
+  const lm=(c,o=.65)=>new THREE.LineBasicMaterial({color:c,transparent:true,opacity:o});
+  addLine(lm(0x22d3ee,.7),[-HW,.005,0],[HW,.005,0]);
+  addLine(lm(0x3b82f6,.55),[-HW,.005,-HL],[HW,.005,-HL]);
+  addLine(lm(0xf97316,.55),[-HW,.005, HL],[HW,.005, HL]);
+
+  const sw=BR*2*3+.1,sd=.45;
+  addRect(lm(0x3b82f6,.4),-sw/2,.005,-HL+.12,sw,sd);
+  addRect(lm(0xf97316,.4),-sw/2,.005, HL-.12-sd,sw,sd);
+
+  const cdot=new THREE.Mesh(new THREE.CircleGeometry(.06,16),new THREE.MeshBasicMaterial({color:0x22d3ee,transparent:true,opacity:.75}));
+  cdot.rotation.x=-Math.PI/2; cdot.position.y=.003; scene.add(cdot);
+
+  buildCage();
+}
+
+function addLine(mat,p1,p2){
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...p1),new THREE.Vector3(...p2)]),mat));
+}
+function addRect(mat,x,y,z,w,d){
+  const pts=[new THREE.Vector3(x,y,z),new THREE.Vector3(x+w,y,z),new THREE.Vector3(x+w,y,z+d),new THREE.Vector3(x,y,z+d),new THREE.Vector3(x,y,z)];
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),mat));
+}
+
+function buildCage(){
+  const netM=(c,o)=>new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,side:THREE.DoubleSide});
+  const wM=new THREE.LineBasicMaterial({color:0x1a4060,transparent:true,opacity:.5});
+  const panels=[
+    {w:FW,h:FH,p:[0,FH/2,-HL],ry:0,col:0x001040,op:.18},
+    {w:FW,h:FH,p:[0,FH/2, HL],ry:Math.PI,col:0x300020,op:.18},
+    {w:FL,h:FH,p:[-HW,FH/2,0],ry:Math.PI/2,col:0x0a1e36,op:.12},
+    {w:FL,h:FH,p:[ HW,FH/2,0],ry:-Math.PI/2,col:0x0a1e36,op:.12},
+    {w:FW,h:FL,p:[0,FH,0],rx:-Math.PI/2,col:0x060f1e,op:.09},
+  ];
+  panels.forEach(p=>{
+    const g=new THREE.PlaneGeometry(p.w,p.h,Math.ceil(p.w/.25),Math.ceil(p.h/.25));
+    const m=new THREE.Mesh(g,netM(p.col,p.op));
+    m.position.set(...p.p); if(p.rx)m.rotation.x=p.rx; if(p.ry)m.rotation.y=p.ry; scene.add(m);
+    const el=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(p.w,p.h)),wM.clone());
+    el.position.set(...p.p); if(p.rx)el.rotation.x=p.rx; if(p.ry)el.rotation.y=p.ry; scene.add(el);
+  });
+  const pilM=new THREE.MeshStandardMaterial({color:0x1a3050,metalness:.85,roughness:.2});
+  const pilG=new THREE.CylinderGeometry(.022,.022,FH,6);
+  [[-HW,-HL],[HW,-HL],[-HW,HL],[HW,HL]].forEach(([x,z])=>{const p=new THREE.Mesh(pilG,pilM);p.position.set(x,FH/2,z);scene.add(p);});
+  const rM=new THREE.MeshStandardMaterial({color:0x22d3ee,metalness:.9,emissive:0x0a3050,emissiveIntensity:.4});
+  const rGW=new THREE.CylinderGeometry(.013,.013,FW,6);
+  const rGL=new THREE.CylinderGeometry(.013,.013,FL,6);
+  [-HL,HL].forEach(z=>{const m=new THREE.Mesh(rGW,rM);m.rotation.z=Math.PI/2;m.position.set(0,FH,z);scene.add(m);});
+  [-HW,HW].forEach(x=>{const m=new THREE.Mesh(rGL,rM);m.rotation.x=Math.PI/2;m.position.set(x,FH,0);scene.add(m);});
+}
+
+function buildGoalRings(){
+  goalMeshes=[]; goalLights=[];
+  [{z:-GZ,col:0x2266ff,em:0x001155},{z:GZ,col:0xff2233,em:0x550011}].forEach(d=>{
+    const geo=new THREE.TorusGeometry(GR,GT,20,64);
+    const mat=new THREE.MeshStandardMaterial({color:d.col,emissive:d.em,emissiveIntensity:1.1,metalness:.4,roughness:.3});
+    const torus=new THREE.Mesh(geo,mat);
+    torus.position.set(0,GY,d.z);
+    scene.add(torus);
+    goalMeshes.push(torus);
+    const gl=new THREE.PointLight(d.col,1.5,2.5);
+    gl.position.set(0,GY,d.z); scene.add(gl); goalLights.push(gl);
+    const wl=FH-GY;
+    const wire=new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,wl,4),new THREE.MeshBasicMaterial({color:0x334455}));
+    wire.position.set(0,GY+wl/2,d.z); scene.add(wire);
+  });
+}
+
+// ──────────────────────────────────────────────
+//  DRONE MESH
+// ──────────────────────────────────────────────
+function makeDroneMesh(cfg){
+  const g=new THREE.Group();
+  const S=0.22;
+  // Glow wireframe cage (spins)
+  const glowG=new THREE.SphereGeometry(BR*.97,10,7);
+  const glowM=new THREE.MeshBasicMaterial({color:cfg.tc,wireframe:true,transparent:true,opacity:.55});
+  const glowMesh=new THREE.Mesh(glowG,glowM);
+  g.add(glowMesh);
+  g.userData.spin=glowMesh;
+  // Extra glow sphere
+  const glowS=new THREE.Mesh(new THREE.SphereGeometry(BR*.88,8,6),new THREE.MeshBasicMaterial({color:cfg.tc,transparent:true,opacity:.12}));
+  g.add(glowS);
+  // Body
+  const body=new THREE.Mesh(new THREE.SphereGeometry(BR*.44,8,8),new THREE.MeshStandardMaterial({color:0x0a1428,metalness:.7,roughness:.35}));
+  g.add(body);
+  // X arms
+  const armG=new THREE.BoxGeometry(BR*1.7*S,BR*.18*S,BR*.18*S);
+  const armM=new THREE.MeshStandardMaterial({color:0x112244,metalness:.6,roughness:.4});
+  [0,Math.PI/2].forEach(ry=>{const a=new THREE.Mesh(armG,armM);a.rotation.y=ry;a.scale.setScalar(1/S);g.add(a);});
+  // Nose cone (+Z = forward)
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(BR*.28,BR*.5,6),new THREE.MeshStandardMaterial({color:0x22cc44,emissive:0x114422,emissiveIntensity:.8,metalness:.3}));
+  nose.rotation.x=Math.PI/2; nose.position.z=BR*.6;
+  g.add(nose);
+  // Tail LED
+  const tail=new THREE.Mesh(new THREE.SphereGeometry(BR*.15,6,4),new THREE.MeshStandardMaterial({color:0xff2200,emissive:0xff1100,emissiveIntensity:1.5}));
+  tail.position.z=-BR*.65; g.add(tail);
+  // Point light (team color)
+  const pl=new THREE.PointLight(cfg.tc,.8,1.0);
+  pl.position.set(0,0,0); g.add(pl);
+  return g;
+}
+
+// ──────────────────────────────────────────────
+//  INIT DRONES
+// ──────────────────────────────────────────────
+const STARTS_2P=[
+  new THREE.Vector3(0, BR+.02, -1.2),   // P1 start (Team A 半場中段)
+  new THREE.Vector3(0, BR+.02,  1.2),   // P2 start (Team B 半場中段)
+  new THREE.Vector3(0, GY, -GZ+.50),    // GK_A：球門前 50cm (if enabled)
+  new THREE.Vector3(0, GY,  GZ-.50),    // GK_B：球門前 50cm (if enabled)
+];
+
+const DCFG_2P=[
+  {team:TA, tc:0x00eeff, sc:0xff44cc, playerIndex:0},
+  {team:TB, tc:0xff6622, sc:0x66aaff, playerIndex:1},
+  {team:TA, tc:0x2266ff, sc:0x2266ff, playerIndex:null}, // GK_A
+  {team:TB, tc:0xff3322, sc:0x66aaff, playerIndex:null}, // GK_B
+];
+
+function initDrones(){
+  drones.forEach(d=>{if(d.mesh)scene.remove(d.mesh);});
+  drones=[];
+  const count=hasGK?4:2;
+  for(let i=0;i<count;i++){
+    const cfg=DCFG_2P[i];
+    const isPlayer=cfg.playerIndex!==null;
+    const mesh=makeDroneMesh(cfg);
+    scene.add(mesh);
+    const yaw=(cfg.team===TB)?Math.PI:0;
+    drones.push({
+      i, team:cfg.team, isPlayer, playerIndex:cfg.playerIndex,
+      role: isPlayer?'striker':cfg.team===TA?'gk_a':'gk_b',
+      pos: STARTS_2P[i].clone(),
+      vel: new THREE.Vector3(),
+      yaw, mesh, prevZ: STARTS_2P[i].z,
+      mustReturn: false,
+    });
+    mesh.position.copy(STARTS_2P[i]);
+    mesh.rotation.y=yaw;
+  }
+}
+
+// ──────────────────────────────────────────────
+//  PHYSICS
+// ──────────────────────────────────────────────
+function physicsDrone(d,dt,ax,ay,az,yr){
+  d.prevZ=d.pos.z;
+  d.yaw+=yr*dt;
+  const sy=Math.sin(d.yaw),cy=Math.cos(d.yaw);
+  d.vel.x+=(ax*cy +az*sy)*dt;
+  d.vel.y+=(ay+GRAVITY)*dt;
+  d.vel.z+=(ax*-sy+az*cy)*dt;
+  d.vel.multiplyScalar(DRAG);
+  d.pos.x+=d.vel.x*dt;
+  d.pos.y+=d.vel.y*dt;
+  d.pos.z+=d.vel.z*dt;
+  if(d.pos.y<BR){d.pos.y=BR;d.vel.y=Math.abs(d.vel.y)*FBOUNCE;}
+  if(d.pos.y>FH-BR){d.pos.y=FH-BR;d.vel.y=-Math.abs(d.vel.y)*WBOUNCE;}
+  if(d.pos.x<-HW+BR){d.pos.x=-HW+BR;d.vel.x= Math.abs(d.vel.x)*WBOUNCE;}
+  if(d.pos.x> HW-BR){d.pos.x= HW-BR;d.vel.x=-Math.abs(d.vel.x)*WBOUNCE;}
+  if(d.pos.z<-HL+BR){d.pos.z=-HL+BR;d.vel.z= Math.abs(d.vel.z)*WBOUNCE;}
+  if(d.pos.z> HL-BR){d.pos.z= HL-BR;d.vel.z=-Math.abs(d.vel.z)*WBOUNCE;}
+  goalRingBounce(d);
+  d.mesh.position.copy(d.pos);
+  d.mesh.rotation.y=d.yaw;
+}
+
+function goalRingBounce(d){
+  [-GZ,GZ].forEach(gz=>{
+    const dx=d.pos.x, dy=d.pos.y-GY, dz=d.pos.z-gz;
+    const r=Math.sqrt(dx*dx+dy*dy);
+    const distTube=Math.sqrt((r-GR)*(r-GR)+dz*dz);
+    if(distTube<GT+BR){
+      const tx=r>0.001?dx/r*GR:GR, ty=r>0.001?dy/r*GR:0;
+      const nx=dx-tx, ny=dy-ty, nz=dz;
+      const nl=Math.sqrt(nx*nx+ny*ny+nz*nz);
+      if(nl>0.001){
+        const f=4/nl;
+        d.vel.x+=nx*f; d.vel.y+=ny*f; d.vel.z+=nz*f;
+      }
+    }
+  });
+}
+
+function resolveBallBall(){
+  for(let i=0;i<drones.length;i++)for(let j=i+1;j<drones.length;j++){
+    const a=drones[i],b=drones[j];
+    const diff=a.pos.clone().sub(b.pos);
+    const d2=diff.lengthSq(),md=BR*2;
+    if(d2<md*md&&d2>1e-4){
+      const dist=Math.sqrt(d2);
+      const n=diff.divideScalar(dist);
+      const rv=a.vel.clone().sub(b.vel);
+      const imp=rv.dot(n)*.65;
+      if(imp<0){a.vel.addScaledVector(n,-imp*.5);b.vel.addScaledVector(n,imp*.5);}
+      const ov=(md-dist)*.52;
+      a.pos.addScaledVector(n,ov);b.pos.addScaledVector(n,-ov);
+    }
+  }
+}
+
+// ──────────────────────────────────────────────
+//  GOAL DETECTION
+// ──────────────────────────────────────────────
+function checkGoals(){
+  // P1 (Team A) attacks goal at +GZ
+  // P2 (Team B) attacks goal at -GZ
+  drones.forEach(d=>{
+    if(!d.isPlayer)return;
+    if(d.mustReturn)return;
+    const targZ=d.team===TA?GZ:-GZ;
+    const dir  =d.team===TA?1:-1;
+    const cross=(d.prevZ-targZ)*dir<0&&(d.pos.z-targZ)*dir>=0;
+    if(!cross)return;
+    const dx=d.pos.x, dy=d.pos.y-GY;
+    if(Math.sqrt(dx*dx+dy*dy)<=GI){
+      triggerGoal(d.team);
+    }
+  });
+}
+
+function triggerGoal(team){
+  if(phase!=='playing')return;
+  if(team===TA){scores.A++;setGoals.A++;}
+  else         {scores.B++;setGoals.B++;}
+
+  // FAI: scoring team returns to own half
+  drones.forEach(d=>{if(d.isPlayer&&d.team===team)d.mustReturn=true;});
+  showGoalFx(team);
+  if(team===TA) sfxGoalP1(); else sfxGoalP2();
+  updateHUD();
+  phase='goal_pause';
+
+  const instant=setGoals.A>=GOALS_WIN_SET||setGoals.B>=GOALS_WIN_SET;
+  setTimeout(()=>{
+    if(phase==='goal_pause'){
+      if(instant) endSet();
+      else phase='playing';
+    }
+  }, instant?2200:1700);
+}
+
+function showGoalFx(team){
+  const ov=document.getElementById('goal-ov');
+  const wd=document.getElementById('goal-word');
+  const sb=document.getElementById('goal-sub');
+  ov.classList.remove('hidden');
+  wd.className='text-7xl font-black tracking-wider goal-pop';
+  if(team===TA){
+    wd.style.color='#00eeff'; wd.style.textShadow='0 0 40px #00eeff,0 0 80px #00eeff';
+    wd.textContent='GOAL!'; sb.textContent='🎉 P1 得分！';
+  }else{
+    wd.style.color='#ff6622'; wd.style.textShadow='0 0 40px #ff6622,0 0 80px #ff6622';
+    wd.textContent='GOAL!'; sb.textContent='🎉 P2 得分！';
+  }
+  setTimeout(()=>ov.classList.add('hidden'),2000);
+}
+
+// ──────────────────────────────────────────────
+//  PLAYER INPUT
+// ──────────────────────────────────────────────
+function p1Input(dt){
+  const d=drones[0]; if(!d)return;
+  let thr=0,yaw=0,pitch=0,roll=0;
+
+  if(KEYS['w']||KEYS['W'])thr+=1;
+  if(KEYS['s']||KEYS['S'])thr-=1;
+  if(KEYS['a']||KEYS['A'])yaw+=1;
+  if(KEYS['d']||KEYS['D'])yaw-=1;
+  if(KEYS['ArrowUp'])   pitch+=1;
+  if(KEYS['ArrowDown']) pitch-=1;
+  if(KEYS['ArrowLeft']) roll+=1;
+  if(KEYS['ArrowRight'])roll-=1;
+
+  const gp=navigator.getGamepads?.()[0];
+  if(gp){
+    document.getElementById('p1-gp').classList.remove('hidden');
+    const dz=v=>Math.abs(v)>.12?v:0;
+    thr  +=clamp(-dz(gp.axes[1]),-1,1);
+    yaw  +=clamp(-dz(gp.axes[0]),-1,1);
+    pitch+=clamp(-dz(gp.axes[3]),-1,1);
+    roll +=clamp(-dz(gp.axes[2]),-1,1);
+
+    const camBtn=!!(gp.buttons[9]&&gp.buttons[9].pressed);
+    if(camBtn&&!gpCamPrev0)toggleCam1();
+    gpCamPrev0=camBtn;
+
+    const pilBtn=!!(gp.buttons[8]&&gp.buttons[8].pressed);
+    if(pilBtn&&!gpPilotPrev0)togglePilot1();
+    gpPilotPrev0=pilBtn;
+
+    pilotCrouching1=!!(gp.buttons[4]&&gp.buttons[4].pressed);
+
+    const tacBtn=!!(gp.buttons[3]&&gp.buttons[3].pressed);
+    if(tacBtn&&!gpTacPrev0)toggleTacView();
+    gpTacPrev0=tacBtn;
+  }else{
+    document.getElementById('p1-gp').classList.add('hidden');
+    pilotCrouching1=!!(KEYS['z']||KEYS['Z']);
+  }
+
+  thr=clamp(thr,-1,1);yaw=clamp(yaw,-1,1);pitch=clamp(pitch,-1,1);roll=clamp(roll,-1,1);
+
+  // key viz
+  [['kW','w'],['kS','s'],['kA','a'],['kD','d'],
+   ['kUp','ArrowUp'],['kDown','ArrowDown'],['kLeft','ArrowLeft'],['kRight','ArrowRight']]
+  .forEach(([id,k])=>{document.getElementById(id).className='key'+(KEYS[k]?' on':'');});
+
+  physicsDrone(d,dt, roll*PITCHMAX*SF, HOVER+thr*THRMAX*SF, pitch*PITCHMAX*SF, yaw*YAWMAX);
+}
+
+function p2Input(dt){
+  const d=drones[1]; if(!d)return;
+  let thr=0,yaw=0,pitch=0,roll=0;
+
+  // IJKL = mirror of WASD
+  if(KEYS['i']||KEYS['I'])thr+=1;
+  if(KEYS['k']||KEYS['K'])thr-=1;
+  if(KEYS['j']||KEYS['J'])yaw+=1;
+  if(KEYS['l']||KEYS['L'])yaw-=1;
+  // Numpad 8246 (use CODES for disambiguation from main keyboard numbers)
+  if(CODES['Numpad8'])pitch+=1;
+  if(CODES['Numpad2'])pitch-=1;
+  if(CODES['Numpad4'])roll+=1;
+  if(CODES['Numpad6'])roll-=1;
+
+  const gp=navigator.getGamepads?.()[1];
+  if(gp){
+    document.getElementById('p2-gp').classList.remove('hidden');
+    const dz=v=>Math.abs(v)>.12?v:0;
+    thr  +=clamp(-dz(gp.axes[1]),-1,1);
+    yaw  +=clamp(-dz(gp.axes[0]),-1,1);
+    pitch+=clamp(-dz(gp.axes[3]),-1,1);
+    roll +=clamp(-dz(gp.axes[2]),-1,1);
+
+    const camBtn=!!(gp.buttons[9]&&gp.buttons[9].pressed);
+    if(camBtn&&!gpCamPrev1)toggleCam2();
+    gpCamPrev1=camBtn;
+
+    const pilBtn=!!(gp.buttons[8]&&gp.buttons[8].pressed);
+    if(pilBtn&&!gpPilotPrev1)togglePilot2();
+    gpPilotPrev1=pilBtn;
+
+    pilotCrouching2=!!(gp.buttons[4]&&gp.buttons[4].pressed);
+
+    const tacBtn=!!(gp.buttons[3]&&gp.buttons[3].pressed);
+    if(tacBtn&&!gpTacPrev1)toggleTacView();
+    gpTacPrev1=tacBtn;
+  }else{
+    document.getElementById('p2-gp').classList.add('hidden');
+    pilotCrouching2=!!(KEYS['Shift']);
+  }
+
+  thr=clamp(thr,-1,1);yaw=clamp(yaw,-1,1);pitch=clamp(pitch,-1,1);roll=clamp(roll,-1,1);
+
+  // key viz
+  [['kI','i'],['kK','k'],['kJ','j'],['kL','l']].forEach(([id,k])=>{
+    document.getElementById(id).className='key2'+(KEYS[k]||KEYS[k.toUpperCase()]?' on':'');
+  });
+  [['k8','Numpad8'],['k2','Numpad2'],['k4','Numpad4'],['k6','Numpad6']].forEach(([id,c])=>{
+    document.getElementById(id).className='key2'+(CODES[c]?' on':'');
+  });
+
+  physicsDrone(d,dt, roll*PITCHMAX*SF, HOVER+thr*THRMAX*SF, pitch*PITCHMAX*SF, yaw*YAWMAX);
+}
+
+// ──────────────────────────────────────────────
+//  AI GOALKEEPER
+// ──────────────────────────────────────────────
+// 直接用世界座標速度控制 AI（繞過 physicsDrone 的 yaw 旋轉，避免方向跑掉）
+function aiMoveWorld(d, tgt, dt, maxSpd){
+  const toT = tgt.clone().sub(d.pos);
+  const dist = toT.length();
+  // 期望速度 = 方向 × 速度（靠近目標時自動減速）
+  const spd = clamp(dist * 6.0, 0.05, maxSpd);
+  const desired = dist > 0.02 ? toT.normalize().multiplyScalar(spd) : new THREE.Vector3();
+  // PD 控制器：平滑追蹤期望速度，避免抖動
+  d.vel.lerp(desired, Math.min(dt * 9, 1));
+  d.pos.addScaledVector(d.vel, dt);
+  // 邊界夾合
+  if(d.pos.y < BR){d.pos.y=BR; d.vel.y=Math.abs(d.vel.y)*FBOUNCE;}
+  if(d.pos.y > FH-BR){d.pos.y=FH-BR; d.vel.y=-Math.abs(d.vel.y)*WBOUNCE;}
+  if(d.pos.x<-HW+BR){d.pos.x=-HW+BR; d.vel.x=Math.abs(d.vel.x)*WBOUNCE;}
+  if(d.pos.x> HW-BR){d.pos.x= HW-BR; d.vel.x=-Math.abs(d.vel.x)*WBOUNCE;}
+  if(d.pos.z<-HL+BR){d.pos.z=-HL+BR; d.vel.z=Math.abs(d.vel.z)*WBOUNCE;}
+  if(d.pos.z> HL-BR){d.pos.z= HL-BR; d.vel.z=-Math.abs(d.vel.z)*WBOUNCE;}
+  goalRingBounce(d);
+  // 讓 mesh 朝移動方向轉
+  const hSpd=Math.sqrt(d.vel.x*d.vel.x+d.vel.z*d.vel.z);
+  if(hSpd>0.1) d.yaw=Math.atan2(d.vel.x,d.vel.z);
+  d.mesh.position.copy(d.pos);
+  d.mesh.rotation.y=d.yaw;
+}
+
+// 難度對應預測時間（預測攻擊者未來位置）
+const GK_PRED={easy:0.1, med:0.30, hard:0.55};
+
+function updateAI_GK(gk, targetDrone, ownGoalZ, dt){
+  const target = targetDrone;
+  const isA = gk.team === TA;
+  const gz = isA ? -GZ : GZ;      // 本隊球門 Z
+  const inward = isA ? 1 : -1;    // 向場中方向
+  const gkSpd = GK_SPD[pDiff] * SF;
+
+  // ── 攻擊者軌跡預測 ──
+  const predT = GK_PRED[pDiff];
+  const predPos = target.pos.clone().addScaledVector(target.vel, predT);
+
+  // ── 攻擊者是否在守門員防守區域 ──
+  // "威脅狀態"：攻擊者在己方半場，或速度正朝球門飛來
+  const inOwnHalf = isA ? (target.pos.z < 0.3) : (target.pos.z > -0.3);
+  const rushingIn = isA ? (target.vel.z < -0.5) : (target.vel.z > 0.5);
+  const threat = inOwnHalf || rushingIn;
+
+  // 守門區縱深：球門前 0.08–0.85 m（向場中方向）
+  const zLo = isA ? gz        : gz - 0.85;
+  const zHi = isA ? gz + 0.85 : gz;
+
+  if(threat){
+    // 攔截位置：預測攻擊者 X/Y，固定在守門縱深帶內
+    // 難度高時直接追預測點；簡單難度多加一點 0 點偏移讓它守中路
+    const mixX = clamp(predPos.x * (pDiff==='easy'?0.65:pDiff==='med'?0.82:0.95), -HW+BR*2, HW-BR*2);
+    const mixY = clamp(predPos.y, GY-0.35, GY+0.35);
+    const mixZ = clamp(predPos.z, zLo, zHi);
+    const intercept = new THREE.Vector3(mixX, mixY, mixZ);
+
+    // 近距離時速度加成（貼上去擋）
+    const boost = gk.pos.distanceTo(target.pos) < 0.7 ? 1.5 : 1.0;
+    aiMoveWorld(gk, intercept, dt, gkSpd * boost);
+  } else {
+    // 無威脅：回到球門正前方靜候
+    const rest = new THREE.Vector3(0, GY, gz + inward * 0.5);
+    aiMoveWorld(gk, rest, dt, 3.5 * SF);
+  }
+}
+
+// ──────────────────────────────────────────────
+//  CAMERA
+// ──────────────────────────────────────────────
+function updateCameraForPlayer(cam, camTgt, d, camMode, pilotSide, crouching){
+  if(!d) return;
+  const {x,y,z}=d.pos;
+  const sy=Math.sin(d.yaw), cy=Math.cos(d.yaw);
+  switch(camMode){
+    case 'tpv':{
+      const back=new THREE.Vector3(-sy*1.9,.85,-cy*1.9);
+      cam.position.lerp(new THREE.Vector3(x+back.x,y+back.y,z+back.z),.11);
+      camTgt.lerp(new THREE.Vector3(x,y+.08,z),.11);
+      cam.lookAt(camTgt); break;
+    }
+    case 'fpv':{
+      cam.position.set(x+sy*.08,y+.015,z+cy*.08);
+      cam.lookAt(x+sy*5,y,z+cy*5); break;
+    }
+    case 'pilot':{
+      // Pilot stands on the same end as the drone's starting side
+      // P1 (Team A) at -Z end, P2 (Team B) at +Z end
+      const sign=d.team===TA?-1:1;
+      let sx=0, sz=sign*(HL+1.3);
+      if(pilotSide==='left') sx=-0.55*sign;
+      else if(pilotSide==='right') sx=0.55*sign;
+      else sz=sign*(HL+1.5);
+      const eyeH=crouching?0.82:1.65;
+      const lookH=crouching?1.0:1.5;
+      cam.position.lerp(new THREE.Vector3(sx,eyeH,sz),.08);
+      cam.lookAt(0,lookH,0); break;
+    }
+  }
+}
+
+function toggleCam1(){
+  camMode1=CAM_MODES[(CAM_MODES.indexOf(camMode1)+1)%CAM_MODES.length];
+  document.getElementById('p1-camlab').textContent=CAM_LABELS[camMode1];
+}
+function toggleCam2(){
+  camMode2=CAM_MODES[(CAM_MODES.indexOf(camMode2)+1)%CAM_MODES.length];
+  document.getElementById('p2-camlab').textContent=CAM_LABELS[camMode2];
+}
+function togglePilot1(){
+  pilotSide1=PILOT_SIDES[(PILOT_SIDES.indexOf(pilotSide1)+1)%PILOT_SIDES.length];
+  const l={left:'← 左側',mid:'正中',right:'右側 →'};
+  document.getElementById('p1-pilotlab').textContent=l[pilotSide1];
+}
+function togglePilot2(){
+  pilotSide2=PILOT_SIDES[(PILOT_SIDES.indexOf(pilotSide2)+1)%PILOT_SIDES.length];
+  const l={left:'← 左側',mid:'正中',right:'右側 →'};
+  document.getElementById('p2-pilotlab').textContent=l[pilotSide2];
+}
+function toggleTacView(){
+  tacticView=!tacticView;
+  document.getElementById('split-divider').style.display=tacticView?'none':'block';
+  document.getElementById('tac-ind').classList.toggle('hidden',!tacticView);
+}
+
+// ──────────────────────────────────────────────
+//  MINI-MAP
+// ──────────────────────────────────────────────
+function drawMinimap(){
+  const cv=document.getElementById('minimap');
+  const ctx=cv.getContext('2d');
+  const cw=cv.width,ch=cv.height;
+  const scX=cw/FW, scZ=ch/FL;
+  ctx.clearRect(0,0,cw,ch);
+  ctx.fillStyle='rgba(4,8,20,.82)';ctx.fillRect(0,0,cw,ch);
+  ctx.strokeStyle='rgba(34,211,238,.35)';ctx.lineWidth=1;ctx.strokeRect(0,0,cw,ch);
+  ctx.strokeStyle='rgba(34,211,238,.3)';ctx.beginPath();ctx.moveTo(0,ch/2);ctx.lineTo(cw,ch/2);ctx.stroke();
+
+  // Goal rings
+  [{z:-GZ,c:'rgba(60,100,255,.9)'},{z:GZ,c:'rgba(255,80,30,.9)'}].forEach(g=>{
+    const mx=cw/2, mz=(g.z+HL)*scZ;
+    ctx.strokeStyle=g.c;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(mx,mz,GI*scX,0,Math.PI*2);ctx.stroke();
+  });
+
+  // Drones
+  const cols=[0x00eeff,0xff6622,0x2266ff,0xff3322];
+  drones.forEach((d,i)=>{
+    const mx=(d.pos.x+HW)*scX, mz=(d.pos.z+HL)*scZ;
+    const col='#'+cols[Math.min(i,3)].toString(16).padStart(6,'0');
+    ctx.beginPath();ctx.arc(mx,mz,d.isPlayer?4:2.5,0,Math.PI*2);
+    ctx.fillStyle=col;ctx.fill();
+    if(d.isPlayer){ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();}
+    // Direction arrow
+    const fwd=d.isPlayer?4:3;
+    ctx.strokeStyle=d.isPlayer?col:'rgba(255,255,255,.4)';ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(mx,mz);
+    ctx.lineTo(mx+Math.sin(d.yaw)*fwd,mz+Math.cos(d.yaw)*fwd);
+    ctx.stroke();
+    // P1/P2 label
+    if(d.isPlayer){
+      ctx.fillStyle='#fff';ctx.font='bold 7px monospace';ctx.textAlign='center';
+      ctx.fillText(d.playerIndex===0?'1':'2',mx,mz-5);
+    }
+  });
+}
+
+// ──────────────────────────────────────────────
+//  TIMER / SET MANAGEMENT
+// ──────────────────────────────────────────────
+function tickTimer(dt){
+  if(phase==='playing'){
+    setTimer-=dt;
+    tickCountdownBeep();
+    if(setTimer<=0){setTimer=0;_lastBeepSec=-1;endSet();}
+  }
+}
+
+function endSet(){
+  phase='set_end';
+  setLog.push({A:setGoals.A,B:setGoals.B});
+  if(setGoals.A>setGoals.B)setsWon.A++;
+  else if(setGoals.B>setGoals.A)setsWon.B++;
+  if(setsWon.A>=2||setsWon.B>=2||curSet>=N_SETS){sfxMatchWin();showMatchEnd();return;}
+  sfxSetWin();
+  document.getElementById('se-title').textContent=`第 ${curSet} 節結束`;
+  document.getElementById('se-score').textContent=`${setGoals.A} : ${setGoals.B}`;
+  const resEl=document.getElementById('se-result');
+  if(setGoals.A>setGoals.B) resEl.innerHTML='<span class="p1c">✅ P1 贏得本節！</span>';
+  else if(setGoals.B>setGoals.A) resEl.innerHTML='<span class="p2c">✅ P2 贏得本節！</span>';
+  else resEl.innerHTML='<span class="text-white">🤝 本節平局</span>';
+  document.getElementById('se-sets').textContent=`節勝紀錄  P1:${setsWon.A}  P2:${setsWon.B}`;
+  document.getElementById('set-end').classList.remove('hidden');
+}
+
+function showMatchEnd(){
+  phase='match_end';
+  const winA=setsWon.A>setsWon.B, tie=setsWon.A===setsWon.B;
+  const box=document.getElementById('me-box');
+  box.className=`glass ${winA?'neon-c':tie?'':'neon-o'} rounded-2xl p-6 text-center max-w-xs w-full flex flex-col gap-3`;
+  document.getElementById('me-icon').textContent=tie?'🤝':'🏆';
+  const t=document.getElementById('me-title');
+  t.className=`text-2xl font-black ${winA?'p1c':tie?'text-white':'p2c'}`;
+  t.textContent=winA?'P1 獲勝！':tie?'平局':'P2 獲勝！';
+  document.getElementById('me-score').textContent=`節勝 P1:${setsWon.A}  P2:${setsWon.B}`;
+  document.getElementById('me-sets').textContent=setLog.map((s,i)=>`第${i+1}節 P1:${s.A} P2:${s.B}`).join('  |  ');
+  document.getElementById('match-end').classList.remove('hidden');
+}
+
+function nextSet(){
+  curSet++;setGoals={A:0,B:0};setTimer=SET_DUR;
+  initDrones();
+  document.getElementById('set-end').classList.add('hidden');
+  document.getElementById('set-label').textContent=`第 ${curSet} 節`;
+  phase='playing';updateHUD();
+}
+
+function restartMatch(){
+  scores={A:0,B:0};setsWon={A:0,B:0};setLog=[];setGoals={A:0,B:0};
+  curSet=1;setTimer=SET_DUR;
+  document.getElementById('match-end').classList.add('hidden');
+  document.getElementById('set-label').textContent='第 1 節';
+  initDrones();phase='playing';updateHUD();
+}
+
+// ──────────────────────────────────────────────
+//  HUD
+// ──────────────────────────────────────────────
+function updateHUD(){
+  document.getElementById('sa').textContent=scores.A;
+  document.getElementById('sb').textContent=scores.B;
+  document.getElementById('swa').textContent=`節勝 ${setsWon.A}`;
+  document.getElementById('swb').textContent=`節勝 ${setsWon.B}`;
+  document.getElementById('timer').textContent=fmt(setTimer);
+  const gs=document.getElementById('gstatus');
+  if(phase==='playing'){gs.textContent='比賽進行中';gs.className='text-[7px] tg font-mono pulse2';}
+  else if(phase==='goal_pause'){gs.textContent='進球！';gs.className='text-[7px] ta font-mono pulse2';}
+  // mustReturn indicators
+  const p1=drones[0], p2=drones[1];
+  document.getElementById('p1-return').classList.toggle('hidden',!(p1&&p1.mustReturn));
+  document.getElementById('p2-return').classList.toggle('hidden',!(p2&&p2.mustReturn));
+}
+
+// ──────────────────────────────────────────────
+//  SPEED
+// ──────────────────────────────────────────────
+function applySF(v,label){
+  SF=Number(v);
+  document.getElementById('spd-pct').textContent=`×${SF.toFixed(2)}`;
+}
+
+// ──────────────────────────────────────────────
+//  KEYBOARD
+// ──────────────────────────────────────────────
+function setupKeys(){
+  window.addEventListener('keydown',e=>{
+    KEYS[e.key]=true;
+    CODES[e.code]=true;
+    switch(e.key.toLowerCase()){
+      case 'c': toggleCam1(); break;
+      case 'v': togglePilot1(); break;
+      case 'n': toggleCam2(); break;
+      case 'm': togglePilot2(); break;
+      case 't': toggleTacView(); break;
+      case 'p': case 'escape':
+        if(phase==='playing'||phase==='goal_pause'){
+          paused=!paused;
+          document.getElementById('w-pause').classList.toggle('hidden',!paused);
+        }
+        break;
+    }
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
+  });
+  window.addEventListener('keyup',e=>{KEYS[e.key]=false;CODES[e.code]=false;});
+}
+
+// ──────────────────────────────────────────────
+//  ENTER MATCH
+// ──────────────────────────────────────────────
+function showGKOptions(){
+  document.getElementById('gk-options').classList.remove('hidden');
+}
+function setPDiff(d){
+  pDiff=d;
+  ['easy','med','hard'].forEach(k=>{
+    document.getElementById('diff-'+k).classList.toggle('active',k===d);
+  });
+}
+function enterMatch(withGK){
+  hasGK=!!withGK;
+  document.getElementById('intro').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  scores={A:0,B:0};setsWon={A:0,B:0};setLog=[];setGoals={A:0,B:0};
+  curSet=1;setTimer=SET_DUR;
+  initDrones();
+  phase='playing';
+  updateHUD();
+}
+
+// ──────────────────────────────────────────────
+//  ANIMATE LOOP
+// ──────────────────────────────────────────────
+let hudTick=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.05);
+
+  if(!paused&&(phase==='playing'||phase==='goal_pause')){
+    if(phase==='playing'){
+      p1Input(dt);
+      p2Input(dt);
+      // AI goalkeepers
+      if(hasGK&&drones.length>=4){
+        const p1d=drones[0], p2d=drones[1];
+        const gkA=drones[2], gkB=drones[3];
+        // gkA guards Team A goal (-GZ), tracks P2 (attacker)
+        updateAI_GK(gkA, p2d, -GZ, dt);
+        // gkB guards Team B goal (+GZ), tracks P1 (attacker)
+        updateAI_GK(gkB, p1d, GZ, dt);
+      }
+      tickTimer(dt);
+      // mustReturn: release when back in own half
+      drones.forEach(d=>{
+        if(!d.mustReturn||!d.isPlayer)return;
+        const home=d.team===TA?d.pos.z<-0.05:d.pos.z>0.05;
+        if(home)d.mustReturn=false;
+      });
+      resolveBallBall();
+      checkGoals();
+    }
+    // Cage spin (fixed by default – future: add F key toggle)
+    goalMeshes.forEach((m,i)=>{m.rotation.z+=dt*(i?.25:.2);});
+    const t=Date.now()*.001;
+    goalLights.forEach((l,i)=>{l.intensity=1.2+Math.sin(t*(1.1+i*.3))*.5;});
+  }
+
+  // Crouch indicators
+  document.getElementById('p1-crouch').classList.toggle('hidden',!pilotCrouching1);
+  document.getElementById('p2-crouch').classList.toggle('hidden',!pilotCrouching2);
+
+  // Camera updates
+  if(tacticView){
+    // Overhead view: position lerp toward birds-eye
+    cameraOverhead.position.lerp(new THREE.Vector3(0,8.5,.01),.05);
+    cameraOverhead.lookAt(0,0,0);
+  } else {
+    updateCameraForPlayer(camera1,camTgt1,drones[0],camMode1,pilotSide1,pilotCrouching1);
+    updateCameraForPlayer(camera2,camTgt2,drones[1],camMode2,pilotSide2,pilotCrouching2);
+  }
+
+  // HUD update
+  hudTick+=dt;
+  if(hudTick>.05){hudTick=0;if(phase==='playing'||phase==='goal_pause')updateHUD();}
+  drawMinimap();
+
+  // ── RENDER ──────────────────────────────────
+  const W=innerWidth, H=innerHeight;
+  if(tacticView){
+    renderer.setScissorTest(false);
+    renderer.setViewport(0,0,W,H);
+    renderer.render(scene,cameraOverhead);
+  } else {
+    renderer.setScissorTest(true);
+    // Left half: P1
+    renderer.setViewport(0,0,W/2,H);
+    renderer.setScissor(0,0,W/2,H);
+    renderer.render(scene,camera1);
+    // Right half: P2
+    renderer.setViewport(W/2,0,W/2,H);
+    renderer.setScissor(W/2,0,W/2,H);
+    renderer.render(scene,camera2);
+    renderer.setScissorTest(false);
+  }
+}
+
+// ──────────────────────────────────────────────
+//  STARTUP
+// ──────────────────────────────────────────────
+(function init(){
+  initThree();
+  buildField();
+  buildGoalRings();
+  setupKeys();
+  animate();
+})();
+</script>
+</body>
+</html>
