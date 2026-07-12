@@ -195,6 +195,101 @@ canvas{display:block;}
 </div>
 
 <script>
+
+// ── GP CONFIG READER (shared) ────────────────────────────────
+(function(){
+  const STORE_KEY='droneSimGpMap';
+  const DEFAULT={
+    axes:{yaw:{index:0,invert:false},throttle:{index:1,invert:true},roll:{index:2,invert:false},pitch:{index:3,invert:false}},
+    buttons:{confirm:0,back:1,camCycle:9,pilotCycle:8},
+    menuNav:'dpad',deadzone:0.12,expo:0
+  };
+  function loadCfg(gpId){
+    try{const a=JSON.parse(localStorage.getItem(STORE_KEY)||'{}');return a[gpId]||null;}catch{return null;}
+  }
+  function applyExpo(v,e){return e>0?v*(1-e)+v*v*v*e:v;}
+  // ── 內建設定（插上即用，不需設定頁面）──────────────────
+  const _STARTRC_CFG={
+    axes:{yaw:{i:3,inv:true,rest:0},throttle:{i:2,inv:false,rest:0},
+          roll:{i:0,inv:true,rest:0},pitch:{i:1,inv:false,rest:0}},
+    buttons:{confirm:1,back:1,camCycle:0,pilotCycle:0},
+    axBtns:[{ax:4,type:'3pos',fn:'camCycle'},{ax:5,type:'2pos',fn:'back'},
+            {ax:6,type:'3pos',fn:'pilotCycle'},{ax:7,type:'2pos',fn:'confirm'}],
+    menuNav:'stick'
+  };
+  const _XBOX_CFG={
+    axes:{yaw:{i:0,inv:true,rest:0},throttle:{i:1,inv:true,rest:0},
+          roll:{i:2,inv:true,rest:0},pitch:{i:3,inv:true,rest:0}},
+    buttons:{confirm:0,back:1,camCycle:9,pilotCycle:8},
+    menuNav:'stick',deadzone:0.12,expo:0
+  };
+  window.gpCfgRead=function(gp){
+    if(!gp) return null;
+    const id=gp.id.toLowerCase();
+    return loadCfg(gp.id)
+        || (id.includes('startrc')?_STARTRC_CFG:null)
+        || (id.includes('standard gamepad')||id.includes('xinput')?_XBOX_CFG:null);
+  };
+  window.gpAxis=function(gp,name,cfg){
+    const mode=localStorage.getItem('droneSimFlightMode')||'2';
+    const def=mode==='1'?{yaw:0,throttle:3,roll:2,pitch:1}:{yaw:0,throttle:1,roll:2,pitch:3};
+    const defInv={throttle:true,roll:true,pitch:true};
+    let idx,invert,dz,expo,rest;
+    if(cfg&&cfg.axes&&cfg.axes[name]!=null){
+      const ax=cfg.axes[name];
+      idx=ax.i??ax.index??def[name]??0;
+      invert=ax.inv??ax.invert??defInv[name]??false;
+      rest=ax.rest??0;
+      dz=cfg.deadzone??0.12; expo=cfg.expo??0;
+    } else {
+      idx=def[name]??0; invert=defInv[name]??false; rest=0; dz=0.12; expo=0;
+    }
+    const raw=gp.axes[idx]??0;
+    // normalize: offset from rest, scale by max possible deflection
+    // formula: (raw - rest) / (1 + |rest|)  → range always -1..1
+    const halfRange=1.0+Math.abs(rest);
+    let v=(raw-rest)/halfRange;
+    // deadzone (relative to 0 after offset)
+    if(Math.abs(v)<dz) v=0; else v=(v-Math.sign(v)*dz)/(1-dz);
+    if(invert) v=-v;
+    return applyExpo(v,expo);
+  };
+  const _gpAxPrev={};
+  window.gpBtn=function(gp,name,cfg){
+    const def={confirm:0,back:1,camCycle:9,pilotCycle:8};
+    // 撥段開關（axBtns）邊緣觸發
+    if(cfg&&cfg.axBtns){
+      const ab=cfg.axBtns.find(b=>b.fn===name);
+      if(ab!=null){
+        const key=gp.id+'_'+ab.ax;
+        const cur=gp.axes[ab.ax]??0;
+        const prev=_gpAxPrev[key]??cur;
+        _gpAxPrev[key]=cur;
+        if(ab.type==='2pos') return prev>0.5&&cur<-0.5;        // 2段：falling edge
+        const c=cur>0.5?1:cur<-0.5?-1:0,p=prev>0.5?1:prev<-0.5?-1:0;
+        return c!==p;                                           // 3段：任何段位改變
+      }
+    }
+    const idx=(cfg&&cfg.buttons&&cfg.buttons[name]!=null)?cfg.buttons[name]:def[name]??-1;
+    if(idx<0) return false;
+    return !!(gp.buttons[idx]?.pressed);
+  };
+  window.gpMenuNav=function(gp,cfg){
+    // Returns -1 (up), +1 (down), 0 (none)
+    const useStick=(cfg?.menuNav==='stick')||(!gp.buttons[12]&&!gp.buttons[13]);
+    if(useStick){
+      const v=window.gpAxis(gp,'throttle',cfg); // left stick Y
+      if(v>0.6) return 1;
+      if(v<-0.6) return -1;
+    } else {
+      if(gp.buttons[12]?.pressed) return -1;
+      if(gp.buttons[13]?.pressed) return 1;
+    }
+    return 0;
+  };
+})();
+// ── END GP CONFIG READER ─────────────────────────────────────
+
 // ──────────────────────────────────────────────
 //  常數
 // ──────────────────────────────────────────────
@@ -614,17 +709,17 @@ function playerInput(dt){
   if(KEYS['ArrowRight'])roll-=1;
 
   const gp=navigator.getGamepads?.()[0];
+  const _cfg=window.gpCfgRead?.(gp)??null;
   if(gp){
-    const dz=v=>Math.abs(v)>.12?v:0;
-    thr+=Math.max(-1,Math.min(1,-dz(gp.axes[1])));
-    yaw+=Math.max(-1,Math.min(1,-dz(gp.axes[0])));
-    pitch+=Math.max(-1,Math.min(1,-dz(gp.axes[3])));
-    roll+=Math.max(-1,Math.min(1,-dz(gp.axes[2])));
-    const camBtn=!!(gp.buttons[9]?.pressed);
+    thr+=window.gpAxis(gp,'throttle',_cfg);
+    yaw+=window.gpAxis(gp,'yaw',_cfg);
+    pitch+=window.gpAxis(gp,'pitch',_cfg);
+    roll+=window.gpAxis(gp,'roll',_cfg);
+    const camBtn=window.gpBtn(gp,'camCycle',_cfg);
     if(camBtn&&!gpCamPrev)cycleCamera();
     gpCamPrev=camBtn;
-        const b1=!!gp.buttons[1]?.pressed; if(b1&&!_gpB1Prev){window.location.href='menu.html';} _gpB1Prev=b1;
-    const pilBtn=!!(gp.buttons[8]?.pressed);
+    const b1=!!gp.buttons[1]?.pressed; if(b1&&!_gpB1Prev){window.location.href='menu.html';} _gpB1Prev=b1;
+    const pilBtn=window.gpBtn(gp,'pilotCycle',_cfg);
     if(pilBtn&&!gpPilotPrev)cycleGroundCam();
     gpPilotPrev=pilBtn;
     const pauseBtn=!!(gp.buttons[6]?.pressed);
@@ -922,3 +1017,4 @@ animate();
 </div>
 </body>
 </html>
+                                                                                                    

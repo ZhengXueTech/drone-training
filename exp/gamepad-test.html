@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎮 搖桿設定</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0a0f1a;color:#e2e8f0;font-family:'Share Tech Mono',monospace;min-height:100vh;padding:12px 12px 40px;}
+
+h1{text-align:center;font-size:1.1rem;color:#38bdf8;letter-spacing:.15em;margin-bottom:2px;}
+.sub{text-align:center;font-size:.65rem;color:#475569;margin-bottom:12px;}
+
+/* ── controller bar ── */
+.gp-bar{display:flex;align-items:center;gap:8px;background:#0f172a;
+  border:1px solid #1e3a5f;border-radius:10px;padding:9px 12px;margin-bottom:10px;flex-wrap:wrap;}
+.dot{width:9px;height:9px;border-radius:50%;background:#374151;flex-shrink:0;}
+.dot.on{background:#22c55e;box-shadow:0 0 7px #22c55e;}
+.gp-label{font-size:.72rem;color:#38bdf8;flex:1;word-break:break-all;}
+.gp-label.dim{color:#475569;}
+.badge{font-size:.58rem;padding:2px 7px;border-radius:999px;border:1px solid;flex-shrink:0;}
+.badge.std{border-color:#22c55e;color:#22c55e;}
+.badge.custom{border-color:#f59e0b;color:#f59e0b;}
+.badge.saved{border-color:#38bdf8;color:#38bdf8;}
+
+/* ── two-column layout ── */
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+@media(max-width:600px){.layout{grid-template-columns:1fr;}}
+
+/* ── card ── */
+.card{background:#0f172a;border:1px solid #1e3a5f;border-radius:10px;padding:11px 13px;margin-bottom:10px;}
+.ctitle{font-size:.6rem;color:#64748b;letter-spacing:.12em;text-transform:uppercase;margin-bottom:9px;}
+
+/* ── axes ── */
+.axes-list{display:flex;flex-direction:column;gap:6px;}
+.ax{display:flex;align-items:center;gap:8px;}
+.ax-lbl{font-size:.62rem;color:#64748b;width:54px;flex-shrink:0;}
+.ax-track{flex:1;height:7px;background:#1e293b;border-radius:4px;position:relative;}
+.ax-track::after{content:'';position:absolute;left:50%;top:-2px;width:1px;height:11px;background:#334155;}
+.ax-fill{position:absolute;height:100%;border-radius:4px;}
+.ax-val{font-size:.68rem;color:#fbbf24;width:48px;text-align:right;flex-shrink:0;}
+/* highlight on active */
+.ax.active .ax-lbl{color:#38bdf8;}
+
+/* ── buttons ── */
+.btn-wrap{display:flex;flex-wrap:wrap;gap:5px;}
+.bc{width:38px;height:38px;border-radius:7px;background:#0a0f1a;border:1px solid #1e293b;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;transition:all .08s;}
+.bc.on{background:#1e3a5f;border-color:#38bdf8;box-shadow:0 0 7px rgba(56,189,248,.35);}
+.bc-i{font-size:.58rem;color:#475569;}
+.bc.on .bc-i{color:#7dd3fc;}
+.bc-dot{width:8px;height:8px;border-radius:50%;background:#1e293b;border:1px solid #334155;}
+.bc.on .bc-dot{background:#38bdf8;border-color:#7dd3fc;}
+
+/* ── mapping config ── */
+.map-row{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #0f172a;}
+.map-row:last-child{border-bottom:none;}
+.map-fn{font-size:.68rem;color:#94a3b8;width:90px;flex-shrink:0;}
+.map-sel{background:#1e293b;border:1px solid #334155;border-radius:6px;color:#e2e8f0;
+  font-family:inherit;font-size:.65rem;padding:3px 5px;flex:1;min-width:0;}
+.map-inv{width:16px;height:16px;cursor:pointer;flex-shrink:0;}
+.map-inv-lbl{font-size:.58rem;color:#475569;white-space:nowrap;}
+
+/* wizard overlay row */
+.wiz-row{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;
+  border-radius:8px;border:1px solid #1e3a5f;margin-bottom:6px;
+  background:#0a0f1a;transition:all .2s;
+}
+.wiz-row.waiting{border-color:#f59e0b;background:#0f110a;}
+.wiz-row.done{border-color:#22c55e;background:#0a0f0a;}
+.wiz-fn{font-size:.68rem;color:#64748b;width:80px;flex-shrink:0;}
+.wiz-row.waiting .wiz-fn{color:#fbbf24;}
+.wiz-inst{font-size:.65rem;color:#94a3b8;flex:1;}
+.wiz-row.waiting .wiz-inst{color:#f59e0b;}
+.wiz-result{font-size:.65rem;color:#22c55e;flex:1;}
+.wiz-skip{font-size:.58rem;color:#334155;cursor:pointer;text-decoration:underline;}
+.wiz-skip:hover{color:#64748b;}
+
+/* ── buttons ── */
+.tbtn{background:#1e293b;border:1px solid #334155;border-radius:8px;color:#94a3b8;
+  font-family:inherit;font-size:.68rem;padding:8px 12px;cursor:pointer;letter-spacing:.05em;transition:all .12s;}
+.tbtn:hover{background:#1e3a5f;border-color:#38bdf8;color:#e2e8f0;}
+.tbtn.primary{background:#1e3a5f;border-color:#38bdf8;color:#38bdf8;}
+.tbtn.primary:hover{background:#0369a1;color:#fff;}
+.tbtn.danger:hover{background:#7f1d1d;border-color:#ef4444;color:#fca5a5;}
+.tbtn:disabled{opacity:.3;cursor:not-allowed;}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+
+/* ── log ── */
+.log{background:#020617;border:1px solid #1e293b;border-radius:8px;
+  padding:8px 11px;font-size:.68rem;color:#64748b;line-height:1.9;
+  min-height:44px;max-height:100px;overflow-y:auto;}
+.log .hi{color:#fbbf24;} .log .ok{color:#22c55e;} .log .info{color:#38bdf8;}
+
+/* ── saved ── */
+.saved-item{display:flex;align-items:center;gap:8px;padding:7px 10px;
+  background:#0a0f1a;border:1px solid #1e293b;border-radius:8px;margin-bottom:6px;}
+.saved-name{flex:1;font-size:.68rem;color:#94a3b8;word-break:break-all;}
+.saved-active{font-size:.58rem;padding:1px 6px;border-radius:999px;border:1px solid #22c55e;color:#22c55e;}
+.saved-del{background:none;border:none;color:#475569;cursor:pointer;font-size:.7rem;padding:2px 5px;}
+.saved-del:hover{color:#ef4444;}
+
+/* no-gp */
+#no-gp{text-align:center;padding:36px 16px;border:2px dashed #1e3a5f;
+  border-radius:14px;color:#64748b;font-size:.8rem;line-height:2.2;margin:16px 0;}
+
+/* ref table */
+.ref{width:100%;border-collapse:collapse;font-size:.65rem;}
+.ref th{color:#475569;text-align:left;padding:4px 7px;border-bottom:1px solid #1e293b;font-size:.58rem;letter-spacing:.08em;}
+.ref td{padding:4px 7px;color:#94a3b8;border-bottom:1px solid #0f172a;}
+.ref td:first-child{color:#38bdf8;}
+.ref tr:hover td{background:#0f172a;}
+
+details summary{font-size:.65rem;color:#475569;cursor:pointer;letter-spacing:.08em;
+  text-transform:uppercase;padding:6px 0;list-style:none;}
+details summary:hover{color:#94a3b8;}
+details[open] summary{color:#38bdf8;}
+
+a.back{display:block;text-align:center;margin-top:14px;color:#334155;
+  font-size:.62rem;text-decoration:none;letter-spacing:.08em;}
+a.back:hover{color:#64748b;}
+</style>
+</head>
+<body>
+<h1>🎮 搖桿設定</h1>
+<p class="sub">即時偵測 · 設定 Mapping · 儲存</p>
+
+<!-- 控制器狀態 -->
+<div class="gp-bar">
+  <div class="dot" id="dot1"></div>
+  <div class="gp-label dim" id="gp-lbl1">等待控制器連接…</div>
+  <div class="badge" id="gp-badge1" style="display:none"></div>
+  <div class="badge saved" id="gp-saved1" style="display:none">已有設定 ✓</div>
+</div>
+<div class="gp-bar" style="opacity:.6">
+  <div class="dot" id="dot2"></div>
+  <div class="gp-label dim" id="gp-lbl2">玩家二 — 未連接</div>
+  <div class="badge" id="gp-badge2" style="display:none"></div>
+  <div class="badge saved" id="gp-saved2" style="display:none">已有設定 ✓</div>
+</div>
+
+<div id="no-gp">🔌 尚未偵測到控制器<br>插上 USB 搖桿後撥動任意搖桿啟動</div>
+
+<div id="main" style="display:none">
+
+  <!-- ── 上方：即時偵測 + Mapping 並排 ── -->
+  <div class="layout">
+
+    <!-- 左：即時偵測 -->
+    <div>
+      <!-- P1 / P2 切換 -->
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="tbtn p-btn primary" onclick="switchPlayer(0)">🎮 P1（gamepad[0]）</button>
+        <button class="tbtn p-btn" onclick="switchPlayer(1)">🎮 P2（gamepad[1]）</button>
+      </div>
+      <div class="card">
+        <div class="ctitle">搖桿軸 Axes</div>
+        <div class="axes-list" id="axes-list"></div>
+      </div>
+      <div class="card">
+        <div class="ctitle">按鈕 Buttons</div>
+        <div class="btn-wrap" id="btn-wrap"></div>
+      </div>
+      <!-- ── 即時飛行預覽 ── -->
+      <div class="card" id="sim-card">
+        <div class="ctitle">🚁 即時飛行預覽 <span style="font-size:.58rem;color:#475569">— 調完設定立即看效果</span></div>
+        <canvas id="sim-cv" style="width:100%;border-radius:6px;display:block;background:#060e18;"></canvas>
+        <div style="font-size:.58rem;color:#475569;margin-top:4px;text-align:center">白點＝機頭 · 油門控高度 · Roll/Pitch控移動</div>
+      </div>
+      <div class="log" id="log">撥動搖桿或按按鈕，這裡顯示對應 index…</div>
+    </div>
+
+    <!-- 右：Mapping 設定 -->
+    <div>
+      <!-- ── 飛手模式 Mode 1/2 ── -->
+      <div class="card">
+        <div class="ctitle">飛手模式 Flight Mode
+          <span id="mode-badge" class="badge" style="margin-left:6px;vertical-align:middle;display:inline-block;font-size:.6rem;"></span>
+        </div>
+        <div class="btn-row" style="margin-top:0">
+          <button class="tbtn" id="m1-btn" onclick="setFlightMode('1')">✈️ Mode 1（油門右桿）</button>
+          <button class="tbtn" id="m2-btn" onclick="setFlightMode('2')">🎮 Mode 2（油門左桿）</button>
+        </div>
+        <div id="mode-desc" style="font-size:.62rem;color:#94a3b8;margin-top:6px;line-height:1.6;"></div>
+      </div>
+
+      <div class="card">
+        <div class="ctitle">快速 Preset</div>
+        <div id="builtin-notice" style="display:none;background:#0a2540;border:1px solid #38bdf8;border-radius:6px;padding:8px 10px;font-size:.65rem;color:#7dd3fc;margin-bottom:8px;line-height:1.6;"></div>
+        <div class="btn-row" style="margin-top:0">
+          <button class="tbtn primary" id="btn-preset-standard" onclick="applyPreset('standard')">🎮 Xbox / PS</button>
+          <button class="tbtn" id="btn-preset-startrc" onclick="applyPreset('startrc')">🚁 STARTRC</button>
+          <button class="tbtn" onclick="startWizard()" id="wiz-btn">🔍 手動偵測</button>
+        </div>
+      </div>
+
+      <!-- Wizard -->
+      <div class="card" id="wiz-card" style="display:none">
+        <div class="ctitle">引導設定 <span id="wiz-prog" style="color:#38bdf8"></span></div>
+        <div id="wiz-steps"></div>
+        <div class="btn-row">
+          <button class="tbtn danger" onclick="cancelWizard()">✕ 取消</button>
+          <button class="tbtn primary" id="wiz-save" onclick="saveWizard()" disabled>💾 儲存</button>
+        </div>
+      </div>
+
+      <!-- Manual fine-tune -->
+      <div class="card" id="manual-card" style="display:none">
+        <div class="ctitle">細部設定</div>
+        <div id="map-rows"></div>
+        <label style="font-size:.62rem;color:#64748b;display:flex;align-items:center;gap:7px;margin-top:8px;">
+          <input type="checkbox" id="chk-stick">
+          選單用搖桿導航（無 D-pad 時勾選）
+        </label>
+        <!-- 撥段開關設定 -->
+        <div id="axbtn-sec" style="display:none;margin-top:10px;border-top:1px solid #1e293b;padding-top:8px;">
+          <div style="font-size:.62rem;color:#38bdf8;margin-bottom:6px;">🔀 撥段開關設定 <span id="axbtn-n" style="color:#64748b"></span> 個額外軸</div>
+          <div style="display:grid;grid-template-columns:64px 58px 1fr;gap:4px;font-size:.58rem;color:#475569;padding-bottom:4px;">
+            <span>軸</span><span>段數</span><span>功能對應</span>
+          </div>
+          <div id="axbtn-rows"></div>
+        </div>
+        <div class="btn-row">
+          <button class="tbtn" onclick="calibrateAllRest()" title="把搖桿放開，按此鍵記錄各軸靜止值">📍 一鍵校正靜止值</button>
+          <button class="tbtn primary" onclick="saveManual()">💾 儲存設定</button>
+          <button class="tbtn danger" onclick="deleteCfg()">🗑️ 刪除</button>
+        </div>
+      </div>
+
+      <div class="log" id="log2">選 Preset 或點【手動偵測】開始</div>
+    </div>
+  </div>
+
+  <!-- ── 下方：已儲存 + 對照表（摺疊） ── -->
+  <details>
+    <summary>💾 已儲存設定</summary>
+    <div style="padding:10px 0">
+      <div id="saved-list"></div>
+      <button class="tbtn danger" style="font-size:.62rem" onclick="clearAll()">🗑️ 清除全部</button>
+    </div>
+  </details>
+
+  <details style="margin-top:6px" open>
+    <summary>🎮 Xbox 標準對照圖（即時反應）</summary>
+    <div style="padding:10px 0;overflow-x:auto;">
+      <svg id="xbox-svg" viewBox="0 0 520 300" xmlns="http://www.w3.org/2000/svg"
+        style="width:100%;max-width:520px;display:block;margin:0 auto;">
+
+        <!-- ── 控制器外殼 ── -->
+        <path d="M100,80 Q80,50 50,45 Q15,40 15,110 L18,210 Q22,265 80,275 L148,285 Q168,245 168,205 L352,205 Q352,245 372,285 L440,275 Q498,265 502,210 L505,110 Q505,40 485,45 Q450,50 420,80 Q390,60 260,58 Q130,60 100,80 Z"
+          fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+
+        <!-- ── LT / RT 扳機 ── -->
+        <rect id="xb-LT" x="38" y="22" width="68" height="28" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+        <text x="72" y="41" text-anchor="middle" font-size="10" fill="#64748b" font-family="monospace">LT b6</text>
+        <rect id="xb-RT" x="414" y="22" width="68" height="28" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+        <text x="448" y="41" text-anchor="middle" font-size="10" fill="#64748b" font-family="monospace">RT b7</text>
+
+        <!-- ── LB / RB 肩鍵 ── -->
+        <rect id="xb-LB" x="52" y="57" width="68" height="22" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+        <text x="86" y="72" text-anchor="middle" font-size="10" fill="#64748b" font-family="monospace">LB b4</text>
+        <rect id="xb-RB" x="400" y="57" width="68" height="22" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+        <text x="434" y="72" text-anchor="middle" font-size="10" fill="#64748b" font-family="monospace">RB b5</text>
+
+        <!-- ── Back / Start ── -->
+        <rect id="xb-Back" x="176" y="95" width="54" height="20" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+        <text x="203" y="109" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">Back b8</text>
+        <circle id="xb-Home" cx="260" cy="80" r="16" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+        <text x="260" y="84" text-anchor="middle" font-size="9" fill="#475569" font-family="monospace">⊙</text>
+        <rect id="xb-Start" x="290" y="95" width="54" height="20" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1.2"/>
+        <text x="317" y="109" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">Start b9</text>
+
+        <!-- ── 左搖桿 LS ── -->
+        <circle cx="148" cy="135" r="32" fill="#0a0f1a" stroke="#334155" stroke-width="1.5"/>
+        <circle id="xb-LS-ring" cx="148" cy="135" r="32" fill="none" stroke="#1e3a5f" stroke-width="2"/>
+        <circle id="xb-LS-knob" cx="148" cy="135" r="14" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+        <text id="xb-LS-lbl" x="148" y="185" text-anchor="middle" font-size="8.5" fill="#475569" font-family="monospace">LS axes[0,1] b10</text>
+
+        <!-- ── D-pad ── -->
+        <g id="xb-dpad" transform="translate(112,165)">
+          <!-- center -->
+          <rect x="-11" y="-11" width="22" height="22" rx="2" fill="#1e293b"/>
+          <!-- up -->
+          <rect id="xb-DU" x="-9" y="-33" width="18" height="23" rx="3" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+          <text x="0" y="-16" text-anchor="middle" font-size="8" fill="#475569" font-family="monospace">b12</text>
+          <!-- down -->
+          <rect id="xb-DD" x="-9" y="10" width="18" height="23" rx="3" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+          <text x="0" y="27" text-anchor="middle" font-size="8" fill="#475569" font-family="monospace">b13</text>
+          <!-- left -->
+          <rect id="xb-DL" x="-33" y="-9" width="23" height="18" rx="3" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+          <text x="-21" y="3" text-anchor="middle" font-size="8" fill="#475569" font-family="monospace">b14</text>
+          <!-- right -->
+          <rect id="xb-DR" x="10" y="-9" width="23" height="18" rx="3" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+          <text x="22" y="3" text-anchor="middle" font-size="8" fill="#475569" font-family="monospace">b15</text>
+          <!-- arrows -->
+          <text x="0" y="-19" text-anchor="middle" font-size="10" fill="#334155">↑</text>
+          <text x="0" y="30" text-anchor="middle" font-size="10" fill="#334155">↓</text>
+          <text x="-21" y="4" text-anchor="middle" font-size="10" fill="#334155">←</text>
+          <text x="22" y="4" text-anchor="middle" font-size="10" fill="#334155">→</text>
+        </g>
+
+        <!-- ── 右搖桿 RS ── -->
+        <circle cx="296" cy="168" r="32" fill="#0a0f1a" stroke="#334155" stroke-width="1.5"/>
+        <circle id="xb-RS-ring" cx="296" cy="168" r="32" fill="none" stroke="#1e3a5f" stroke-width="2"/>
+        <circle id="xb-RS-knob" cx="296" cy="168" r="14" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+        <text id="xb-RS-lbl" x="296" y="218" text-anchor="middle" font-size="8.5" fill="#475569" font-family="monospace">RS axes[2,3] b11</text>
+
+        <!-- ── 面板鍵 ABXY ── -->
+        <!-- Y (上，黃) -->
+        <circle id="xb-Y" cx="378" cy="108" r="14" fill="#0f172a" stroke="#a16207" stroke-width="1.5"/>
+        <text x="378" y="112" text-anchor="middle" font-size="10" fill="#ca8a04" font-family="monospace" font-weight="bold">Y</text>
+        <text x="378" y="125" text-anchor="middle" font-size="8" fill="#475569" font-family="monospace">b3</text>
+        <!-- X (左，藍) -->
+        <circle id="xb-X" cx="355" cy="132" r="14" fill="#0f172a" stroke="#1d4ed8" stroke-width="1.5"/>
+        <text x="355" y="136" text-anchor="middle" font-size="10" fill="#3b82f6" font-family="monospace" font-weight="bold">X</text>
+        <text x="355" y="153" text-anchor="middle" font-size="8" fill="#475569" font-family="monospace">b2</text>
+        <!-- B (右，紅) -->
+        <circle id="xb-B" cx="401" cy="132" r="14" fill="#0f172a" stroke="#991b1b" stroke-width="1.5"/>
+        <text x="401" y="136" text-anchor="middle" font-size="10" fill="#ef4444" font-family="monospace" font-weight="bold">B</text>
+        <text x="401" y="153" text-anchor="middle" font-size="8" fill="#475569" font-family="monospace">b1</text>
+        <!-- A (下，綠) -->
+        <circle id="xb-A" cx="378" cy="156" r="14" fill="#0f172a" stroke="#166534" stroke-width="1.5"/>
+        <text x="378" y="160" text-anchor="middle" font-size="10" fill="#22c55e" font-family="monospace" font-weight="bold">A</text>
+        <text x="378" y="177" text-anchor="middle" font-size="8" fill="#475569" font-family="monospace">b0</text>
+
+        <!-- ── 模擬器功能標籤 ── -->
+        <text x="260" y="252" text-anchor="middle" font-size="8" fill="#1e3a5f" font-family="monospace">── 本模擬器對應 ──</text>
+        <text x="148" y="265" text-anchor="middle" font-size="8" fill="#0369a1" font-family="monospace">偏航+油門</text>
+        <text x="296" y="265" text-anchor="middle" font-size="8" fill="#0369a1" font-family="monospace">橫移+俯仰</text>
+        <text x="378" y="192" text-anchor="middle" font-size="8" fill="#166534" font-family="monospace">確認</text>
+        <text x="401" y="168" text-anchor="middle" font-size="8" fill="#991b1b" font-family="monospace">返回</text>
+        <text x="317" y="127" text-anchor="middle" font-size="8" fill="#0369a1" font-family="monospace">切視角</text>
+        <text x="203" y="127" text-anchor="middle" font-size="8" fill="#0369a1" font-family="monospace">切站位</text>
+      </svg>
+
+      <p style="text-align:center;font-size:.62rem;color:#334155;margin-top:4px">
+        插上 Xbox / PS 控制器後，按鍵會即時高亮顯示
+      </p>
+    </div>
+  </details>
+
+</div>
+
+<a href="menu.html" class="back">← 返回主選單</a>
+
+<script>
+const STORE='droneSimGpMap';
+const load=()=>{try{return JSON.parse(localStorage.getItem(STORE)||'{}')}catch{return{}}};
+const save=o=>localStorage.setItem(STORE,JSON.stringify(o));
+
+const PRESETS={
+  standard:{
+    axes:{
+      yaw:     {i:0,inv:false,rest:0},
+      throttle:{i:1,inv:true, rest:0},
+      roll:    {i:2,inv:true, rest:0},
+      pitch:   {i:3,inv:true, rest:0}
+    },
+    buttons:{confirm:0,back:1,camCycle:9,pilotCycle:8},
+    menuNav:'stick'
+  },
+  startrc:{
+    axes:{
+      yaw:     {i:3,inv:false,rest:0},
+      throttle:{i:2,inv:false,rest:0},
+      roll:    {i:0,inv:true, rest:0},
+      pitch:   {i:1,inv:false,rest:0}
+    },
+    buttons:{confirm:1,back:1,camCycle:0,pilotCycle:0},
+    axBtns:[
+      {ax:4,type:'3pos',fn:'camCycle'},
+      {ax:5,type:'2pos',fn:'back'},
+      {ax:6,type:'3pos',fn:'pilotCycle'},
+      {ax:7,type:'2pos',fn:'confirm'}
+    ],
+    menuNav:'stick'
+  }
+};
+
+const AX_NAMES=['yaw','throttle','roll','pitch'];
+const AX_LABELS=['偏航 Yaw','油門 Throttle','橫移 Roll','俯仰 Pitch'];
+const BTN_NAMES=['confirm','back','camCycle','pilotCycle'];
+const BTN_LABELS=['確認 A','返回 B','切視角 START','切站位 SELECT'];
+
+// ── live UI ──────────────────────────
+let axEls=[],btnEls=[],lastAx=[],lastBtn=[];
+
+function buildAxes(n){
+  const c=document.getElementById('axes-list');c.innerHTML='';axEls=[];
+  for(let i=0;i<n;i++){
+    const d=document.createElement('div');d.className='ax';d.id='ax'+i;
+    d.innerHTML=`<div class="ax-lbl">axes[${i}]</div>
+      <div class="ax-track"><div class="ax-fill" id="af${i}"></div></div>
+      <div class="ax-val" id="av${i}">0.000</div>`;
+    c.appendChild(d);
+    axEls.push({row:d,fill:document.getElementById('af'+i),val:document.getElementById('av'+i)});
+  }
+}
+function buildBtns(n){
+  const c=document.getElementById('btn-wrap');c.innerHTML='';btnEls=[];
+  for(let i=0;i<n;i++){
+    const d=document.createElement('div');d.className='bc';
+    d.innerHTML=`<div class="bc-i">b${i}</div><div class="bc-dot" id="bd${i}"></div>`;
+    c.appendChild(d);btnEls.push(d);
+  }
+}
+function updAx(i,v){
+  const el=axEls[i];if(!el)return;
+  el.val.textContent=v.toFixed(3);
+  const abs=Math.abs(v),big=abs>0.5;
+  el.row.classList.toggle('active',big);
+  if(v>=0){el.fill.style.left='50%';el.fill.style.width=(v*50).toFixed(1)+'%';el.fill.style.background='linear-gradient(90deg,#0ea5e9,#38bdf8)';}
+  else{const w=(-v*50).toFixed(1);el.fill.style.left=(50-parseFloat(w)).toFixed(1)+'%';el.fill.style.width=w+'%';el.fill.style.background='linear-gradient(90deg,#f59e0b,#fbbf24)';}
+  if(big&&Math.abs(v-(lastAx[i]||0))>0.15)addLog(`axes[<span class="hi">${i}</span>] = ${v.toFixed(3)}`);
+  lastAx[i]=v;
+}
+function updBtn(i,pressed){
+  const el=btnEls[i];if(!el)return;
+  el.classList.toggle('on',pressed);
+  if(pressed&&!lastBtn[i])addLog(`buttons[<span class="hi">${i}</span>] 按下`);
+  lastBtn[i]=pressed;
+}
+
+// ── log ──────────────────────────────
+let logL=[],log2L=[];
+function addLog(m){logL.push(m);if(logL.length>10)logL.shift();document.getElementById('log').innerHTML=logL.join('<br>');}
+function addLog2(m){log2L.push(m);if(log2L.length>8)log2L.shift();document.getElementById('log2').innerHTML=log2L.join('<br>');}
+
+// ── built-in detection ───────────────
+function isBuiltIn(gp){
+  if(!gp) return false;
+  const id=gp.id.toLowerCase();
+  return id.includes('startrc')||id.includes('standard gamepad')||id.includes('xinput');
+}
+function refreshBuiltinState(){
+  const gp=getGp();
+  const builtin=isBuiltIn(gp);
+  ['btn-preset-standard','btn-preset-startrc','wiz-btn'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.disabled=builtin;
+  });
+  const notice=document.getElementById('builtin-notice');
+  if(!notice) return;
+  if(builtin){
+    const hasSaved=gp&&!!load()[gp.id];
+    notice.innerHTML='✅ 此控制器已有<b>內建預設</b>，無需手動配對。'
+      +(hasSaved?'<br>⚠️ 發現 localStorage 有舊設定會蓋過內建！請到【細部設定】按【🗑️ 刪除】恢復預設。':'');
+    notice.style.display='block';
+  } else {
+    notice.style.display='none';
+  }
+}
+
+// ── preset ───────────────────────────
+function applyPreset(name){
+  const gp=getGp();if(!gp){addLog2('⚠️ 請先連接控制器');return;}
+  const all=load();all[gp.id]=JSON.parse(JSON.stringify(PRESETS[name]));save(all);
+  addLog2(`<span class="ok">✅ Preset [${name}] 已儲存</span>`);
+  refreshManual();refreshBars();
+}
+
+// ── wizard ───────────────────────────
+const WIZ=[
+  {fn:'yaw',    t:'axis',  lbl:'偏航軸 Yaw',    inst:'左右撥動偏航搖桿'},
+  {fn:'throttle',t:'axis', lbl:'油門軸 Throttle',inst:'上下撥動油門搖桿'},
+  {fn:'roll',   t:'axis',  lbl:'橫移軸 Roll',   inst:'左右撥動橫移搖桿'},
+  {fn:'pitch',  t:'axis',  lbl:'俯仰軸 Pitch',  inst:'前後撥動俯仰搖桿'},
+  {fn:'confirm',t:'btn',   lbl:'確認鍵 A',       inst:'按下確認/開始按鈕'},
+  {fn:'back',   t:'btn',   lbl:'返回鍵 B',       inst:'按下返回主選單按鈕'},
+  {fn:'camCycle',t:'btn',  lbl:'切視角 START',   inst:'按下切換視角按鈕'},
+  {fn:'pilotCycle',t:'btn',lbl:'切站位 SELECT',  inst:'按下切換站位按鈕'},
+];
+let wizOn=false,wizIdx=0,wizRes={},wizLock=false;
+
+function startWizard(){
+  wizOn=true;wizIdx=0;wizRes={};wizLock=false;
+  document.getElementById('wiz-card').style.display='block';
+  document.getElementById('wiz-save').disabled=true;
+  renderWiz();addLog2('<span class="info">── 開始引導，依序操作搖桿 ──</span>');
+}
+function cancelWizard(){
+  wizOn=false;document.getElementById('wiz-card').style.display='none';
+}
+function renderWiz(){
+  document.getElementById('wiz-prog').textContent=`${wizIdx}/${WIZ.length}`;
+  const c=document.getElementById('wiz-steps');c.innerHTML='';
+  WIZ.forEach((s,i)=>{
+    const d=document.createElement('div');
+    d.className='wiz-row'+(i===wizIdx?' waiting':i<wizIdx?' done':'');
+    const res=wizRes[s.fn];
+    d.innerHTML=`<div class="wiz-fn">${s.lbl}</div>`+
+      (i===wizIdx?`<div class="wiz-inst">👉 ${s.inst} <span class="wiz-skip" onclick="wizSkip()">略過</span></div>`:
+       res!=null?`<div class="wiz-result">✅ ${s.t==='axis'?'axes':'b'}[${res}]</div>`:
+       `<div style="font-size:.58rem;color:#334155">略過</div>`);
+    c.appendChild(d);
+  });
+  if(wizIdx>=WIZ.length){document.getElementById('wiz-save').disabled=false;addLog2('<span class="ok">✅ 完成！按儲存套用</span>');}
+}
+function wizSkip(){wizNext(null);}
+function wizNext(val){
+  if(!wizOn||wizLock)return;wizLock=true;
+  const s=WIZ[wizIdx];
+  if(val!=null){wizRes[s.fn]=val;addLog2(`✅ ${s.lbl} → ${s.t==='axis'?'axes':'b'}[<span class="ok">${val}</span>]`);}
+  else addLog2(`── ${s.lbl} 略過`);
+  wizIdx++;setTimeout(()=>{wizLock=false;renderWiz();},350);
+}
+function saveWizard(){
+  const gp=getGp();if(!gp)return;
+  const cfg={
+    axes:{
+      yaw:{i:wizRes.yaw??0,inv:false},throttle:{i:wizRes.throttle??1,inv:true},
+      roll:{i:wizRes.roll??2,inv:false},pitch:{i:wizRes.pitch??3,inv:false}
+    },
+    buttons:{confirm:wizRes.confirm??0,back:wizRes.back??1,camCycle:wizRes.camCycle??9,pilotCycle:wizRes.pilotCycle??8},
+    menuNav:'stick'
+  };
+  const all=load();all[gp.id]=cfg;save(all);
+  addLog2('<span class="ok">💾 已儲存！所有關卡自動套用</span>');
+  cancelWizard();refreshManual();refreshBars();
+}
+
+// ── manual card ──────────────────────
+function refreshManual(){
+  const gp=getGp();if(!gp)return;
+  const all=load();const cfg=all[gp.id];
+  const mc=document.getElementById('manual-card');
+  if(!cfg){mc.style.display='none';return;}
+  mc.style.display='block';
+  const n=gp.axes.length,nb=gp.buttons.length;
+  const rows=document.getElementById('map-rows');rows.innerHTML='';
+  // header
+  const hdr=document.createElement('div');
+  hdr.style.cssText='display:grid;grid-template-columns:90px 1fr 44px 80px 60px;gap:4px;font-size:.58rem;color:#475569;padding:3px 0 6px;border-bottom:1px solid #1e293b;margin-bottom:4px;';
+  hdr.innerHTML='<span>功能</span><span>軸/鍵</span><span>反向</span><span>靜止值</span><span></span>';
+  rows.appendChild(hdr);
+  // axes rows
+  AX_NAMES.forEach((fn,fi)=>{
+    const r=document.createElement('div');
+    r.style.cssText='display:grid;grid-template-columns:90px 1fr 44px 80px 60px;gap:4px;align-items:center;padding:4px 0;border-bottom:1px solid #0f172a;';
+    let opts='';for(let i=0;i<n;i++)opts+=`<option value="${i}"${cfg.axes[fn]?.i===i?' selected':''}>axes[${i}]</option>`;
+    const restVal=(cfg.axes[fn]?.rest??0).toFixed(3);
+    r.innerHTML=`<div class="map-fn">${AX_LABELS[fi]}</div>
+      <select class="map-sel" id="ms-${fn}">${opts}</select>
+      <input type="checkbox" class="map-inv" id="mi-${fn}"${cfg.axes[fn]?.inv?' checked':''} title="反向">
+      <input type="number" class="map-sel" id="mr-${fn}" value="${restVal}" step="0.001" min="-1" max="1" style="width:100%;font-size:.62rem;" title="靜止基準值">
+      <button class="tbtn" style="font-size:.55rem;padding:3px 4px;white-space:nowrap;" onclick="detectRest('${fn}')">📍偵測</button>`;
+    rows.appendChild(r);
+  });
+  // separator
+  const sep=document.createElement('div');sep.style.cssText='height:6px;';rows.appendChild(sep);
+  // button rows
+  BTN_NAMES.forEach((fn,fi)=>{
+    const r=document.createElement('div');
+    r.style.cssText='display:grid;grid-template-columns:90px 1fr 44px 80px 60px;gap:4px;align-items:center;padding:4px 0;border-bottom:1px solid #0f172a;';
+    let opts='';for(let i=0;i<nb;i++)opts+=`<option value="${i}"${cfg.buttons[fn]===i?' selected':''}>b${i}</option>`;
+    r.innerHTML=`<div class="map-fn">${BTN_LABELS[fi]}</div>
+      <select class="map-sel" id="ms-${fn}">${opts}</select>
+      <span></span><span></span><span></span>`;
+    rows.appendChild(r);
+  });
+  document.getElementById('chk-stick').checked=(cfg.menuNav==='stick');
+
+  // ── 撥段開關設定（axes[4+] 的控制器）──
+  const swSec=document.getElementById('axbtn-sec');
+  if(n>4){
+    swSec.style.display='block';
+    const swRows=document.getElementById('axbtn-rows');swRows.innerHTML='';
+    const FN_OPTS=['none','camCycle','pilotCycle','confirm','back','menuNav'];
+    const FN_LABELS={'none':'— 不使用 —','camCycle':'切視角','pilotCycle':'切站位','confirm':'確認 A','back':'返回 B','menuNav':'選單導航'};
+    for(let ai=4;ai<n;ai++){
+      // guess type from existing axBtns or default
+      const existing=(cfg.axBtns||[]).find(b=>b.ax===ai);
+      const curFn=existing?.fn||'none';
+      const curType=existing?.type||'2pos';
+      const typeOpts=['2pos','3pos'].map(t=>`<option value="${t}"${curType===t?' selected':''}>${t==='2pos'?'2段':'3段'}</option>`).join('');
+      const fnOpts=FN_OPTS.map(f=>`<option value="${f}"${curFn===f?' selected':''}>${FN_LABELS[f]}</option>`).join('');
+      const r=document.createElement('div');
+      r.style.cssText='display:grid;grid-template-columns:64px 58px 1fr;gap:4px;align-items:center;padding:4px 0;border-bottom:1px solid #0f172a;font-size:.65rem;';
+      r.innerHTML=`<div class="map-fn">axes[${ai}]</div>
+        <select class="map-sel" id="sw-type-${ai}" style="font-size:.62rem">${typeOpts}</select>
+        <select class="map-sel" id="sw-fn-${ai}" style="font-size:.62rem">${fnOpts}</select>`;
+      swRows.appendChild(r);
+    }
+    document.getElementById('axbtn-n').textContent=n-4; // how many extra axes
+  } else {
+    swSec.style.display='none';
+  }
+}
+
+// 偵測單個軸的靜止值
+function detectRest(fn){
+  const gp=getGp();if(!gp)return;
+  const idx=+document.getElementById('ms-'+fn).value;
+  const v=gp.axes[idx]??0;
+  document.getElementById('mr-'+fn).value=v.toFixed(3);
+  addLog2(`📍 ${fn}: axes[${idx}] 靜止值 = <span class="ok">${v.toFixed(3)}</span>`);
+}
+
+// 一鍵校正所有軸靜止值
+function calibrateAllRest(){
+  const gp=getGp();if(!gp)return;
+  const all=load();const cfg=all[gp.id];if(!cfg)return;
+  AX_NAMES.forEach(fn=>{
+    const idx=cfg.axes[fn]?.i??0;
+    const v=gp.axes[idx]??0;
+    if(!cfg.axes[fn])cfg.axes[fn]={i:idx,inv:false};
+    cfg.axes[fn].rest=parseFloat(v.toFixed(4));
+    const el=document.getElementById('mr-'+fn);
+    if(el)el.value=v.toFixed(3);
+  });
+  save(all);
+  addLog2('<span class="ok">📍 全部靜止值已校正並儲存</span>');
+}
+
+function saveManual(){
+  const gp=getGp();if(!gp)return;
+  const axesCfg={};
+  AX_NAMES.forEach(fn=>{
+    axesCfg[fn]={
+      i:+document.getElementById('ms-'+fn).value,
+      inv:document.getElementById('mi-'+fn)?.checked||false,
+      rest:parseFloat(document.getElementById('mr-'+fn)?.value||'0')||0
+    };
+  });
+  // 撥段開關
+  const gp2=getGp();const nAx=gp2?gp2.axes.length:4;
+  const axBtns=[];
+  for(let ai=4;ai<nAx;ai++){
+    const fn=document.getElementById('sw-fn-'+ai)?.value;
+    const type=document.getElementById('sw-type-'+ai)?.value||'2pos';
+    if(fn&&fn!=='none') axBtns.push({ax:ai,type,fn});
+  }
+  const cfg={
+    axes:axesCfg,
+    buttons:Object.fromEntries(BTN_NAMES.map(fn=>[fn,+document.getElementById('ms-'+fn).value])),
+    menuNav:document.getElementById('chk-stick').checked?'stick':'dpad',
+    ...(axBtns.length?{axBtns}:{})
+  };
+  const all=load();all[gp.id]=cfg;save(all);
+  addLog2('<span class="ok">💾 已儲存（含靜止值）</span>');refreshBars();
+}
+function deleteCfg(){
+  const gp=getGp();if(!gp)return;
+  const all=load();delete all[gp.id];save(all);
+  document.getElementById('manual-card').style.display='none';
+  addLog2('🗑️ 已刪除此控制器設定');refreshBars();
+}
+
+// ── saved list ───────────────────────
+function renderSaved(){
+  const all=load();const gp=getGp();
+  const el=document.getElementById('saved-list');
+  const keys=Object.keys(all);
+  if(!keys.length){el.innerHTML='<div style="color:#475569;font-size:.7rem;padding:6px">尚無儲存設定</div>';return;}
+  el.innerHTML=keys.map(k=>`<div class="saved-item">
+    <div class="saved-name">${k}</div>
+    ${gp&&gp.id===k?'<span class="saved-active">目前連接</span>':''}
+    <button class="saved-del" onclick="delSaved(\`${k.replace(/`/g,'\\`')}\`)">🗑️</button>
+  </div>`).join('');
+}
+function delSaved(k){const all=load();delete all[k];save(all);renderSaved();refreshBars();}
+function clearAll(){if(!confirm('清除全部設定？'))return;localStorage.removeItem(STORE);renderSaved();refreshBars();}
+
+// ── controller bars ──────────────────
+function refreshBars(){
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  const all=load();
+  [0,1].forEach(idx=>{
+    const gp=pads[idx];const n=idx+1;
+    const dot=document.getElementById('dot'+n);
+    const lbl=document.getElementById('gp-lbl'+n);
+    const bdg=document.getElementById('gp-badge'+n);
+    const sv=document.getElementById('gp-saved'+n);
+    if(!gp||!gp.connected){
+      dot.className='dot';lbl.className='gp-label dim';
+      lbl.textContent=idx===0?'等待控制器連接…':'玩家二 — 未連接';
+      bdg.style.display='none';sv.style.display='none';return;
+    }
+    dot.className='dot on';lbl.className='gp-label';lbl.textContent=gp.id.substring(0,50);
+    bdg.style.display='';
+    if(gp.mapping==='standard'){bdg.className='badge std';bdg.textContent='STANDARD ✓';}
+    else{bdg.className='badge custom';bdg.textContent='CUSTOM';}
+    sv.style.display=all[gp.id]?'':'none';
+  });
+}
+
+// ── player selector ──────────────────
+let viewPlayer=0; // 0=P1, 1=P2
+
+function getGp(){
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  return pads[viewPlayer]||null;
+}
+
+function switchPlayer(idx){
+  viewPlayer=idx;
+  document.querySelectorAll('.p-btn').forEach((b,i)=>b.classList.toggle('primary',i===idx));
+  const gp=getGp();
+  if(gp&&gp.connected){buildAxes(gp.axes.length);buildBtns(gp.buttons.length);refreshManual();}
+  else{document.getElementById('axes-list').innerHTML='<div style="color:#475569;font-size:.7rem;padding:6px">未連接</div>';
+    document.getElementById('btn-wrap').innerHTML='';}
+  refreshBuiltinState();
+  addLog(`切換到 <span class="hi">P${idx+1}</span>（gamepad[${idx}]）`);
+}
+
+// ── gamepad events ───────────────────
+window.addEventListener('gamepadconnected',e=>{
+  const gp=e.gamepad;
+  document.getElementById('no-gp').style.display='none';
+  document.getElementById('main').style.display='block';
+  // 只有當連接的是目前檢視的玩家，才重建 UI
+  if(gp.index===viewPlayer){buildAxes(gp.axes.length);buildBtns(gp.buttons.length);}
+  refreshBars();refreshManual();renderSaved();refreshBuiltinState();
+  const all=load();
+  if(gp.mapping!=='standard'&&!all[gp.id])
+    addLog2(`<span class="hi">⚠️ P${gp.index+1} 新控制器：${gp.id.substring(0,30)} — 請設定 Mapping</span>`);
+  else if(all[gp.id])
+    addLog2(`<span class="ok">✅ P${gp.index+1} 已找到設定，自動套用</span>`);
+  else
+    addLog2(`<span class="ok">✅ P${gp.index+1} Standard mapping，直接可用</span>`);
+});
+window.addEventListener('gamepaddisconnected',e=>{
+  addLog(`P${e.gamepad.index+1} 已斷開`);
+  refreshBars();
+});
+
+// ── Xbox SVG 即時更新 ────────────────
+const XB_BTN_MAP={
+  0:'xb-A',1:'xb-B',2:'xb-X',3:'xb-Y',
+  4:'xb-LB',5:'xb-RB',6:'xb-LT',7:'xb-RT',
+  8:'xb-Back',9:'xb-Start',
+  10:'xb-LS-knob',11:'xb-RS-knob',
+  12:'xb-DU',13:'xb-DD',14:'xb-DL',15:'xb-DR'
+};
+const XB_ON_CLR={
+  'xb-A':'#22c55e','xb-B':'#ef4444','xb-X':'#3b82f6','xb-Y':'#eab308',
+  'xb-LB':'#38bdf8','xb-RB':'#38bdf8','xb-LT':'#f59e0b','xb-RT':'#f59e0b',
+  'xb-Back':'#38bdf8','xb-Start':'#38bdf8',
+  'xb-LS-knob':'#38bdf8','xb-RS-knob':'#38bdf8',
+  'xb-DU':'#a78bfa','xb-DD':'#a78bfa','xb-DL':'#a78bfa','xb-DR':'#a78bfa'
+};
+
+function updXboxSvg(gp){
+  if(!gp) return;
+  // buttons
+  Object.entries(XB_BTN_MAP).forEach(([idx,id])=>{
+    const el=document.getElementById(id);if(!el)return;
+    const pressed=!!(gp.buttons[+idx]?.pressed);
+    const clr=XB_ON_CLR[id]||'#38bdf8';
+    if(el.tagName==='circle'||el.tagName==='rect'){
+      el.style.fill=pressed?clr+'33':'';
+      el.style.stroke=pressed?clr:'';
+      el.style.filter=pressed?`drop-shadow(0 0 4px ${clr})`:'';
+    }
+  });
+  // left stick (axes 0,1)
+  const lx=(gp.axes[0]||0)*18, ly=(gp.axes[1]||0)*18;
+  const lk=document.getElementById('xb-LS-knob');
+  if(lk){lk.setAttribute('cx',148+lx);lk.setAttribute('cy',135+ly);}
+  const lr=document.getElementById('xb-LS-ring');
+  if(lr){const mag=Math.sqrt(lx*lx+ly*ly);lr.style.stroke=mag>4?'#38bdf8':'#1e3a5f';}
+  // right stick (axes 2,3)
+  const rx2=(gp.axes[2]||0)*18, ry2=(gp.axes[3]||0)*18;
+  const rk=document.getElementById('xb-RS-knob');
+  if(rk){rk.setAttribute('cx',296+rx2);rk.setAttribute('cy',168+ry2);}
+  const rr=document.getElementById('xb-RS-ring');
+  if(rr){const mag=Math.sqrt(rx2*rx2+ry2*ry2);rr.style.stroke=mag>4?'#38bdf8':'#1e3a5f';}
+}
+
+// ── Flight Mode (Mode1/Mode2) ────────────────────────────────
+const FLIGHT_MODE_DESCS={
+  '1':'🇹🇼 Mode 1（台灣/亞洲）：左桿=偏航Yaw／俯仰Pitch，右桿=橫移Roll／油門Throttle',
+  '2':'🌐 Mode 2（歐美/Xbox）：左桿=偏航Yaw／油門Throttle，右桿=橫移Roll／俯仰Pitch'
+};
+const FLIGHT_MODE_SVG={
+  '1':{ls:'LS  X=偏航Yaw  Y=俯仰Pitch',rs:'RS  X=橫移Roll  Y=油門Thr'},
+  '2':{ls:'LS  X=偏航Yaw  Y=油門Thr',rs:'RS  X=橫移Roll  Y=俯仰Pitch'}
+};
+function setFlightMode(m){
+  localStorage.setItem('droneSimFlightMode',m);
+  document.getElementById('m1-btn').classList.toggle('primary',m==='1');
+  document.getElementById('m2-btn').classList.toggle('primary',m==='2');
+  const bdg=document.getElementById('mode-badge');
+  bdg.textContent='Mode '+m;bdg.className='badge '+(m==='1'?'custom':'std');
+  document.getElementById('mode-desc').textContent=FLIGHT_MODE_DESCS[m];
+  const svgL=document.getElementById('xb-LS-lbl');
+  const svgR=document.getElementById('xb-RS-lbl');
+  if(svgL)svgL.textContent=FLIGHT_MODE_SVG[m].ls;
+  if(svgR)svgR.textContent=FLIGHT_MODE_SVG[m].rs;
+  addLog2(`<span class="ok">✈️ 已切換為 Mode ${m} — 所有關卡同步生效</span>`);
+}
+(function initFlightMode(){
+  const m=localStorage.getItem('droneSimFlightMode')||'2';
+  document.getElementById('m1-btn').classList.toggle('primary',m==='1');
+  document.getElementById('m2-btn').classList.toggle('primary',m==='2');
+  const bdg=document.getElementById('mode-badge');
+  bdg.textContent='Mode '+m;bdg.className='badge '+(m==='1'?'custom':'std');
+  document.getElementById('mode-desc').textContent=FLIGHT_MODE_DESCS[m];
+  const svgL=document.getElementById('xb-LS-lbl');
+  const svgR=document.getElementById('xb-RS-lbl');
+  if(svgL)svgL.textContent=FLIGHT_MODE_SVG[m].ls;
+  if(svgR)svgR.textContent=FLIGHT_MODE_SVG[m].rs;
+})();
+
+// ── Sim Drone ─────────────────────────────────────────────────
+let simScene,simCam,simRen,simDrone,simRotors=[],simVel={x:0,y:0,z:0},simLastT=performance.now();
+
+function simAxis(gp,name){
+  const mode=localStorage.getItem('droneSimFlightMode')||'2';
+  const def=mode==='1'?{yaw:0,throttle:3,roll:2,pitch:1}:{yaw:0,throttle:1,roll:2,pitch:3};
+  const defInv={throttle:true};
+  let idx,inv,rest,dz=0.12;
+
+  // 優先讀 manual card UI 的即時值（不需先按儲存）
+  const mc=document.getElementById('manual-card');
+  const selEl=document.getElementById('ms-'+name);
+  if(mc&&mc.style.display!=='none'&&selEl){
+    idx=+selEl.value;
+    inv=document.getElementById('mi-'+name)?.checked??defInv[name]??false;
+    rest=parseFloat(document.getElementById('mr-'+name)?.value||'0')||0;
+  } else {
+    // 其次讀 localStorage 設定（不限 standard/custom，都套用）
+    const cfg=load()[gp.id]||null;
+    if(cfg&&cfg.axes&&cfg.axes[name]!=null){
+      const ax=cfg.axes[name];
+      idx=ax.i??ax.index??def[name]??0;
+      inv=ax.inv??ax.invert??defInv[name]??false;
+      rest=ax.rest??0;dz=cfg.deadzone??0.12;
+    } else {
+      idx=def[name]??0;inv=defInv[name]??false;rest=0;
+    }
+  }
+
+  const raw=gp.axes[idx]??0;
+  const hr=1+Math.abs(rest);let v=(raw-rest)/hr;
+  if(Math.abs(v)<dz)v=0;else v=(v-Math.sign(v)*dz)/(1-dz);
+  if(inv)v=-v;
+  return v;
+}
+
+function initSimDrone(){
+  if(typeof THREE==='undefined')return;
+  const card=document.getElementById('sim-card');
+  const cv=document.getElementById('sim-cv');
+  const w=card.clientWidth-20,h=200;
+  cv.width=w;cv.height=h;
+
+  simRen=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+  simRen.setPixelRatio(Math.min(devicePixelRatio,2));
+  simRen.setSize(w,h);simRen.shadowMap.enabled=true;
+
+  simScene=new THREE.Scene();
+  simScene.background=new THREE.Color(0x060e18);
+  simScene.fog=new THREE.Fog(0x060e18,10,22);
+
+  simCam=new THREE.PerspectiveCamera(54,w/h,.1,40);
+  simCam.position.set(0,3.5,-5.5);simCam.lookAt(0,1.5,0);
+
+  simScene.add(new THREE.AmbientLight(0xffffff,.45));
+  const dl=new THREE.DirectionalLight(0xffffff,.9);
+  dl.position.set(4,10,4);dl.castShadow=true;
+  dl.shadow.mapSize.set(512,512);simScene.add(dl);
+  const fill=new THREE.DirectionalLight(0x2060ff,.2);fill.position.set(-3,2,-3);simScene.add(fill);
+
+  const gnd=new THREE.Mesh(new THREE.PlaneGeometry(14,14),
+    new THREE.MeshStandardMaterial({color:0x060e18}));
+  gnd.rotation.x=-Math.PI/2;gnd.receiveShadow=true;simScene.add(gnd);
+  simScene.add(new THREE.GridHelper(14,14,0x1e3a5f,0x1e293b));
+
+  for(let x=-1;x<=1;x+=2)for(let z=-1;z<=1;z+=2){
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,5,4),
+      new THREE.MeshBasicMaterial({color:0x1e3a5f}));
+    pole.position.set(x*3.5,2.5,z*3.5);simScene.add(pole);
+    for(let y=0;y<=4;y++){
+      const tick=new THREE.Mesh(new THREE.BoxGeometry(.06,.01,.06),
+        new THREE.MeshBasicMaterial({color:0x2a4a7f}));
+      tick.position.set(x*3.5,y,z*3.5);simScene.add(tick);
+    }
+  }
+  const pad=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.01,16),
+    new THREE.MeshStandardMaterial({color:0x1e3a5f,emissive:0x0a1a3a,emissiveIntensity:.4}));
+  pad.position.set(0,.005,0);simScene.add(pad);
+
+  // drone
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.3,.08,.3),
+    new THREE.MeshPhongMaterial({color:0x38bdf8}));
+  body.castShadow=true;g.add(body);
+  const nose=new THREE.Mesh(new THREE.SphereGeometry(.04,6,6),
+    new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x88aaff,emissiveIntensity:.5}));
+  nose.position.set(0,.06,.16);g.add(nose);
+  const armMat=new THREE.MeshPhongMaterial({color:0x475569});
+  simRotors=[];
+  [{x:.35,z:.35},{x:-.35,z:.35},{x:.35,z:-.35},{x:-.35,z:-.35}].forEach((p,i)=>{
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(.26,.04,.04),armMat);
+    arm.position.set(p.x*.62,0,p.z*.62);arm.rotation.y=Math.atan2(p.x,p.z);g.add(arm);
+    const rotor=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.01,12),
+      new THREE.MeshPhongMaterial({color:0x334155,transparent:true,opacity:.72}));
+    rotor.position.set(p.x,.05,p.z);g.add(rotor);simRotors.push(rotor);
+  });
+  g.position.set(0,1.5,0);simScene.add(g);simDrone=g;
+}
+
+function updSimDrone(gp){
+  if(!simRen){initSimDrone();return;}  // 延遲初始化：main 可見後才有正確 clientWidth
+  if(!simDrone)return;
+  const now=performance.now(),dt=Math.min((now-simLastT)/1000,.05);simLastT=now;
+
+  const yaw=simAxis(gp,'yaw'),thr=simAxis(gp,'throttle');
+  const roll=simAxis(gp,'roll'),pitch=simAxis(gp,'pitch');
+
+  // altitude spring
+  const targetH=0.4+((thr+1)*.5)*3.6;
+  simVel.y+=(targetH-simDrone.position.y)*5*dt;
+  simVel.y*=Math.pow(0.82,dt*60);
+  // horizontal in drone local frame
+  const sy=Math.sin(simDrone.rotation.y),cy=Math.cos(simDrone.rotation.y);
+  simVel.x+=(roll*cy+pitch*sy)*7*dt;
+  simVel.z+=(-roll*sy+pitch*cy)*7*dt;
+  simVel.x*=Math.pow(0.72,dt*60);simVel.z*=Math.pow(0.72,dt*60);
+
+  simDrone.position.x+=simVel.x*dt;
+  simDrone.position.y+=simVel.y*dt;
+  simDrone.position.z+=simVel.z*dt;
+  simDrone.position.x=Math.max(-4.5,Math.min(4.5,simDrone.position.x));
+  simDrone.position.y=Math.max(.12,Math.min(5,simDrone.position.y));
+  simDrone.position.z=Math.max(-4.5,Math.min(4.5,simDrone.position.z));
+
+  simDrone.rotation.y-=yaw*2.5*dt;
+  simDrone.rotation.z=THREE.MathUtils.lerp(simDrone.rotation.z,-roll*.45,dt*9);
+  simDrone.rotation.x=THREE.MathUtils.lerp(simDrone.rotation.x,pitch*.45,dt*9);
+  simRotors.forEach((r,i)=>{r.rotation.y+=(i%2===0?1:-1)*14*dt;});
+
+  // soft camera follow
+  simCam.position.x=THREE.MathUtils.lerp(simCam.position.x,simDrone.position.x*.25,dt*2.5);
+  simCam.lookAt(simDrone.position);
+  simRen.render(simScene,simCam);
+}
+
+// ── main loop ────────────────────────
+function loop(){
+  requestAnimationFrame(loop);
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  const gp=pads[viewPlayer];if(!gp||!gp.connected)return;
+  gp.axes.forEach((v,i)=>{
+    updAx(i,v);
+    if(wizOn&&!wizLock&&wizIdx<WIZ.length&&WIZ[wizIdx].t==='axis'&&Math.abs(v)>0.7)wizNext(i);
+  });
+  gp.buttons.forEach((b,i)=>{
+    updBtn(i,b.pressed);
+    if(wizOn&&!wizLock&&wizIdx<WIZ.length&&WIZ[wizIdx].t==='btn'&&b.pressed)wizNext(i);
+  });
+  updXboxSvg(gp);
+  updSimDrone(gp);
+}
+loop();
+</script>
+</body>
+</html>

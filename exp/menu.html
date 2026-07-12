@@ -363,19 +363,61 @@ for(let i=0;i<TOTAL;i++){
   if(w)w.addEventListener('mouseenter',()=>setFocus(i));
 }
 
+// ─── 搖桿 Config Reader（含 STARTRC 內建）─────────────────
+const _STARTRC_CFG={
+  axes:{yaw:{i:3,inv:false,rest:0},throttle:{i:2,inv:false,rest:0},
+        roll:{i:0,inv:true,rest:0},pitch:{i:1,inv:false,rest:0}},
+  buttons:{confirm:1,back:1,camCycle:0,pilotCycle:0},
+  axBtns:[{ax:4,type:'3pos',fn:'camCycle'},{ax:5,type:'2pos',fn:'back'},
+          {ax:6,type:'3pos',fn:'pilotCycle'},{ax:7,type:'2pos',fn:'confirm'}],
+  menuNav:'stick'
+};
+function _loadCfg(id){try{return JSON.parse(localStorage.getItem('droneSimGpMap')||'{}')[id]||null;}catch{return null;}}
+function _gpCfg(gp){if(!gp)return null;return _loadCfg(gp.id)||(gp.id.toLowerCase().includes('startrc')?_STARTRC_CFG:null);}
+
 // 搖桿
 const _gpPrev={};
+let _stickNavCd=0;
 (function gpLoop(){
   requestAnimationFrame(gpLoop);
   const gp=navigator.getGamepads?.()[0];
   if(!gp)return;
-  const b0=!!gp.buttons[0]?.pressed;
+  const cfg=_gpCfg(gp);
+  const now=performance.now();
+
+  // ── 標準 D-pad 按鈕導航（Xbox/PS）──
   const b12=!!gp.buttons[12]?.pressed,b13=!!gp.buttons[13]?.pressed;
   const b14=!!gp.buttons[14]?.pressed,b15=!!gp.buttons[15]?.pressed;
   if((b14&&!_gpPrev[14])||(b12&&!_gpPrev[12]))setFocus(focusIdx-1);
   if((b15&&!_gpPrev[15])||(b13&&!_gpPrev[13]))setFocus(focusIdx+1);
-  if(b0&&!_gpPrev[0])goLevel(focusIdx);
-  _gpPrev[0]=b0;_gpPrev[12]=b12;_gpPrev[13]=b13;_gpPrev[14]=b14;_gpPrev[15]=b15;
+  _gpPrev[12]=b12;_gpPrev[13]=b13;_gpPrev[14]=b14;_gpPrev[15]=b15;
+
+  // ── 搖桿軸導航（STARTRC 用 Yaw / Roll 軸）──
+  if(now>_stickNavCd){
+    const yawAx=(cfg?.axes?.yaw?.i??3);
+    const rollAx=(cfg?.axes?.roll?.i??0);
+    const yv=gp.axes[yawAx]??0;
+    const rv=gp.axes[rollAx]??0;
+    const nav=(cfg?.axes?.roll?.inv?-rv:rv)||(yv);
+    if(nav<-0.6){setFocus(focusIdx-1);_stickNavCd=now+350;}
+    else if(nav>0.6){setFocus(focusIdx+1);_stickNavCd=now+350;}
+  }
+
+  // ── 確認（標準 b0 + axBtns confirm）──
+  const b0=!!gp.buttons[0]?.pressed;
+  let axConfirm=false;
+  if(cfg?.axBtns){
+    const ab=cfg.axBtns.find(b=>b.fn==='confirm');
+    if(ab){
+      const key='menu_ax'+ab.ax;
+      const cur=gp.axes[ab.ax]??0,prev=_gpPrev[key]??cur;
+      _gpPrev[key]=cur;
+      if(ab.type==='2pos')axConfirm=prev>0.5&&cur<-0.5;
+      else{const c=cur>0.5?1:cur<-0.5?-1:0,p=prev>0.5?1:prev<-0.5?-1:0;axConfirm=c!==p;}
+    }
+  }
+  if((b0&&!_gpPrev[0])||axConfirm)goLevel(focusIdx);
+  _gpPrev[0]=b0;
 })();
 
 window.addEventListener('gamepadconnected',()=>document.getElementById('gp-status').classList.remove('hidden'));
