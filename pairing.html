@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>配對大廳 — 無人機訓練</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0f1a;color:#e2e8f0;font-family:'Segoe UI',system-ui,sans-serif;
+     height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+header{padding:10px 16px;border-bottom:1px solid #1e293b;
+       display:flex;align-items:center;gap:12px;flex-shrink:0}
+.back{color:#64748b;text-decoration:none;font-size:.78rem}
+.back:hover{color:#94a3b8}
+header h1{font-size:1rem;font-weight:700;color:#38bdf8}
+header p{font-size:.66rem;color:#475569}
+
+.lobby{display:grid;grid-template-columns:1fr 1fr;flex:1;overflow:hidden}
+.panel{display:flex;flex-direction:column;gap:9px;padding:12px;
+       border-right:1px solid #1e293b;overflow-y:auto}
+.panel:last-child{border-right:none}
+
+.plabel{font-size:1.05rem;font-weight:700;display:flex;align-items:center;gap:8px}
+.p1c{color:#3b82f6} .p2c{color:#ef4444}
+.dot{width:9px;height:9px;border-radius:50%;background:#334155;flex-shrink:0;transition:.3s}
+.dot.on{background:#22c55e;box-shadow:0 0 6px #22c55e88}
+
+.row{display:flex;align-items:center;gap:6px;font-size:.71rem;color:#94a3b8}
+select{background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px;
+       padding:4px 7px;font-size:.7rem;flex:1;cursor:pointer}
+select:focus{outline:1px solid #3b82f6;border-color:#3b82f6}
+
+.mrow{display:flex;gap:5px}
+.mbtn{flex:1;background:#1e293b;border:1px solid #334155;color:#64748b;border-radius:6px;
+      padding:5px 2px;font-size:.64rem;cursor:pointer;transition:.15s;text-align:center}
+.mbtn:hover{background:#243347;color:#94a3b8}
+.mbtn.b{background:#1e3a5f;border-color:#3b82f6;color:#93c5fd}
+.mbtn.r{background:#450a0a;border-color:#ef4444;color:#fca5a5}
+
+canvas.sim{width:100%!important;border-radius:8px;border:1px solid #1e293b;display:block;
+           background:#0a0f1a}
+
+.axwrap{display:flex;flex-direction:column;gap:3px}
+.axrow{display:flex;align-items:center;gap:5px;font-size:.6rem}
+.axnm{width:64px;text-align:right;color:#64748b;flex-shrink:0}
+.axtrack{flex:1;height:5px;background:#1e293b;border-radius:3px;overflow:hidden;position:relative}
+.axfill{position:absolute;height:100%;top:0;background:#38bdf8}
+.axnum{width:36px;font-family:monospace;color:#475569;font-size:.6rem;text-align:right;flex-shrink:0}
+
+.hint{font-size:.6rem;color:#475569;line-height:1.5;text-align:center}
+
+.rbtn{width:100%;padding:9px;border-radius:8px;border:none;cursor:pointer;
+      font-size:.82rem;font-weight:600;background:#1e293b;color:#64748b;
+      border:1px solid #334155;transition:.2s}
+.rbtn:hover:not(.on){background:#273548}
+.rbtn.on{background:#14532d;color:#86efac;border-color:#22c55e}
+
+footer{padding:10px;border-top:1px solid #1e293b;text-align:center;flex-shrink:0}
+.sbtn{padding:11px 52px;background:#1e293b;color:#475569;border:1px solid #334155;
+      border-radius:10px;font-size:.9rem;font-weight:700;cursor:default;transition:.3s}
+.sbtn.on{background:#1d4ed8;color:#dbeafe;border-color:#3b82f6;cursor:pointer;
+          box-shadow:0 0 18px #3b82f640}
+.sbtn.on:hover{background:#2563eb}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="back" href="menu.html">← 主選單</a>
+  <h1>🎮 配對大廳</h1>
+  <p>插上手把 → 選控制器 → 試飛確認手感 → 按準備</p>
+  <a class="back" href="exp/gamepad-test.html" style="margin-left:auto;white-space:nowrap">⚙️ 搖桿設定</a>
+</header>
+
+<div class="lobby">
+
+  <!-- P1 -->
+  <div class="panel" id="panel1">
+    <div class="plabel">
+      <div class="dot" id="dot1"></div>
+      <span class="p1c">P1 玩家一</span>
+    </div>
+    <div class="row">
+      <span>手把：</span>
+      <select id="sel1" onchange="assignGp(1,+this.value)">
+        <option value="-1">— 未偵測到控制器 —</option>
+      </select>
+    </div>
+    <div class="mrow">
+      <button class="mbtn" id="m1a" onclick="setMode(1,'1')">✈️ Mode 1 油門右桿</button>
+      <button class="mbtn" id="m2a" onclick="setMode(1,'2')">🎮 Mode 2 油門左桿</button>
+    </div>
+    <canvas class="sim" id="c1" height="200"></canvas>
+    <div class="axwrap" id="ax1"></div>
+    <div class="hint">↑↓ 油門控制高度 · 左右搖桿控制移動 · 白點＝機頭方向</div>
+    <button class="rbtn" id="r1" onclick="toggleReady(1)">▷ 尚未準備</button>
+  </div>
+
+  <!-- P2 -->
+  <div class="panel" id="panel2">
+    <div class="plabel">
+      <div class="dot" id="dot2"></div>
+      <span class="p2c">P2 玩家二</span>
+    </div>
+    <div class="row">
+      <span>手把：</span>
+      <select id="sel2" onchange="assignGp(2,+this.value)">
+        <option value="-1">— 未偵測到控制器 —</option>
+      </select>
+    </div>
+    <div class="mrow">
+      <button class="mbtn" id="m1b" onclick="setMode(2,'1')">✈️ Mode 1 油門右桿</button>
+      <button class="mbtn" id="m2b" onclick="setMode(2,'2')">🎮 Mode 2 油門左桿</button>
+    </div>
+    <canvas class="sim" id="c2" height="200"></canvas>
+    <div class="axwrap" id="ax2"></div>
+    <div class="hint">↑↓ 油門控制高度 · 左右搖桿控制移動 · 白點＝機頭方向</div>
+    <button class="rbtn" id="r2" onclick="toggleReady(2)">▷ 尚未準備</button>
+  </div>
+
+</div>
+
+<footer>
+  <button class="sbtn" id="sbtn" onclick="startGame()">⚔️ 開始對戰</button>
+</footer>
+
+<script>
+// ─── GP Config Reader ─────────────────────────────────────────
+(function(){
+  const KEY='droneSimGpMap';
+  function loadCfg(id){try{return JSON.parse(localStorage.getItem(KEY)||'{}')[id]||null;}catch{return null;}}
+  function expo(v,e){return e>0?v*(1-e)+v*v*v*e:v;}
+  const _STARTRC_CFG={
+    axes:{yaw:{i:3,inv:false,rest:0},throttle:{i:2,inv:false,rest:0},
+          roll:{i:0,inv:true,rest:0},pitch:{i:1,inv:false,rest:0}},
+    buttons:{confirm:1,back:1,camCycle:0,pilotCycle:0},
+    axBtns:[{ax:4,type:'3pos',fn:'camCycle'},{ax:5,type:'2pos',fn:'back'},
+            {ax:6,type:'3pos',fn:'pilotCycle'},{ax:7,type:'2pos',fn:'confirm'}],
+    menuNav:'stick'
+  };
+  const _XBOX_CFG={
+    axes:{yaw:{i:0,inv:false,rest:0},throttle:{i:1,inv:true,rest:0},
+          roll:{i:2,inv:true,rest:0},pitch:{i:3,inv:true,rest:0}},
+    buttons:{confirm:0,back:1,camCycle:9,pilotCycle:8},
+    menuNav:'stick',deadzone:0.12,expo:0
+  };
+  window.gpCfgRead=function(gp){
+    if(!gp) return null;
+    const id=gp.id.toLowerCase();
+    return loadCfg(gp.id)
+        || (id.includes('startrc')?_STARTRC_CFG:null)
+        || (id.includes('standard gamepad')||id.includes('xinput')?_XBOX_CFG:null);
+  };
+  window.gpAxis=function(gp,name,cfg,mode){
+    mode=mode||'2';
+    const def=mode==='1'?{yaw:0,throttle:3,roll:2,pitch:1}:{yaw:0,throttle:1,roll:2,pitch:3};
+    const defInv={throttle:true};
+    let idx,inv,dz,ex,rest;
+    if(cfg&&cfg.axes&&cfg.axes[name]!=null){
+      const ax=cfg.axes[name];
+      idx=ax.i??ax.index??def[name]??0;inv=ax.inv??ax.invert??defInv[name]??false;
+      rest=ax.rest??0;dz=cfg.deadzone??0.12;ex=cfg.expo??0;
+    } else {
+      idx=def[name]??0;inv=defInv[name]??false;rest=0;dz=0.12;ex=0;
+    }
+    const raw=gp.axes[idx]??0;
+    const hr=1+Math.abs(rest);let v=(raw-rest)/hr;
+    if(Math.abs(v)<dz)v=0;else v=(v-Math.sign(v)*dz)/(1-dz);
+    if(inv)v=-v;
+    return expo(v,ex);
+  };
+})();
+
+// ─── Player state ─────────────────────────────────────────────
+const PS={
+  1:{gpIdx:-1,mode:'2',ready:false,scene:null,cam:null,ren:null,drone:null,rotors:[],vel:{x:0,y:0,z:0},axEls:[]},
+  2:{gpIdx:-1,mode:'2',ready:false,scene:null,cam:null,ren:null,drone:null,rotors:[],vel:{x:0,y:0,z:0},axEls:[]}
+};
+
+// ─── Build drone ──────────────────────────────────────────────
+function buildDrone(color){
+  const g=new THREE.Group();
+  // body
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.3,.08,.3),new THREE.MeshPhongMaterial({color}));
+  body.castShadow=true; g.add(body);
+  // nose (white dot = front direction)
+  const nose=new THREE.Mesh(new THREE.SphereGeometry(.04,6,6),
+    new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x88aaff,emissiveIntensity:.5}));
+  nose.position.set(0,.06,.16); g.add(nose);
+  // arms & rotors
+  const armMat=new THREE.MeshPhongMaterial({color:0x475569});
+  const rotors=[];
+  [{x:.35,z:.35},{x:-.35,z:.35},{x:.35,z:-.35},{x:-.35,z:-.35}].forEach((p,i)=>{
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(.26,.04,.04),armMat);
+    arm.position.set(p.x*.62,0,p.z*.62);
+    arm.rotation.y=Math.atan2(p.x,p.z); g.add(arm);
+    const rotor=new THREE.Mesh(
+      new THREE.CylinderGeometry(.13,.13,.01,12),
+      new THREE.MeshPhongMaterial({color:0x334155,transparent:true,opacity:.72})
+    );
+    rotor.position.set(p.x,0.05,p.z); g.add(rotor); rotors.push(rotor);
+  });
+  return {group:g,rotors};
+}
+
+// ─── Init Three.js scene ──────────────────────────────────────
+function initScene(pid){
+  const p=PS[pid];
+  const canvas=document.getElementById('c'+pid);
+  const w=canvas.parentElement.clientWidth-24, h=200;
+  canvas.width=w; canvas.height=h;
+
+  p.ren=new THREE.WebGLRenderer({canvas,antialias:true});
+  p.ren.setPixelRatio(Math.min(devicePixelRatio,2));
+  p.ren.setSize(w,h);
+  p.ren.shadowMap.enabled=true;
+
+  p.scene=new THREE.Scene();
+  p.scene.background=new THREE.Color(pid===1?0x060e1a:0x140608);
+  p.scene.fog=new THREE.Fog(pid===1?0x060e1a:0x140608,10,22);
+
+  p.cam=new THREE.PerspectiveCamera(54,w/h,.1,40);
+  p.cam.position.set(0,3.5,-5.5);
+  p.cam.lookAt(0,1.5,0);
+
+  p.scene.add(new THREE.AmbientLight(0xffffff,.45));
+  const dl=new THREE.DirectionalLight(0xffffff,.9);
+  dl.position.set(4,10,4); dl.castShadow=true;
+  dl.shadow.mapSize.set(512,512); p.scene.add(dl);
+  const fill=new THREE.DirectionalLight(pid===1?0x2060ff:0xff2020,.2);
+  fill.position.set(-3,2,-3); p.scene.add(fill);
+
+  // ground
+  const gnd=new THREE.Mesh(new THREE.PlaneGeometry(14,14),
+    new THREE.MeshStandardMaterial({color:pid===1?0x060e18:0x120506}));
+  gnd.rotation.x=-Math.PI/2; gnd.receiveShadow=true; p.scene.add(gnd);
+  p.scene.add(new THREE.GridHelper(14,14,
+    pid===1?0x1e3a5f:0x3b1010, pid===1?0x1e293b:0x1e0808));
+
+  // altitude reference poles
+  for(let x=-1;x<=1;x+=2)for(let z=-1;z<=1;z+=2){
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,5,4),
+      new THREE.MeshBasicMaterial({color:pid===1?0x1e3a5f:0x3b1010}));
+    pole.position.set(x*3.5,2.5,z*3.5); p.scene.add(pole);
+    // height tick marks every 1m
+    for(let y=0;y<=4;y++){
+      const tick=new THREE.Mesh(new THREE.BoxGeometry(.06,.01,.06),
+        new THREE.MeshBasicMaterial({color:pid===1?0x2a4a7f:0x5a1a1a}));
+      tick.position.set(x*3.5,y,z*3.5); p.scene.add(tick);
+    }
+  }
+
+  // home pad
+  const pad=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.01,16),
+    new THREE.MeshStandardMaterial({color:pid===1?0x1e3a5f:0x5a1010,emissive:pid===1?0x0a1a3a:0x2a0808,emissiveIntensity:.4}));
+  pad.position.set(0,.005,0); p.scene.add(pad);
+
+  const {group,rotors}=buildDrone(pid===1?0x3b82f6:0xef4444);
+  group.position.set(0,1.5,0);
+  p.scene.add(group);
+  p.drone=group; p.rotors=rotors;
+
+  // axis bars
+  const div=document.getElementById('ax'+pid);
+  div.innerHTML=''; p.axEls=[];
+  [['偏航 Yaw','yaw'],['油門 Thr','throttle'],['橫移 Roll','roll'],['俯仰 Pitch','pitch']].forEach(([nm],i)=>{
+    const row=document.createElement('div'); row.className='axrow';
+    const fid=`f${pid}_${i}`, vid=`v${pid}_${i}`;
+    row.innerHTML=`<span class="axnm">${nm}</span><div class="axtrack"><div class="axfill" id="${fid}" style="left:50%;width:0"></div></div><span class="axnum" id="${vid}">0.00</span>`;
+    div.appendChild(row);
+    p.axEls.push({fill:document.getElementById(fid),val:document.getElementById(vid)});
+  });
+}
+
+// ─── Mode & assignment ────────────────────────────────────────
+function setMode(pid,m){
+  PS[pid].mode=m;
+  localStorage.setItem(`droneSimFlightMode_P${pid}`,m);
+  const suf=pid===1?'a':'b';
+  const cls1='mbtn'+(m==='1'?' '+(pid===1?'b':'r'):'');
+  const cls2='mbtn'+(m==='2'?' '+(pid===1?'b':'r'):'');
+  document.getElementById('m1'+suf).className=cls1;
+  document.getElementById('m2'+suf).className=cls2;
+}
+
+function assignGp(pid,idx){
+  PS[pid].gpIdx=idx;
+  document.getElementById('dot'+pid).className='dot'+(idx>=0?' on':'');
+  if(idx>=0) setReady(pid,false);
+}
+
+function toggleReady(pid){
+  if(PS[pid].gpIdx<0){alert('請先選擇手把！');return;}
+  setReady(pid,!PS[pid].ready);
+}
+function setReady(pid,val){
+  PS[pid].ready=val;
+  const btn=document.getElementById('r'+pid);
+  btn.className='rbtn'+(val?' on':'');
+  btn.textContent=val?'✅ 準備好！':'▷ 尚未準備';
+  const ok=PS[1].ready&&PS[2].ready;
+  document.getElementById('sbtn').className='sbtn'+(ok?' on':'');
+}
+
+function startGame(){
+  if(!PS[1].ready||!PS[2].ready)return;
+  localStorage.setItem('droneSimP1',PS[1].gpIdx);
+  localStorage.setItem('droneSimP2',PS[2].gpIdx);
+  localStorage.setItem('droneSimFlightMode_P1',PS[1].mode);
+  localStorage.setItem('droneSimFlightMode_P2',PS[2].mode);
+  // TODO: 跳轉 1v1 場景
+  alert('🚀 配對完成！\n\nP1 → gamepad['+PS[1].gpIdx+'] Mode '+PS[1].mode+'\nP2 → gamepad['+PS[2].gpIdx+'] Mode '+PS[2].mode+'\n\n（1v1 場景建置中）');
+}
+
+// ─── Gamepad selectors ────────────────────────────────────────
+function refreshSels(){
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  [1,2].forEach(pid=>{
+    const sel=document.getElementById('sel'+pid);
+    const cur=PS[pid].gpIdx;
+    sel.innerHTML='<option value="-1">— 未選擇 —</option>';
+    for(let i=0;i<4;i++){
+      const gp=pads[i]; if(!gp||!gp.connected)continue;
+      const opt=document.createElement('option');
+      opt.value=i; opt.selected=(i===cur);
+      opt.textContent=`gamepad[${i}] ${gp.id.substring(0,34)}`;
+      sel.appendChild(opt);
+    }
+  });
+}
+window.addEventListener('gamepadconnected',refreshSels);
+window.addEventListener('gamepaddisconnected',()=>{
+  refreshSels();
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  [1,2].forEach(pid=>{const gp=pads[PS[pid].gpIdx];if(!gp||!gp.connected)assignGp(pid,-1);});
+});
+
+// ─── Physics & update ─────────────────────────────────────────
+function updatePlayer(pid,dt){
+  const p=PS[pid]; if(!p.drone)return;
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  const gp=p.gpIdx>=0?pads[p.gpIdx]:null;
+  let yaw=0,thr=0,roll=0,pitch=0;
+
+  if(gp&&gp.connected){
+    const cfg=window.gpCfgRead(gp);
+    yaw  =window.gpAxis(gp,'yaw',  cfg,p.mode);
+    thr  =window.gpAxis(gp,'throttle',cfg,p.mode);
+    roll =window.gpAxis(gp,'roll', cfg,p.mode);
+    pitch=window.gpAxis(gp,'pitch',cfg,p.mode);
+    // axis bars
+    [yaw,thr,roll,pitch].forEach((v,i)=>{
+      const el=p.axEls[i]; if(!el)return;
+      const pct=(Math.abs(v)*50).toFixed(1);
+      if(v>=0){el.fill.style.left='50%';el.fill.style.width=pct+'%';el.fill.style.background='#38bdf8';}
+      else{el.fill.style.left=(50-parseFloat(pct)).toFixed(1)+'%';el.fill.style.width=pct+'%';el.fill.style.background='#f59e0b';}
+      el.val.textContent=v.toFixed(2);
+    });
+  } else {
+    p.axEls.forEach(el=>{if(el&&el.fill){el.fill.style.width='0';el.val.textContent='0.00';}});
+  }
+
+  const drone=p.drone;
+  // Throttle → spring to target altitude
+  const targetH=0.4+((thr+1)*0.5)*3.6; // thr -1..1 → 0.4m..4m
+  p.vel.y+=(targetH-drone.position.y)*5*dt;
+  p.vel.y*=Math.pow(0.82,dt*60);
+
+  // Roll/pitch → horizontal velocity in drone local frame
+  const sy=Math.sin(drone.rotation.y), cy=Math.cos(drone.rotation.y);
+  const lx=roll*cy+pitch*sy, lz=-roll*sy+pitch*cy;
+  p.vel.x+=lx*7*dt; p.vel.z+=lz*7*dt;
+  p.vel.x*=Math.pow(0.72,dt*60);
+  p.vel.z*=Math.pow(0.72,dt*60);
+
+  drone.position.x+=p.vel.x*dt;
+  drone.position.y+=p.vel.y*dt;
+  drone.position.z+=p.vel.z*dt;
+
+  // Clamp bounds
+  drone.position.x=Math.max(-4.5,Math.min(4.5,drone.position.x));
+  drone.position.y=Math.max(.12,Math.min(5,drone.position.y));
+  drone.position.z=Math.max(-4.5,Math.min(4.5,drone.position.z));
+
+  // Yaw
+  drone.rotation.y-=yaw*2.5*dt;
+  // Visual tilt (lerp for smooth)
+  drone.rotation.z=THREE.MathUtils.lerp(drone.rotation.z,-roll*.45,dt*9);
+  drone.rotation.x=THREE.MathUtils.lerp(drone.rotation.x, pitch*.45,dt*9);
+
+  // Rotor spin
+  p.rotors.forEach((r,i)=>{r.rotation.y+=(i%2===0?1:-1)*14*dt;});
+
+  // Camera: fixed position, softly tracks drone horizontally
+  p.cam.position.x=THREE.MathUtils.lerp(p.cam.position.x,drone.position.x*.25,dt*2.5);
+  p.cam.lookAt(drone.position);
+}
+
+// ─── Render loop ──────────────────────────────────────────────
+let lastT=performance.now();
+function loop(){
+  requestAnimationFrame(loop);
+  const now=performance.now(), dt=Math.min((now-lastT)/1000,.05); lastT=now;
+  [1,2].forEach(pid=>{
+    updatePlayer(pid,dt);
+    const p=PS[pid];
+    if(p.ren)p.ren.render(p.scene,p.cam);
+  });
+}
+
+// ─── Init ─────────────────────────────────────────────────────
+[1,2].forEach(pid=>{
+  initScene(pid);
+  const m=localStorage.getItem(`droneSimFlightMode_P${pid}`)||
+          localStorage.getItem('droneSimFlightMode')||'2';
+  setMode(pid,m);
+});
+refreshSels(); // 頁面載入時掃描已連接的搖桿
+loop();
+</script>
+</body>
+</html>
