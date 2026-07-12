@@ -118,6 +118,7 @@ footer{padding:10px;border-top:1px solid #1e293b;text-align:center;flex-shrink:0
     <div class="axwrap" id="ax2"></div>
     <div class="hint">↑↓ 油門控制高度 · 左右搖桿控制移動 · 白點＝機頭方向</div>
     <button class="rbtn" id="r2" onclick="toggleReady(2)">▷ 尚未準備</button>
+    <button class="rbtn" id="ai-btn" onclick="setAI()" style="margin-top:6px;background:#1e293b;color:#94a3b8;border-color:#334155">🤖 P2 由 AI 代替</button>
   </div>
 
 </div>
@@ -304,14 +305,21 @@ function setReady(pid,val){
   document.getElementById('sbtn').className='sbtn'+(ok?' on':'');
 }
 
+function setAI(){
+  localStorage.setItem('droneSimAI','true');
+  setReady(2,true);
+  document.getElementById('ai-btn').className='rbtn on';
+  document.getElementById('ai-btn').textContent='🤖 AI 已就緒';
+}
+
 function startGame(){
   if(!PS[1].ready||!PS[2].ready)return;
+  localStorage.setItem('droneSimAI', PS[2].gpIdx<0&&document.getElementById('ai-btn').classList.contains('on')?'true':'false');
   localStorage.setItem('droneSimP1',PS[1].gpIdx);
   localStorage.setItem('droneSimP2',PS[2].gpIdx);
   localStorage.setItem('droneSimFlightMode_P1',PS[1].mode);
   localStorage.setItem('droneSimFlightMode_P2',PS[2].mode);
-  // TODO: 跳轉 1v1 場景
-  alert('🚀 配對完成！\n\nP1 → gamepad['+PS[1].gpIdx+'] Mode '+PS[1].mode+'\nP2 → gamepad['+PS[2].gpIdx+'] Mode '+PS[2].mode+'\n\n（1v1 場景建置中）');
+  window.location.href='PVP/soccer-match-2p.html';
 }
 
 // ─── Gamepad selectors ────────────────────────────────────────
