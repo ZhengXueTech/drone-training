@@ -277,12 +277,15 @@ input[type=range]{accent-color:#22d3ee}
           class="flex-1 bg-gradient-to-r from-cyan-500 to-orange-400 hover:scale-105 active:scale-100 transition text-slate-950 font-black py-2.5 rounded-xl text-sm uppercase tracking-wider shadow-lg">
           ⚔ 純 1v1
         </button>
-        <div class="flex flex-col gap-1 flex-1">
-          <button id="btn-gk" onclick="showGKOptions()"
-            class="w-full bg-gradient-to-r from-purple-500 to-pink-400 hover:scale-105 active:scale-100 transition text-slate-950 font-black py-2.5 rounded-xl text-sm uppercase tracking-wider shadow-lg">
-            🥅 3v3 · 各隊2AI守門
-          </button>
-        </div>
+        <button id="btn-gk" onclick="showGKOptions()"
+          class="flex-1 bg-gradient-to-r from-purple-500 to-pink-400 hover:scale-105 active:scale-100 transition text-slate-950 font-black py-2.5 rounded-xl text-sm uppercase tracking-wider shadow-lg">
+          🥅 3v3 雙人
+        </button>
+        <button id="btn-ai" onclick="showAIOptions()"
+          class="flex-1 hover:scale-105 active:scale-100 transition text-slate-950 font-black py-2.5 rounded-xl text-sm uppercase tracking-wider shadow-lg"
+          style="background:linear-gradient(to right,#facc15,#f97316)">
+          🤖 1P vs AI
+        </button>
       </div>
       <!-- GK difficulty (shown on demand) -->
       <div id="gk-options" class="hidden glass rounded-xl p-2 flex items-center gap-2">
@@ -292,8 +295,12 @@ input[type=range]{accent-color:#22d3ee}
           <button id="diff-med"  class="diff-btn active" onclick="setPDiff('med')">⚡ 中等</button>
           <button id="diff-hard" class="diff-btn" onclick="setPDiff('hard')">💀 困難</button>
         </div>
-        <button id="btn-gk-go" onclick="enterMatch(true)"
+        <button id="btn-gk-go" onclick="enterMatch(true,false)"
           class="ml-1 bg-gradient-to-r from-purple-500 to-pink-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-xs uppercase tracking-wider hover:scale-105 transition" style="pointer-events:auto">
+          出發 →
+        </button>
+        <button id="btn-ai-go" onclick="enterMatch(true,true)"
+          class="hidden ml-1 text-slate-950 font-black px-3 py-1.5 rounded-lg text-xs uppercase tracking-wider hover:scale-105 transition" style="pointer-events:auto;background:linear-gradient(to right,#facc15,#f97316)">
           出發 →
         </button>
       </div>
@@ -348,6 +355,61 @@ input[type=range]{accent-color:#22d3ee}
 <!-- ================================================================ -->
 <script>
 'use strict';
+
+
+// ──────────────────────────────────────────────
+//  GP CONFIG READER  (Pattern A: d.yaw+=yr*dt)
+// ──────────────────────────────────────────────
+(function(){
+  const KEY='droneSimGpMap';
+  function loadCfg(id){try{return JSON.parse(localStorage.getItem(KEY)||'{}')[id]||null;}catch{return null;}}
+  function expo(v,e){return e>0?v*(1-e)+v*v*v*e:v;}
+  const _STARTRC_CFG={
+    axes:{yaw:{i:3,inv:true,rest:0},throttle:{i:2,inv:false,rest:0},
+          roll:{i:0,inv:true,rest:0},pitch:{i:1,inv:false,rest:0}},
+    buttons:{confirm:1,back:1,camCycle:0,pilotCycle:0},
+    axBtns:[{ax:4,type:'3pos',fn:'camCycle'},{ax:5,type:'2pos',fn:'back'},
+            {ax:6,type:'3pos',fn:'pilotCycle'},{ax:7,type:'2pos',fn:'confirm'}],
+    menuNav:'stick'
+  };
+  const _XBOX_CFG={
+    axes:{yaw:{i:0,inv:false,rest:0},throttle:{i:1,inv:true,rest:0},
+          roll:{i:2,inv:true,rest:0},pitch:{i:3,inv:true,rest:0}},
+    buttons:{confirm:0,back:1,camCycle:9,pilotCycle:8},
+    menuNav:'stick',deadzone:0.12,expo:0
+  };
+  window.gpCfgRead=function(gp){
+    if(!gp)return null;
+    const id=gp.id.toLowerCase();
+    return loadCfg(gp.id)
+        ||(id.includes('startrc')?_STARTRC_CFG:null)
+        ||(id.includes('standard gamepad')||id.includes('xinput')?_XBOX_CFG:null);
+  };
+  window.gpAxis=function(gp,name,cfg){
+    const def={yaw:0,throttle:1,roll:2,pitch:3};
+    const defInv={throttle:true};
+    let idx,inv,dz=0.12,ex=0,rest=0;
+    if(cfg&&cfg.axes&&cfg.axes[name]!=null){
+      const ax=cfg.axes[name];
+      idx=ax.i??def[name]??0;inv=ax.inv??defInv[name]??false;
+      rest=ax.rest??0;dz=cfg.deadzone??0.12;ex=cfg.expo??0;
+    }else{idx=def[name]??0;inv=defInv[name]??false;}
+    const raw=gp.axes[idx]??0;
+    const hr=1+Math.abs(rest);let v=(raw-rest)/hr;
+    if(Math.abs(v)<dz)v=0;else v=(v-Math.sign(v)*dz)/(1-dz);
+    if(inv)v=-v;
+    return expo(v,ex);
+  };
+  window.gpBtn=function(gp,name,cfg){
+    const def={confirm:0,back:1,camCycle:9,pilotCycle:8};
+    const idx=cfg?.buttons?.[name]??def[name]??0;
+    return !!(gp.buttons[idx]?.pressed);
+  };
+})();
+
+// P1/P2 gamepad index（從 pairing.html localStorage 讀，預設 0/1）
+let gpIdx1=+(localStorage.getItem('droneSimP1')??0);
+let gpIdx2=+(localStorage.getItem('droneSimP2')??1);
 
 // ──────────────────────────────────────────────
 //  FAI F9A-B CONSTANTS
@@ -465,6 +527,7 @@ let curSet=1, setTimer=SET_DUR;
 let scores={A:0,B:0}, setsWon={A:0,B:0}, setGoals={A:0,B:0}, setLog=[];
 let paused=false;
 let hasGK=false;
+let aiOpponent=false;
 let pDiff='med';
 let SF=1.0;
 
@@ -662,6 +725,8 @@ const STARTS_2P=[
   new THREE.Vector3( 0.12, GY,    GZ-.40), // [5] GK_B2 (Team B 右守)
 ];
 
+const DCFG_AI_FWD_B={team:TB, tc:0xffdd00, sc:0xffa500, playerIndex:null, xOff:0, isAIFwd:true};
+
 const DCFG_2P=[
   {team:TA, tc:0x00eeff, sc:0xff44cc, playerIndex:0},           // P1
   {team:TB, tc:0xff6622, sc:0x66aaff, playerIndex:1},           // P2
@@ -676,14 +741,14 @@ function initDrones(){
   drones=[];
   const count=hasGK?6:2;
   for(let i=0;i<count;i++){
-    const cfg=DCFG_2P[i];
+    const cfg=(aiOpponent&&i===1)?DCFG_AI_FWD_B:DCFG_2P[i];
     const isPlayer=cfg.playerIndex!==null;
     const mesh=makeDroneMesh(cfg);
     scene.add(mesh);
     const yaw=(cfg.team===TB)?Math.PI:0;
     drones.push({
       i, team:cfg.team, isPlayer, playerIndex:cfg.playerIndex,
-      role: isPlayer?'striker':cfg.team===TA?'gk_a':'gk_b',
+      role: isPlayer?'striker':(cfg.isAIFwd?'ai_fwd':cfg.team===TA?'gk_a':'gk_b'),
       xOff: cfg.xOff??0,
       pos: STARTS_2P[i].clone(),
       vel: new THREE.Vector3(),
@@ -761,7 +826,7 @@ function checkGoals(){
   // P1 (Team A) attacks goal at +GZ
   // P2 (Team B) attacks goal at -GZ
   drones.forEach(d=>{
-    if(!d.isPlayer)return;
+    if(!d.isPlayer&&d.role!=='ai_fwd')return;
     if(d.mustReturn)return;
     const targZ=d.team===TA?GZ:-GZ;
     const dir  =d.team===TA?1:-1;
@@ -780,7 +845,7 @@ function triggerGoal(team){
   else         {scores.B++;setGoals.B++;}
 
   // FAI: scoring team returns to own half
-  drones.forEach(d=>{if(d.isPlayer&&d.team===team)d.mustReturn=true;});
+  drones.forEach(d=>{if((d.isPlayer||d.role==='ai_fwd')&&d.team===team)d.mustReturn=true;});
   showGoalFx(team);
   if(team===TA) sfxGoalP1(); else sfxGoalP2();
   updateHUD();
@@ -805,8 +870,9 @@ function showGoalFx(team){
     wd.style.color='#00eeff'; wd.style.textShadow='0 0 40px #00eeff,0 0 80px #00eeff';
     wd.textContent='GOAL!'; sb.textContent='🎉 P1 得分！';
   }else{
-    wd.style.color='#ff6622'; wd.style.textShadow='0 0 40px #ff6622,0 0 80px #ff6622';
-    wd.textContent='GOAL!'; sb.textContent='🎉 P2 得分！';
+    const bCol=aiOpponent?'#ffdd00':'#ff6622';
+    wd.style.color=bCol; wd.style.textShadow=`0 0 40px ${bCol},0 0 80px ${bCol}`;
+    wd.textContent='GOAL!'; sb.textContent=aiOpponent?'🤖 AI 得分！':'🎉 P2 得分！';
   }
   setTimeout(()=>ov.classList.add('hidden'),2000);
 }
@@ -827,20 +893,20 @@ function p1Input(dt){
   if(KEYS['ArrowLeft']) roll+=1;
   if(KEYS['ArrowRight'])roll-=1;
 
-  const gp=navigator.getGamepads?.()[0];
+  const gp=((navigator.getGamepads?.()??[]))[gpIdx1];
   if(gp){
+    const cfg=window.gpCfgRead?.(gp)??null;
     document.getElementById('p1-gp').classList.remove('hidden');
-    const dz=v=>Math.abs(v)>.12?v:0;
-    thr  +=clamp(-dz(gp.axes[1]),-1,1);
-    yaw  +=clamp(-dz(gp.axes[0]),-1,1);
-    pitch+=clamp(-dz(gp.axes[3]),-1,1);
-    roll +=clamp(-dz(gp.axes[2]),-1,1);
+    thr  +=clamp(window.gpAxis(gp,'throttle',cfg),-1,1);
+    yaw  +=clamp(window.gpAxis(gp,'yaw',cfg),-1,1);
+    pitch+=clamp(window.gpAxis(gp,'pitch',cfg),-1,1);
+    roll +=clamp(window.gpAxis(gp,'roll',cfg),-1,1);
 
-    const camBtn=!!(gp.buttons[9]&&gp.buttons[9].pressed);
+    const camBtn=window.gpBtn(gp,'camCycle',cfg);
     if(camBtn&&!gpCamPrev0)toggleCam1();
     gpCamPrev0=camBtn;
 
-    const pilBtn=!!(gp.buttons[8]&&gp.buttons[8].pressed);
+    const pilBtn=window.gpBtn(gp,'pilotCycle',cfg);
     if(pilBtn&&!gpPilotPrev0)togglePilot1();
     gpPilotPrev0=pilBtn;
 
@@ -875,6 +941,7 @@ function p1Input(dt){
 
 function p2Input(dt){
   const d=drones[1]; if(!d)return;
+  if(aiOpponent)return;
   let thr=0,yaw=0,pitch=0,roll=0;
 
   // IJKL = mirror of WASD
@@ -888,20 +955,20 @@ function p2Input(dt){
   if(CODES['Numpad4'])roll+=1;
   if(CODES['Numpad6'])roll-=1;
 
-  const gp=navigator.getGamepads?.()[1];
+  const gp=((navigator.getGamepads?.()??[]))[gpIdx2];
   if(gp){
+    const cfg=window.gpCfgRead?.(gp)??null;
     document.getElementById('p2-gp').classList.remove('hidden');
-    const dz=v=>Math.abs(v)>.12?v:0;
-    thr  +=clamp(-dz(gp.axes[1]),-1,1);
-    yaw  +=clamp(-dz(gp.axes[0]),-1,1);
-    pitch+=clamp(-dz(gp.axes[3]),-1,1);
-    roll +=clamp(-dz(gp.axes[2]),-1,1);
+    thr  +=clamp(window.gpAxis(gp,'throttle',cfg),-1,1);
+    yaw  +=clamp(window.gpAxis(gp,'yaw',cfg),-1,1);
+    pitch+=clamp(window.gpAxis(gp,'pitch',cfg),-1,1);
+    roll +=clamp(window.gpAxis(gp,'roll',cfg),-1,1);
 
-    const camBtn=!!(gp.buttons[9]&&gp.buttons[9].pressed);
+    const camBtn=window.gpBtn(gp,'camCycle',cfg);
     if(camBtn&&!gpCamPrev1)toggleCam2();
     gpCamPrev1=camBtn;
 
-    const pilBtn=!!(gp.buttons[8]&&gp.buttons[8].pressed);
+    const pilBtn=window.gpBtn(gp,'pilotCycle',cfg);
     if(pilBtn&&!gpPilotPrev1)togglePilot2();
     gpPilotPrev1=pilBtn;
 
@@ -935,6 +1002,22 @@ function p2Input(dt){
   });
 
   physicsDrone(d,dt, roll*PITCHMAX*SF, HOVER+thr*THRMAX*SF, pitch*PITCHMAX*SF, yaw*YAWMAX);
+}
+
+// AI FORWARD（無人機足球：自身即為得分體，直接飛穿球門）
+function updateAI_Fwd(fwd, targetGoalZ, dt){
+  const spd=GK_SPD[pDiff]*SF*1.35;
+  // 進球後退回己方半場
+  if(fwd.mustReturn){
+    if(fwd.pos.z>0.05)fwd.mustReturn=false;
+    else{aiMoveWorld(fwd,new THREE.Vector3(0,GY,1.2),dt,spd);return;}
+  }
+  // 飛向球門圓心 (0, GY, targetGoalZ)
+  // 簡單：先拉高到球門高度，再直衝；困難：直線全速
+  const phaseY=Math.abs(fwd.pos.z-targetGoalZ)>1.0?GY:GY;
+  const wobble=(pDiff==='easy'?Math.sin(Date.now()*.001)*0.08:0);
+  const tgt=new THREE.Vector3(wobble, phaseY, targetGoalZ);
+  aiMoveWorld(fwd, tgt, dt, spd);
 }
 
 // ──────────────────────────────────────────────
@@ -1222,7 +1305,15 @@ function setupKeys(){
 // ──────────────────────────────────────────────
 function showGKOptions(){
   document.getElementById('gk-options').classList.remove('hidden');
+  document.getElementById('btn-gk-go').classList.remove('hidden');
+  document.getElementById('btn-ai-go').classList.add('hidden');
   gpSetFocus(['diff-easy','diff-med','diff-hard','btn-gk-go'],1);
+}
+function showAIOptions(){
+  document.getElementById('gk-options').classList.remove('hidden');
+  document.getElementById('btn-gk-go').classList.add('hidden');
+  document.getElementById('btn-ai-go').classList.remove('hidden');
+  gpSetFocus(['diff-easy','diff-med','diff-hard','btn-ai-go'],1);
 }
 function setPDiff(d){
   pDiff=d;
@@ -1230,8 +1321,9 @@ function setPDiff(d){
     document.getElementById('diff-'+k).classList.toggle('active',k===d);
   });
 }
-function enterMatch(withGK){
+function enterMatch(withGK, withAI=false){
   hasGK=!!withGK;
+  aiOpponent=!!withAI;
   document.getElementById('intro').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
   scores={A:0,B:0};setsWon={A:0,B:0};setLog=[];setGoals={A:0,B:0};
@@ -1253,6 +1345,7 @@ function animate(){
     if(phase==='playing'){
       p1Input(dt);
       p2Input(dt);
+      if(aiOpponent&&drones.length>=2)updateAI_Fwd(drones[1],-GZ,dt);
       // AI goalkeepers
       if(hasGK&&drones.length>=6){
         const p1d=drones[0], p2d=drones[1];
@@ -1266,7 +1359,7 @@ function animate(){
       tickTimer(dt);
       // mustReturn: release when back in own half
       drones.forEach(d=>{
-        if(!d.mustReturn||!d.isPlayer)return;
+        if(!d.mustReturn||(d.role!=='ai_fwd'&&!d.isPlayer))return;
         const home=d.team===TA?d.pos.z<-0.05:d.pos.z>0.05;
         if(home)d.mustReturn=false;
       });
@@ -1327,6 +1420,13 @@ function animate(){
   buildGoalRings();
   setupKeys();
   animate();
+  // 從 pairing.html 跳過來時自動開始
+  if(localStorage.getItem('droneSimAI')==='true'){
+    localStorage.removeItem('droneSimAI'); // 用完清掉，避免下次誤觸
+    enterMatch(true,true);
+  } else if(localStorage.getItem('droneSimP1')!=null){
+    enterMatch(true,false);
+  }
 })();
 
 // ── 搖桿選單導覽 ──────────────────────────────────────────────────────────────
@@ -1340,7 +1440,7 @@ function gpNav(d){
   _gpFocusBtns.forEach((id,i)=>{const el=document.getElementById(id);if(el)el.classList.toggle('gp-focus',i===_gpFocusIdx);});
 }
 function gpConfirm(){const el=document.getElementById(_gpFocusBtns[_gpFocusIdx]);if(el)el.click();}
-gpSetFocus(['btn-1v1','btn-gk'],0);
+gpSetFocus(['btn-1v1','btn-gk','btn-ai'],0);
 (function gpMenuLoop(){
   requestAnimationFrame(gpMenuLoop);
   if(phase!=='intro')return;
