@@ -132,8 +132,8 @@ canvas{display:block}
       訓練重點：<strong>飛行穩定性 × 路線規劃</strong>
       <div style="margin-top:10px;padding:8px 10px;background:rgba(0,0,0,.35);border-radius:8px;font-size:.67rem;color:#b39a60;line-height:1.9">
         <div style="color:#fde68a;font-weight:700;margin-bottom:3px">⌨ 鍵盤操控</div>
-        <div><code>W/S</code> 前後 &ensp; <code>A/D</code> 左右橫移 &ensp; <code>↑↓</code> 俯仰 &ensp; <code>←→</code> 偏航</div>
-        <div><code>Space</code> 上升 &ensp; <code>Shift</code> 下降 &ensp; <code>C</code> 切換視角</div>
+        <div><code>W</code> 上升 &ensp; <code>S</code> 下降 &ensp; <code>A</code> 左偏航 &ensp; <code>D</code> 右偏航</div>
+        <div><code>↑↓</code> 前後俯仰 &ensp; <code>←→</code> 左右橫移 &ensp; <code>C</code> 切換視角</div>
       </div>
     </div>
     <div class="diff-row">
@@ -142,7 +142,7 @@ canvas{display:block}
       <button class="btn-diff" id="btn-hard" onclick="startGame('hard')">高級<br><small style="opacity:.7">限速 2.5 m/s・小落點</small></button>
     </div>
     <div id="gp-hint">🎮 搖桿已連接 — D-pad 選難度・A 確認・START 視角・SELECT 換位置</div>
-    <a class="back-link" href="../index.html">← 返回主選單</a>
+    <a class="back-link" href="menu.html">← 返回主選單</a>
   </div>
 </div>
 
@@ -162,7 +162,7 @@ canvas{display:block}
       <button class="btn-action" id="btn-retry"  onclick="retryGame()">再試一次</button>
       <button class="btn-action" id="btn-select" onclick="backToIntro()">選難度</button>
     </div>
-    <a class="back-link" href="../index.html">← 返回主選單</a>
+    <a class="back-link" href="menu.html">← 返回主選單</a>
   </div>
 </div>
 
@@ -217,16 +217,8 @@ const DIFF_CFG = {
 // Arena
 const ARENA = { minX:-10, maxX:10, minY:0.3, maxY:7, minZ:-11, maxZ:5 };
 
-// Physics
-const GRAVITY      = -9.81;
-const MAX_TILT     = Math.PI / 7;
-const DRAG_H       = 1.2;
-const DRAG_V       = 3.5;
-const PITCH_RATE   = 2.2;
-const ROLL_RATE    = 2.2;
-const YAW_RATE     = 1.6;
-const FWD_FORCE    = 12.0;
-const STRAFE_FORCE = 10.0;
+// Controls
+const controls = { throttle:0, yaw:0, pitch:0, roll:0 };
 
 // Camera
 const CAM_MODES_LIST = ['follow','fpv','ground'];
@@ -269,7 +261,8 @@ let wallLineMat    = null;    // arena wall material
 const drone = {
     pos: new THREE.Vector3(0, 2.5, 3),
     vel: new THREE.Vector3(),
-    pitch:0, roll:0, yaw:0,
+    rot: new THREE.Euler(0, 0, 0, 'YXZ'),
+    q:   new THREE.Quaternion(),
     mesh: null,
 };
 
@@ -380,6 +373,13 @@ function buildDroneMesh() {
         );
         rotor.position.set(sx*.42,0.06,sz*.42); g.add(rotor);
     });
+    // 機鼻（方向指示，指向 -Z = 無人機前方）
+    const nose = new THREE.Mesh(
+        new THREE.ConeGeometry(0.08, 0.22, 4),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 })
+    );
+    nose.rotation.x = -Math.PI / 2; nose.position.z = -0.28; g.add(nose);
+
     g.add(new THREE.PointLight(DRONE_COLOR, 1.2, 3));
 
     // Cargo attached to drone (hidden initially)
@@ -425,7 +425,8 @@ function updateNavArrow() {
     navArrow.visible = dist > 2.5;
     if (navArrow.visible && dist > 0.01) {
         navArrow.setDirection(dir.normalize());
-        navArrow.position.copy(drone.pos);
+        // 偏移至機身上方，避免與機身視覺混疊
+        navArrow.position.copy(drone.pos).add(new THREE.Vector3(0, 1.2, 0));
         // Color: amber for pickup, zone color for delivery
         const color = deliveryStep === 0 ? 0xfbbf24 : ZONE_COLORS[deliveryStep-1];
         navArrow.line.material.color.setHex(color);
@@ -622,42 +623,42 @@ function updateZoneVisuals(dt) {
 
 // ─── PHYSICS ──────────────────────────────────────────────────────────────────
 const keys = {};
-document.addEventListener('keydown', e => { keys[e.code] = true; if (e.code==='KeyC') cycleCam(); });
-document.addEventListener('keyup',   e => { keys[e.code] = false; });
+window.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (!keys[k] && k === 'c') cycleCam();
+    keys[k] = true;
+});
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
 function updatePhysics(dt) {
-    const yDir = (keys['ArrowLeft'] ? 1:0) - (keys['ArrowRight'] ? 1:0);
-    drone.yaw += yDir * YAW_RATE * dt;
+    const { throttle, yaw, pitch, roll } = controls;
+    const targetYVel = throttle * 4.0;
+    const autoThrust = (targetYVel - drone.vel.y) * 12.0 + 9.81;
 
-    const fw = (keys['KeyW']||keys['ArrowUp'] ? 1:0) - (keys['KeyS']||keys['ArrowDown'] ? 1:0);
-    const sr = (keys['KeyD'] ? 1:0) - (keys['KeyA'] ? 1:0);
-    const targetPitch = fw * MAX_TILT;
-    const targetRoll  = -sr * MAX_TILT;
-    drone.pitch += (targetPitch - drone.pitch) * PITCH_RATE * dt;
-    drone.roll  += (targetRoll  - drone.roll)  * ROLL_RATE  * dt;
+    drone.rot.y += (-yaw * 1.9) * dt;
+    drone.rot.x  = THREE.MathUtils.lerp(drone.rot.x, -pitch * 0.4, 8 * dt);
+    drone.rot.z  = THREE.MathUtils.lerp(drone.rot.z,  roll  * 0.4, 8 * dt);
+    drone.q.setFromEuler(drone.rot);
 
-    const sinY = Math.sin(drone.yaw), cosY = Math.cos(drone.yaw);
-    const ax = (cosY*sr + sinY*fw) * STRAFE_FORCE;
-    const az = (-sinY*sr + cosY*fw) * FWD_FORCE;
+    const fwd    = new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
+    const strafe = new THREE.Vector3(1,0, 0).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
+    const horiz  = new THREE.Vector3()
+        .addScaledVector(fwd,    -pitch * 9.0)
+        .addScaledVector(strafe,  roll  * 9.0);
 
-    const targetYVel = (keys['Space'] ? 1:0) - (keys['ShiftLeft']||keys['ShiftRight'] ? 1:0);
-    const ay = (targetYVel*5 - drone.vel.y) * 12.0 + 9.81;
-
-    drone.vel.x += ax * dt;
-    drone.vel.y += (ay + GRAVITY) * dt;
-    drone.vel.z += az * dt;
-    drone.vel.x -= drone.vel.x * DRAG_H * dt;
-    drone.vel.z -= drone.vel.z * DRAG_H * dt;
-    drone.vel.y -= drone.vel.y * DRAG_V * dt;
-
+    const hDamp = (pitch === 0 && roll === 0) ? 5.5 : 1.0;
+    const force = new THREE.Vector3(
+        horiz.x - drone.vel.x * hDamp,
+        autoThrust - 9.81 - drone.vel.y * 1.5,
+        horiz.z - drone.vel.z * hDamp
+    );
+    drone.vel.addScaledVector(force, dt);
     drone.pos.addScaledVector(drone.vel, dt);
     checkArena();
 
     if (drone.mesh) {
         drone.mesh.position.copy(drone.pos);
-        drone.mesh.rotation.y = drone.yaw;
-        drone.mesh.rotation.x = drone.pitch;
-        drone.mesh.rotation.z = drone.roll;
+        drone.mesh.quaternion.copy(drone.q);
     }
 }
 
@@ -681,24 +682,31 @@ function cycleGroundCam() {
     GROUND_CAM_POS.copy(PILOT_POSITIONS[_pilotPosIdx]);
 }
 
-const gpPrev={};
+let _gpB9=false,_gpB8=false,_gpB0=false,_gpB12=false,_gpB13=false,_gpB14=false,_gpB15=false,_gpB1Prev=false;
 function pollGamepad() {
-    const gps=navigator.getGamepads?navigator.getGamepads():[];
-    for (const gp of gps) {
-        if (!gp) continue;
-        const p=gpPrev[gp.index]||{};
-        const btn=(i,n)=>{const v=gp.buttons[i]?.pressed;if(v&&!p[n]){p[n]=true;return true;}if(!v)p[n]=false;return false;};
-        if(btn(9,'start'))  cycleCam();
-        if(btn(8,'select')&&camMode==='ground') cycleGroundCam();
-        if(btn(0,'a'))      gpConfirm();
-        if(btn(12,'dup')||btn(14,'dleft'))   gpNav(-1);
-        if(btn(13,'dd')||btn(15,'dright'))   gpNav(1);
-        const ax0=gp.axes[0]||0,ax1=gp.axes[1]||0,ax2=gp.axes[2]||0,ax3=gp.axes[3]||0;
-        keys['KeyA']=ax0<-.3;keys['KeyD']=ax0>.3;
-        keys['KeyW']=ax1<-.3;keys['KeyS']=ax1>.3;
-        keys['ArrowLeft']=ax2<-.3;keys['ArrowRight']=ax2>.3;
-        keys['Space']=ax3<-.3;keys['ShiftLeft']=ax3>.3;
-        gpPrev[gp.index]=p;
+    const pads=navigator.getGamepads?navigator.getGamepads():[];
+    let gp=null;
+    for (const p of pads) { if (p?.connected) { gp=p; break; } }
+
+    if (!gp) {
+        controls.throttle = keys['w'] ? 1 : (keys['s'] ? -1 : 0);
+        controls.yaw      = keys['d'] ? 1 : (keys['a'] ? -1 : 0);
+        controls.pitch    = keys['arrowup'] ? -1 : (keys['arrowdown'] ? 1 : 0);
+        controls.roll     = keys['arrowleft'] ? -1 : (keys['arrowright'] ? 1 : 0);
+    } else {
+        const dz = v => Math.abs(v) > 0.12 ? v : 0;
+        controls.yaw      = dz(gp.axes[0]);
+        controls.throttle = -dz(gp.axes[1]);
+        controls.roll     = dz(gp.axes[2]);
+        controls.pitch    = dz(gp.axes[3]);
+        const b9 =!!gp.buttons[9]?.pressed;  if(b9 &&!_gpB9)  cycleCam();                       _gpB9=b9;
+        const b1=!!gp.buttons[1]?.pressed; if(b1&&!_gpB1Prev){window.location.href='menu.html';} _gpB1Prev=b1;
+        const b8 =!!gp.buttons[8]?.pressed;  if(b8 &&!_gpB8&&camMode==='ground') cycleGroundCam(); _gpB8=b8;
+        const b0 =!!gp.buttons[0]?.pressed;  if(b0 &&!_gpB0)  gpConfirm();                      _gpB0=b0;
+        const b12=!!gp.buttons[12]?.pressed; if(b12&&!_gpB12) gpNav(-1);                         _gpB12=b12;
+        const b13=!!gp.buttons[13]?.pressed; if(b13&&!_gpB13) gpNav(1);                          _gpB13=b13;
+        const b14=!!gp.buttons[14]?.pressed; if(b14&&!_gpB14) gpNav(-1);                         _gpB14=b14;
+        const b15=!!gp.buttons[15]?.pressed; if(b15&&!_gpB15) gpNav(1);                          _gpB15=b15;
     }
 }
 
@@ -719,15 +727,15 @@ function updateCamera() {
     if (camMode==='fpv') {
         camera.position.copy(drone.pos).add(new THREE.Vector3(0,.15,0));
         camTarget.copy(drone.pos).add(
-            new THREE.Vector3(Math.sin(drone.yaw),Math.sin(drone.pitch)*2,-Math.cos(drone.yaw)).normalize()
+            new THREE.Vector3(Math.sin(drone.rot.y),Math.sin(drone.rot.x)*2,-Math.cos(drone.rot.y)).normalize()
         );
         camera.lookAt(camTarget);
     } else if (camMode==='ground') {
         camera.position.copy(GROUND_CAM_POS);
         camera.lookAt(drone.pos);
     } else {
-        const off=new THREE.Vector3(-Math.sin(drone.yaw)*5,3.5,-Math.cos(drone.yaw)*5);
-        camera.position.lerp(drone.pos.clone().add(off),.08);
+        const off=new THREE.Vector3(0,2.5,5.5).applyEuler(new THREE.Euler(0,drone.rot.y*0.25,0));
+        camera.position.lerp(drone.pos.clone().add(off),.1);
         camTarget.lerp(drone.pos.clone().add(new THREE.Vector3(0,.5,0)),.1);
         camera.lookAt(camTarget);
     }
@@ -756,7 +764,7 @@ function startGame(diff) {
     document.getElementById('intro-modal').classList.add('hidden');
     document.getElementById('done-modal').classList.add('hidden');
 
-    drone.pos.set(0,2.5,3); drone.vel.set(0,0,0); drone.pitch=0; drone.roll=0; drone.yaw=0;
+    drone.pos.set(0,2.5,3); drone.vel.set(0,0,0); drone.rot.set(0,0,0); drone.q.identity();
     if (!drone.mesh) { drone.mesh=buildDroneMesh(); scene.add(drone.mesh); }
     cargoDroneGroup=drone.mesh.children.find(c=>c.type==='Group');
 

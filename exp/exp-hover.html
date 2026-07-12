@@ -159,7 +159,7 @@
                 </button>
             </div>
         </div>
-        <a href="../index.html" class="text-[9px] text-slate-600 hover:text-slate-400 font-mono transition">← 返回主選單</a>
+        <a href="menu.html" class="text-[9px] text-slate-600 hover:text-slate-400 font-mono transition">← 返回主選單</a>
     </div>
 </div>
 
@@ -199,7 +199,7 @@
             <button id="btn-select" onclick="goIntro()"   class="rounded-xl py-2.5 font-black text-xs pointer-events-auto transition hover:scale-105"
                 style="background:rgba(100,116,139,.2);border:1px solid rgba(100,116,139,.4);color:#94a3b8">📋 換難度</button>
         </div>
-        <a href="../index.html" class="text-[9px] text-slate-600 hover:text-slate-400 font-mono transition">← 返回主選單</a>
+        <a href="menu.html" class="text-[9px] text-slate-600 hover:text-slate-400 font-mono transition">← 返回主選單</a>
     </div>
 </div>
 
@@ -310,7 +310,7 @@ const GROUND_CAM_POS = new THREE.Vector3().copy(PILOT_POSITIONS[0]);
 // 搖桿焦點 (CLAUDE.md 規範)
 // ============================================================
 let _gpFocusBtns = [], _gpFocusIdx = 0;
-let _gpB0Prev=false,_gpB9Prev=false,_gpB8Prev=false;
+let _gpB0Prev=false,_gpB9Prev=false,_gpB8Prev=false,_gpB1Prev=false;
 let _gpB12Prev=false,_gpB13Prev=false,_gpB14Prev=false,_gpB15Prev=false;
 
 function gpSetFocus(ids, idx) {
@@ -368,6 +368,7 @@ function pollGamepad() {
         const b9 = !!(gp.buttons[9]?.pressed);
         if (b9 && !_gpB9Prev) cycleCamera();
         _gpB9Prev = b9;
+        const b1=!!gp.buttons[1]?.pressed; if(b1&&!_gpB1Prev){window.location.href='menu.html';} _gpB1Prev=b1;
 
         const b8 = !!(gp.buttons[8]?.pressed);
         if (b8 && !_gpB8Prev && camMode === 'ground') cycleGroundCam();

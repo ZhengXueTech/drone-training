@@ -132,7 +132,7 @@ canvas{display:block;}
     </div>
     <button id="btn-start" class="start-btn" onclick="startGame()">🥅 開始守門 →</button>
     <div id="gp-hint">🎮 搖桿已連接 — D-pad 選難度・A 確認・START 視角・SELECT 換位置</div>
-    <a href="../index.html" class="back-link">← 返回訓練總覽</a>
+    <a href="menu.html" class="back-link">← 返回訓練總覽</a>
   </div>
 </div>
 
@@ -598,7 +598,7 @@ const KEYS={},CODES={};
 window.addEventListener('keydown',e=>{KEYS[e.key]=true;CODES[e.code]=true;});
 window.addEventListener('keyup',e=>{delete KEYS[e.key];delete CODES[e.code];});
 
-let gpCamPrev=false,gpPilotPrev=false;
+let gpCamPrev=false,gpPilotPrev=false,_gpB1Prev=false;
 
 window._vjState={active:false,throttle:0,yaw:0,pitch:0,roll:0};
 
@@ -623,6 +623,7 @@ function playerInput(dt){
     const camBtn=!!(gp.buttons[9]?.pressed);
     if(camBtn&&!gpCamPrev)cycleCamera();
     gpCamPrev=camBtn;
+        const b1=!!gp.buttons[1]?.pressed; if(b1&&!_gpB1Prev){window.location.href='menu.html';} _gpB1Prev=b1;
     const pilBtn=!!(gp.buttons[8]?.pressed);
     if(pilBtn&&!gpPilotPrev)cycleGroundCam();
     gpPilotPrev=pilBtn;
@@ -769,7 +770,9 @@ function setDiff(d){
   pDiff=d;
   ['easy','med','hard'].forEach(x=>{
     document.getElementById('btn-'+x).classList.toggle('active',x===d);
-  });
+  
+  gpSetFocus(['btn-start'],0);
+});
   gpSetFocus(['btn-easy','btn-med','btn-hard'],['easy','med','hard'].indexOf(d));
 }
 
@@ -854,6 +857,7 @@ animate();
       const r=area.getBoundingClientRect();ox=r.left+r.width/2;oy=r.top+r.height/2;
       if(isLeft)lOn=true;else rOn=true;syncActive();
     },{passive:false});
+
     area.addEventListener('touchmove',e=>{
       e.preventDefault();
       for(let i=0;i<e.changedTouches.length;i++){
@@ -878,34 +882,42 @@ animate();
     area.addEventListener('touchend',end,{passive:false});
     area.addEventListener('touchcancel',end,{passive:false});
   }
+
   makeStick('vj-left','vj-lk',true);
   makeStick('vj-right','vj-rk',false);
 
-  function checkVJShow(){
-    const isTouch=navigator.maxTouchPoints>0||window.matchMedia('(pointer:coarse)').matches;
-    const gps=[...(navigator.getGamepads?.()??[])];
-    const w=document.getElementById('vj-wrap');
-    if(w)w.style.display=(isTouch&&!gps[0])?'flex':'none';
+  const wrap=document.getElementById('vj-wrap');
+  const btnB=document.getElementById('vj-btn-b');
+  if(btnB){
+    btnB.addEventListener('touchstart',e=>{
+      e.preventDefault();
+      btnB.classList.add('active');
+    },{passive:false});
+    btnB.addEventListener('touchend',e=>{e.preventDefault();btnB.classList.remove('active');},{passive:false});
   }
-  window.addEventListener('gamepadconnected',checkVJShow);
-  window.addEventListener('gamepaddisconnected',checkVJShow);
-  window.addEventListener('touchstart',checkVJShow,{once:true,passive:true});
-  checkVJShow();
+
+  function checkShow(){
+    const hasGp=!!(navigator.getGamepads&&[...navigator.getGamepads()].find(g=>g));
+    const isTouch=navigator.maxTouchPoints>0||window.matchMedia('(pointer:coarse)').matches;
+    if(wrap)wrap.style.display=(isTouch&&!hasGp)?'flex':'none';
+  }
+  window.addEventListener('gamepadconnected',()=>{if(wrap)wrap.style.display='none';});
+  window.addEventListener('gamepaddisconnected',checkShow);
+  window.addEventListener('touchstart',checkShow,{once:true,passive:true});
+  checkShow();
 })();
 </script>
-
-<!-- VJ -->
-<div id="vj-wrap" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:12;
-  min-height:190px;padding:8px 20px;
-  padding-bottom:max(20px,env(safe-area-inset-bottom,20px));
-  align-items:flex-end;justify-content:space-between;pointer-events:none;">
+<div id="vj-wrap">
   <div class="vj-area" id="vj-left">
-    <div class="vj-base"></div><div class="vj-knob" id="vj-lk"></div>
-    <div class="vj-label">油門/偏航</div>
+    <div class="vj-base"></div>
+    <div class="vj-knob" id="vj-lk"></div>
+    <div class="vj-label">油門 / 偏航</div>
   </div>
-  <div class="vj-area" id="vj-right">
-    <div class="vj-base"></div><div class="vj-knob" id="vj-rk"></div>
-    <div class="vj-label">前後/左右</div>
+  <button id="vj-btn-b">🛡️<br><span>防守</span></button>
+  <div class="vj-area vj-r" id="vj-right">
+    <div class="vj-base"></div>
+    <div class="vj-knob" id="vj-rk"></div>
+    <div class="vj-label">前後 / 左右</div>
   </div>
 </div>
 </body>
