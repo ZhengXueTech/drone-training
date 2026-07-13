@@ -1197,10 +1197,14 @@ function enterPractice(){
 
 function enterMatch(){
   gameMode='match';
+  setTimer=SET_DUR; curSet=1;
+  scores={A:0,B:0}; setsWon={A:0,B:0}; setGoals={A:0,B:0};
+  pShotActive=false; pShotTimer=0;
   document.getElementById('intro').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
   document.getElementById('match-top').classList.remove('hidden');
   document.getElementById('p-top').classList.add('hidden');
+  document.getElementById('set-label').textContent='第 1 節';
   initDrones(); phase='playing'; updateHUD();
 }
 

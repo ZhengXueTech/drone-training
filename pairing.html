@@ -63,6 +63,22 @@ footer{padding:10px;border-top:1px solid #1e293b;text-align:center;flex-shrink:0
 .sbtn.on{background:#1d4ed8;color:#dbeafe;border-color:#3b82f6;cursor:pointer;
           box-shadow:0 0 18px #3b82f640}
 .sbtn.on:hover{background:#2563eb}
+
+/* ── 4P mode ─────────────────────── */
+#mode-sel{display:flex;gap:5px;margin-left:auto;}
+.mselbtn{padding:4px 11px;border-radius:6px;border:1px solid #334155;background:#1e293b;
+         color:#64748b;font-size:.7rem;font-weight:700;cursor:pointer;transition:.2s}
+.mselbtn.on{background:#1d4ed8;color:#dbeafe;border-color:#3b82f6}
+/* body.mode4p controls which lobby is visible */
+#lobby4p{display:none;grid-template-columns:1fr 1fr;flex:1;overflow:hidden}
+body.mode4p #lobby2p{display:none!important}
+body.mode4p #lobby4p{display:grid!important;flex:1}
+.team-col{display:flex;flex-direction:column;border-right:1px solid #1e293b;overflow-y:auto;flex:1}
+.team-col:last-child{border-right:none}
+.team-hdr{padding:6px 12px;font-size:.72rem;font-weight:700;border-bottom:1px solid #1e293b;
+          letter-spacing:.05em;flex-shrink:0}
+.panel4p{display:flex;flex-direction:column;gap:6px;padding:9px 12px;
+         border-bottom:1px solid #111827;flex:1}
 </style>
 </head>
 <body>
@@ -71,10 +87,14 @@ footer{padding:10px;border-top:1px solid #1e293b;text-align:center;flex-shrink:0
   <a class="back" href="menu.html">← 主選單</a>
   <h1>🎮 配對大廳</h1>
   <p>插上手把 → 選控制器 → 試飛確認手感 → 按準備</p>
-  <a class="back" href="exp/gamepad-test.html" style="margin-left:auto;white-space:nowrap">⚙️ 搖桿設定</a>
+  <div id="mode-sel">
+    <button id="ms-2p" class="mselbtn on" onclick="setGameMode('2p')">2P 對戰</button>
+    <button id="ms-4p" class="mselbtn" onclick="setGameMode('4p')">4P 2v2</button>
+  </div>
+  <a class="back" href="exp/gamepad-test.html" style="margin-left:4px;white-space:nowrap">⚙️ 搖桿設定</a>
 </header>
 
-<div class="lobby">
+<div class="lobby" id="lobby2p">
 
   <!-- P1 -->
   <div class="panel" id="panel1">
@@ -123,6 +143,89 @@ footer{padding:10px;border-top:1px solid #1e293b;text-align:center;flex-shrink:0
 
 </div>
 
+<!-- ── 4P Lobby ─────────────────────────────────────────── -->
+<div class="lobby" id="lobby4p">
+
+  <!-- Team A: P1A + P1B -->
+  <div class="team-col">
+    <div class="team-hdr" style="color:#38bdf8">🔵 青隊 (Team A)</div>
+    <!-- P1A -->
+    <div class="panel4p">
+      <div class="plabel"><div class="dot" id="dot-p1a"></div><span class="p1c">P1A 玩家</span></div>
+      <div class="row"><span>手把：</span>
+        <select id="sel-p1a" onchange="assignGp4('p1a',+this.value)">
+          <option value="-1">— 未偵測到控制器 —</option>
+        </select>
+      </div>
+      <div class="mrow">
+        <button class="mbtn" id="m1-p1a" onclick="setMode4('p1a','1')">✈️ Mode 1</button>
+        <button class="mbtn b" id="m2-p1a" onclick="setMode4('p1a','2')">🎮 Mode 2</button>
+      </div>
+      <canvas class="sim" id="c4-p1a" height="140"></canvas>
+      <div class="axwrap" id="ax-p1a"></div>
+      <div class="hint" style="font-size:.58rem">↑↓ 油門高度 · 搖桿移動 · 白點＝機頭</div>
+      <button class="rbtn" id="r-p1a" onclick="toggleReady4('p1a')">▷ 尚未準備</button>
+    </div>
+    <!-- P1B -->
+    <div class="panel4p">
+      <div class="plabel"><div class="dot" id="dot-p1b"></div><span class="p1c">P1B 玩家</span></div>
+      <div class="row"><span>手把：</span>
+        <select id="sel-p1b" onchange="assignGp4('p1b',+this.value)">
+          <option value="-1">— 未偵測到控制器 —</option>
+        </select>
+      </div>
+      <div class="mrow">
+        <button class="mbtn" id="m1-p1b" onclick="setMode4('p1b','1')">✈️ Mode 1</button>
+        <button class="mbtn b" id="m2-p1b" onclick="setMode4('p1b','2')">🎮 Mode 2</button>
+      </div>
+      <canvas class="sim" id="c4-p1b" height="140"></canvas>
+      <div class="axwrap" id="ax-p1b"></div>
+      <div class="hint" style="font-size:.58rem">↑↓ 油門高度 · 搖桿移動 · 白點＝機頭</div>
+      <button class="rbtn" id="r-p1b" onclick="toggleReady4('p1b')">▷ 尚未準備</button>
+    </div>
+  </div>
+
+  <!-- Team B: P2A + P2B -->
+  <div class="team-col">
+    <div class="team-hdr" style="color:#fb923c">🟠 橙隊 (Team B)</div>
+    <!-- P2A -->
+    <div class="panel4p">
+      <div class="plabel"><div class="dot" id="dot-p2a"></div><span class="p2c">P2A 玩家</span></div>
+      <div class="row"><span>手把：</span>
+        <select id="sel-p2a" onchange="assignGp4('p2a',+this.value)">
+          <option value="-1">— 未偵測到控制器 —</option>
+        </select>
+      </div>
+      <div class="mrow">
+        <button class="mbtn" id="m1-p2a" onclick="setMode4('p2a','1')">✈️ Mode 1</button>
+        <button class="mbtn r" id="m2-p2a" onclick="setMode4('p2a','2')">🎮 Mode 2</button>
+      </div>
+      <canvas class="sim" id="c4-p2a" height="140"></canvas>
+      <div class="axwrap" id="ax-p2a"></div>
+      <div class="hint" style="font-size:.58rem">↑↓ 油門高度 · 搖桿移動 · 白點＝機頭</div>
+      <button class="rbtn" id="r-p2a" onclick="toggleReady4('p2a')">▷ 尚未準備</button>
+    </div>
+    <!-- P2B -->
+    <div class="panel4p">
+      <div class="plabel"><div class="dot" id="dot-p2b"></div><span class="p2c">P2B 玩家</span></div>
+      <div class="row"><span>手把：</span>
+        <select id="sel-p2b" onchange="assignGp4('p2b',+this.value)">
+          <option value="-1">— 未偵測到控制器 —</option>
+        </select>
+      </div>
+      <div class="mrow">
+        <button class="mbtn" id="m1-p2b" onclick="setMode4('p2b','1')">✈️ Mode 1</button>
+        <button class="mbtn r" id="m2-p2b" onclick="setMode4('p2b','2')">🎮 Mode 2</button>
+      </div>
+      <canvas class="sim" id="c4-p2b" height="140"></canvas>
+      <div class="axwrap" id="ax-p2b"></div>
+      <div class="hint" style="font-size:.58rem">↑↓ 油門高度 · 搖桿移動 · 白點＝機頭</div>
+      <button class="rbtn" id="r-p2b" onclick="toggleReady4('p2b')">▷ 尚未準備</button>
+    </div>
+  </div>
+
+</div>
+
 <footer>
   <button class="sbtn" id="sbtn" onclick="startGame()">⚔️ 開始對戰</button>
 </footer>
@@ -147,17 +250,23 @@ footer{padding:10px;border-top:1px solid #1e293b;text-align:center;flex-shrink:0
     buttons:{confirm:0,back:1,camCycle:9,pilotCycle:8},
     menuNav:'stick',deadzone:0.12,expo:0
   };
+  const _XBOX_ONE_HID_CFG={
+    axes:{yaw:{i:0,inv:false,rest:0},throttle:{i:1,inv:true,rest:0},
+          roll:{i:2,inv:false,rest:0},pitch:{i:3,inv:true,rest:0}},
+    buttons:{confirm:0,back:1,camCycle:9,pilotCycle:8},
+    menuNav:'stick',deadzone:0.12,expo:0
+  };
   window.gpCfgRead=function(gp){
     if(!gp) return null;
     const id=gp.id.toLowerCase();
     return loadCfg(gp.id)
         || (id.includes('startrc')?_STARTRC_CFG:null)
-        || (id.includes('standard gamepad')||id.includes('xinput')?_XBOX_CFG:null);
+        || (id.includes('xinput')||id.includes('xbox')||id.includes('standard gamepad')||id.includes('hid-compliant')?_XBOX_ONE_HID_CFG:null);
   };
   window.gpAxis=function(gp,name,cfg,mode){
     mode=mode||'2';
     const def=mode==='1'?{yaw:0,throttle:3,roll:2,pitch:1}:{yaw:0,throttle:1,roll:2,pitch:3};
-    const defInv={throttle:true};
+    const defInv={throttle:true,pitch:true};
     let idx,inv,dz,ex,rest;
     if(cfg&&cfg.axes&&cfg.axes[name]!=null){
       const ax=cfg.axes[name];
@@ -416,6 +525,7 @@ function loop(){
     const p=PS[pid];
     if(p.ren)p.ren.render(p.scene,p.cam);
   });
+  update4pAxes();
 }
 
 // ─── Init ─────────────────────────────────────────────────────
@@ -427,6 +537,247 @@ function loop(){
 });
 refreshSels(); // 頁面載入時掃描已連接的搖桿
 loop();
+
+// ─── 4P Mode ────────────────────────────────────────────────────
+var gameMode = '2p';
+
+const PS4 = {
+  'p1a': {gpIdx:-1, mode:'2', ready:false, axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
+  'p1b': {gpIdx:-1, mode:'2', ready:false, axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
+  'p2a': {gpIdx:-1, mode:'2', ready:false, axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
+  'p2b': {gpIdx:-1, mode:'2', ready:false, axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
+};
+
+function setGameMode(m){
+  gameMode = m;
+  document.getElementById('ms-2p').classList.toggle('on', m==='2p');
+  document.getElementById('ms-4p').classList.toggle('on', m==='4p');
+  document.body.classList.toggle('mode4p', m==='4p');
+  if(m==='4p'){
+    init4pAxBars();
+    refresh4pSels();
+    // defer one frame so CSS display is applied before reading clientWidth
+    requestAnimationFrame(()=>init4pScenes());
+  }
+  checkReady4p();
+}
+
+
+// ─── 4P mini-sim colors per player ──────────────────────────
+const P4_COLORS = {p1a:0x00eeff, p1b:0x38bdf8, p2a:0xff6622, p2b:0xfacc15};
+const P4_BG     = {p1a:0x040c1a, p1b:0x040c1a, p2a:0x14080a, p2b:0x14080a};
+
+function initScene4(pid){
+  const p=PS4[pid];
+  if(p.ren)return; // already inited
+  const canvas=document.getElementById('c4-'+pid);
+  const w=canvas.parentElement.clientWidth-24||200, h=140;
+  canvas.width=w; canvas.height=h;
+
+  p.ren=new THREE.WebGLRenderer({canvas,antialias:true});
+  p.ren.setPixelRatio(Math.min(devicePixelRatio,2));
+  p.ren.setSize(w,h);
+  p.ren.shadowMap.enabled=true;
+
+  p.scene=new THREE.Scene();
+  p.scene.background=new THREE.Color(P4_BG[pid]);
+  p.scene.fog=new THREE.Fog(P4_BG[pid],10,22);
+
+  p.cam=new THREE.PerspectiveCamera(54,w/h,.1,40);
+  p.cam.position.set(0,3.5,-5.5);
+  p.cam.lookAt(0,1.5,0);
+
+  p.scene.add(new THREE.AmbientLight(0xffffff,.45));
+  const dl=new THREE.DirectionalLight(0xffffff,.9);
+  dl.position.set(4,10,4); dl.castShadow=true;
+  dl.shadow.mapSize.set(512,512); p.scene.add(dl);
+
+  const gnd=new THREE.Mesh(new THREE.PlaneGeometry(14,14),
+    new THREE.MeshStandardMaterial({color:P4_BG[pid]}));
+  gnd.rotation.x=-Math.PI/2; gnd.receiveShadow=true; p.scene.add(gnd);
+  p.scene.add(new THREE.GridHelper(14,14,0x1a2a3a,0x0f1a26));
+
+  for(let x=-1;x<=1;x+=2)for(let z=-1;z<=1;z+=2){
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,5,4),
+      new THREE.MeshBasicMaterial({color:0x1e3040}));
+    pole.position.set(x*3.5,2.5,z*3.5); p.scene.add(pole);
+    for(let y=0;y<=4;y++){
+      const tick=new THREE.Mesh(new THREE.BoxGeometry(.06,.01,.06),
+        new THREE.MeshBasicMaterial({color:0x2a4060}));
+      tick.position.set(x*3.5,y,z*3.5); p.scene.add(tick);
+    }
+  }
+
+  const pad=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.01,16),
+    new THREE.MeshStandardMaterial({color:P4_COLORS[pid],emissive:P4_COLORS[pid],emissiveIntensity:.15}));
+  pad.position.set(0,.005,0); p.scene.add(pad);
+
+  const {group,rotors}=buildDrone(P4_COLORS[pid]);
+  group.position.set(0,1.5,0);
+  p.scene.add(group);
+  p.drone=group; p.rotors=rotors;
+  p.vel={x:0,y:0,z:0};
+}
+
+function init4pScenes(){
+  ['p1a','p1b','p2a','p2b'].forEach(pid=>initScene4(pid));
+}
+
+function updatePlayer4(pid,dt){
+  const p=PS4[pid]; if(!p.drone)return;
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  const gp=p.gpIdx>=0?pads[p.gpIdx]:null;
+  let yaw=0,thr=0,roll=0,pitch=0;
+
+  if(gp&&gp.connected){
+    const cfg=window.gpCfgRead(gp);
+    yaw  =window.gpAxis(gp,'yaw',  cfg,p.mode);
+    thr  =window.gpAxis(gp,'throttle',cfg,p.mode);
+    roll =window.gpAxis(gp,'roll', cfg,p.mode);
+    pitch=window.gpAxis(gp,'pitch',cfg,p.mode);
+    [yaw,thr,roll,pitch].forEach((v,i)=>{
+      const el=p.axEls[i]; if(!el)return;
+      const pct=(Math.abs(v)*50).toFixed(1);
+      const col=pid.startsWith('p1')?'#00eeff':'#ff8844';
+      if(v>=0){el.fill.style.left='50%';el.fill.style.width=pct+'%';el.fill.style.background=col;}
+      else{el.fill.style.left=(50-parseFloat(pct)).toFixed(1)+'%';el.fill.style.width=pct+'%';el.fill.style.background='#f59e0b';}
+      el.val.textContent=v.toFixed(2);
+    });
+  } else {
+    p.axEls.forEach(el=>{if(el&&el.fill){el.fill.style.width='0';el.val.textContent='0.00';}});
+  }
+
+  const drone=p.drone;
+  const targetH=0.4+((thr+1)*0.5)*3.6;
+  p.vel.y+=(targetH-drone.position.y)*5*dt;
+  p.vel.y*=Math.pow(0.82,dt*60);
+
+  const sy=Math.sin(drone.rotation.y), cy=Math.cos(drone.rotation.y);
+  const lx=roll*cy+pitch*sy, lz=-roll*sy+pitch*cy;
+  p.vel.x+=lx*7*dt; p.vel.z+=lz*7*dt;
+  p.vel.x*=Math.pow(0.72,dt*60);
+  p.vel.z*=Math.pow(0.72,dt*60);
+
+  drone.position.x+=p.vel.x*dt;
+  drone.position.y+=p.vel.y*dt;
+  drone.position.z+=p.vel.z*dt;
+  drone.position.x=Math.max(-4.5,Math.min(4.5,drone.position.x));
+  drone.position.y=Math.max(.12,Math.min(5,drone.position.y));
+  drone.position.z=Math.max(-4.5,Math.min(4.5,drone.position.z));
+
+  drone.rotation.y-=yaw*2.5*dt;
+  drone.rotation.z=THREE.MathUtils.lerp(drone.rotation.z,-roll*.45,dt*9);
+  drone.rotation.x=THREE.MathUtils.lerp(drone.rotation.x,pitch*.35,dt*9);
+  // rotor spin
+  const spd=(gp&&gp.connected)?((thr+1)*0.5*25+5):2;
+  p.rotors.forEach((r,i)=>{ r.rotation.y+=(i%2===0?1:-1)*spd*dt; });
+
+  if(p.ren&&p.scene&&p.cam) p.ren.render(p.scene,p.cam);
+}
+
+function init4pAxBars(){
+  ['p1a','p1b','p2a','p2b'].forEach(pid=>{
+    const div=document.getElementById('ax-'+pid);
+    if(div.innerHTML!=='')return; // already inited
+    div.innerHTML=''; PS4[pid].axEls=[];
+    [['偏航 Yaw'],['油門 Thr'],['橫移 Roll'],['俯仰 Pitch']].forEach(([nm],i)=>{
+      const row=document.createElement('div');row.className='axrow';
+      const fid=`f4-${pid}-${i}`,vid=`v4-${pid}-${i}`;
+      row.innerHTML=`<span class="axnm">${nm}</span><div class="axtrack"><div class="axfill" id="${fid}" style="left:50%;width:0"></div></div><span class="axnum" id="${vid}">0.00</span>`;
+      div.appendChild(row);
+      PS4[pid].axEls.push({fill:document.getElementById(fid),val:document.getElementById(vid)});
+    });
+  });
+}
+
+function assignGp4(pid,idx){
+  PS4[pid].gpIdx=idx;
+  document.getElementById('dot-'+pid).className='dot'+(idx>=0?' on':'');
+  if(idx>=0) setReady4(pid,false);
+  checkReady4p();
+}
+
+function setMode4(pid,m){
+  PS4[pid].mode=m;
+  const team=pid.startsWith('p1')?'b':'r';
+  const suf='-'+pid;
+  document.getElementById('m1'+suf).className='mbtn'+(m==='1'?' '+team:'');
+  document.getElementById('m2'+suf).className='mbtn'+(m==='2'?' '+team:'');
+}
+
+function toggleReady4(pid){
+  if(PS4[pid].gpIdx<0){alert('請先選擇手把！');return;}
+  setReady4(pid,!PS4[pid].ready);
+}
+
+function setReady4(pid,val){
+  PS4[pid].ready=val;
+  const btn=document.getElementById('r-'+pid);
+  btn.className='rbtn'+(val?' on':'');
+  btn.textContent=val?'✅ 準備好！':'▷ 尚未準備';
+  checkReady4p();
+}
+
+function checkReady4p(){
+  const ok4=Object.values(PS4).every(p=>p.ready);
+  const ok2=PS[1].ready&&PS[2].ready;
+  const ok=gameMode==='4p'?ok4:ok2;
+  document.getElementById('sbtn').className='sbtn'+(ok?' on':'');
+}
+
+function refresh4pSels(){
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  ['p1a','p1b','p2a','p2b'].forEach(pid=>{
+    const sel=document.getElementById('sel-'+pid);
+    const cur=PS4[pid].gpIdx;
+    sel.innerHTML='<option value="-1">— 未選擇 —</option>';
+    for(let i=0;i<8;i++){
+      const gp=pads[i];if(!gp||!gp.connected)continue;
+      const opt=document.createElement('option');
+      opt.value=i;opt.selected=(i===cur);
+      opt.textContent=`GP[${i}] ${gp.id.substring(0,28)}`;
+      sel.appendChild(opt);
+    }
+    document.getElementById('dot-'+pid).className='dot'+(cur>=0?' on':'');
+  });
+}
+
+// 4P axis update in the main loop
+function update4pAxes(){
+  if(typeof gameMode==='undefined'||gameMode!=='4p')return;
+  const dt=Math.min((performance.now()-lastT)/1000,.05); // reuse lastT from main loop
+  ['p1a','p1b','p2a','p2b'].forEach(pid=>updatePlayer4(pid,dt));
+}
+
+// ─── Override startGame & checkReady for unified entry ──────────
+const _origStartGame = startGame;
+startGame = function(){
+  if(gameMode==='4p'){
+    if(!Object.values(PS4).every(p=>p.ready))return;
+    localStorage.setItem('droneSimP1A', PS4.p1a.gpIdx);
+    localStorage.setItem('droneSimP1B', PS4.p1b.gpIdx);
+    localStorage.setItem('droneSimP2A', PS4.p2a.gpIdx);
+    localStorage.setItem('droneSimP2B', PS4.p2b.gpIdx);
+    localStorage.setItem('droneSimFlightMode_P1', PS4.p1a.mode);
+    localStorage.setItem('droneSimFlightMode_P2', PS4.p1b.mode);
+    window.location.href='PVP/soccer-match-4p.html';
+  } else {
+    _origStartGame();
+  }
+};
+
+// Patch checkReady for 2P mode too
+const _origSetReady = setReady;
+setReady = function(pid, val){
+  _origSetReady(pid, val);
+  checkReady4p();
+};
+
+// Patch gamepadconnected to also refresh 4P selectors
+const _gpConnected4p = ()=>{ refresh4pSels(); checkReady4p(); };
+window.addEventListener('gamepadconnected', _gpConnected4p);
+window.addEventListener('gamepaddisconnected', ()=>{ refresh4pSels(); checkReady4p(); });
+
 </script>
 </body>
 </html>
