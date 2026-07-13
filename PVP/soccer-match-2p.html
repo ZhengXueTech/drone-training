@@ -373,17 +373,25 @@ input[type=range]{accent-color:#22d3ee}
     menuNav:'stick'
   };
   const _XBOX_CFG={
-    axes:{yaw:{i:0,inv:false,rest:0},throttle:{i:1,inv:true,rest:0},
+    axes:{yaw:{i:0,inv:true,rest:0},throttle:{i:1,inv:true,rest:0},
           roll:{i:2,inv:true,rest:0},pitch:{i:3,inv:true,rest:0}},
+    buttons:{confirm:0,back:1,camCycle:9,pilotCycle:8},
+    menuNav:'stick',deadzone:0.12,expo:0
+  };
+  const _XBOX_ONE_HID_CFG={
+    axes:{yaw:{i:0,inv:true,rest:0},throttle:{i:1,inv:true,rest:0},
+          roll:{i:2,inv:false,rest:0},pitch:{i:3,inv:true,rest:0}},
     buttons:{confirm:0,back:1,camCycle:9,pilotCycle:8},
     menuNav:'stick',deadzone:0.12,expo:0
   };
   window.gpCfgRead=function(gp){
     if(!gp)return null;
     const id=gp.id.toLowerCase();
-    return loadCfg(gp.id)
-        ||(id.includes('startrc')?_STARTRC_CFG:null)
-        ||(id.includes('standard gamepad')||id.includes('xinput')?_XBOX_CFG:null);
+    // 內建控制器優先使用 preset，不讓 localStorage 舊設定干擾
+    if(id.includes('startrc'))return _STARTRC_CFG;
+    if(id.includes('xinput')||id.includes('xbox'))return _XBOX_CFG;
+    if(id.includes('standard gamepad')||id.includes('hid-compliant'))return _XBOX_ONE_HID_CFG;
+    return loadCfg(gp.id);
   };
   window.gpAxis=function(gp,name,cfg){
     const def={yaw:0,throttle:1,roll:2,pitch:3};
@@ -1534,8 +1542,4 @@ gpSetFocus(['btn-1v1','btn-gk','btn-ai'],0);
   </div>
   <div class="vj-area vj2" id="vj2-right">
     <div class="vj-base"></div><div class="vj-knob" id="vj2-rk"></div>
-    <div class="vj-label">前後/左右</div>
-  </div>
-</div>
-</body>
-</html>
+   
