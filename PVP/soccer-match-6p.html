@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
-<title>2v2 無人機足球 4P | FAI F9A-B</title>
+<title>3v3 無人機足球 6P | FAI F9A-B</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
@@ -21,7 +21,8 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
 .tc{color:#22d3ee;text-shadow:0 0 10px rgba(34,211,238,.7)}
 .to{color:#fb923c;text-shadow:0 0 10px rgba(251,146,60,.7)}
 .tg{color:#4ade80}.ta{color:#fbbf24}
-.p1ac{color:#22d3ee}.p1bc{color:#38bdf8}.p2ac{color:#fb923c}.p2bc{color:#facc15}
+.p1ac{color:#22d3ee}.p1bc{color:#38bdf8}.p1cc{color:#2dd4bf}
+.p2ac{color:#fb923c}.p2bc{color:#facc15}.p2cc{color:#fb7185}
 @keyframes scanline{0%{transform:translateY(-80px)}100%{transform:translateY(110vh)}}
 .scanline{pointer-events:none;position:fixed;top:0;left:0;width:100%;height:80px;
   background:linear-gradient(transparent,rgba(34,211,238,.022),transparent);
@@ -29,12 +30,12 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
 @keyframes pulse2{0%,100%{opacity:1}50%{opacity:.45}}.pulse2{animation:pulse2 1.4s ease-in-out infinite}
 @keyframes goalPop{0%{transform:scale(.3) rotate(-6deg);opacity:0}45%{transform:scale(1.1) rotate(2deg);opacity:1}100%{transform:scale(1);opacity:1}}
 .goal-pop{animation:goalPop .45s cubic-bezier(.2,1.4,.4,1) forwards}
-/* Quad dividers */
-#quad-dividers{position:fixed;inset:0;pointer-events:none;z-index:8}
-#quad-v{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:2px;
+/* Hex (2×3) dividers */
+#hex-dividers{position:fixed;inset:0;pointer-events:none;z-index:8}
+.hex-v{position:absolute;top:0;bottom:0;width:2px;transform:translateX(-50%);
   background:linear-gradient(to bottom,transparent,rgba(34,211,238,.5) 20%,rgba(34,211,238,.5) 80%,transparent);
   box-shadow:0 0 8px rgba(34,211,238,.3)}
-#quad-h{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:2px;
+#hex-h{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:2px;
   background:linear-gradient(to right,transparent,rgba(34,211,238,.5) 20%,rgba(34,211,238,.5) 80%,transparent);
   box-shadow:0 0 8px rgba(34,211,238,.3)}
 /* Pilot divider */
@@ -56,8 +57,12 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
 <div id="canvas-container"></div>
 <canvas id="minimap" class="glass" width="90" height="135"></canvas>
 
-<!-- Quad dividers (default shown) -->
-<div id="quad-dividers"><div id="quad-v"></div><div id="quad-h"></div></div>
+<!-- Hex dividers (default shown) -->
+<div id="hex-dividers">
+  <div class="hex-v" style="left:33.333%"></div>
+  <div class="hex-v" style="left:66.667%"></div>
+  <div id="hex-h"></div>
+</div>
 <!-- Pilot divider -->
 <div id="pilot-divider"></div>
 
@@ -83,10 +88,11 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
     </div>
   </div>
 
-  <!-- P1A corner (top-left) -->
-  <div class="absolute top-2 left-2 flex flex-col gap-1">
+  <!-- 上排 = 青隊 (P1A / P1B / P1C)，下排 = 橙隊 (P2A / P2B / P2C) -->
+  <!-- P1A (top-left cell) -->
+  <div id="p1a-info" class="absolute top-2 left-2 flex flex-col gap-1">
     <div class="glass neon-c rounded-lg px-1.5 py-1">
-      <div class="text-[6px] text-slate-400 tracking-wider">P1A [C]</div>
+      <div id="p1a-tag" class="text-[6px] text-slate-400 tracking-wider">P1A</div>
       <div id="p1a-camlab" class="text-[8px] font-bold p1ac">TPV 追蹤</div>
     </div>
     <div id="p1a-return" class="hidden glass neon-a rounded-lg px-1.5 py-0.5">
@@ -94,54 +100,76 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
     </div>
   </div>
 
-  <!-- P2A corner (top-right) -->
-  <div class="absolute top-2 right-2 flex flex-col gap-1 items-end">
-    <div class="glass neon-o rounded-lg px-1.5 py-1 text-right">
-      <div class="text-[6px] text-slate-400 tracking-wider">P2A [GP]</div>
-      <div id="p2a-camlab" class="text-[8px] font-bold p2ac">TPV 追蹤</div>
+  <!-- P1B (top-middle cell, 避開中央計分板往下移) -->
+  <div id="p1b-info" class="absolute flex flex-col gap-1" style="top:58px;left:calc(33.333% + 8px)">
+    <div class="glass neon-c rounded-lg px-1.5 py-1">
+      <div id="p1b-tag" class="text-[6px] text-slate-400 tracking-wider">P1B</div>
+      <div id="p1b-camlab" class="text-[8px] font-bold p1bc">TPV 追蹤</div>
     </div>
-    <div id="p2a-return" class="hidden glass neon-a rounded-lg px-1.5 py-0.5">
-      <div class="text-[7px] ta font-bold pulse2">⚠ 返回己方</div>
-    </div>
-  </div>
-
-  <!-- P1B corner (bottom-left) -->
-  <div class="absolute bottom-2 left-2 flex flex-col gap-1">
     <div id="p1b-return" class="hidden glass neon-a rounded-lg px-1.5 py-0.5">
       <div class="text-[7px] ta font-bold pulse2">⚠ 返回己方</div>
     </div>
-    <div class="glass neon-c rounded-lg px-1.5 py-1">
-      <div class="text-[6px] text-slate-400 tracking-wider">P1B [N]</div>
-      <div id="p1b-camlab" class="text-[8px] font-bold p1bc">TPV 追蹤</div>
+  </div>
+
+  <!-- P1C (top-right cell) -->
+  <div id="p1c-info" class="absolute top-2 right-2 flex flex-col gap-1 items-end">
+    <div class="glass neon-c rounded-lg px-1.5 py-1 text-right">
+      <div id="p1c-tag" class="text-[6px] text-slate-400 tracking-wider">P1C</div>
+      <div id="p1c-camlab" class="text-[8px] font-bold p1cc">TPV 追蹤</div>
+    </div>
+    <div id="p1c-return" class="hidden glass neon-a rounded-lg px-1.5 py-0.5">
+      <div class="text-[7px] ta font-bold pulse2">⚠ 返回己方</div>
     </div>
   </div>
 
-  <!-- P2B corner (bottom-right) -->
-  <div class="absolute bottom-2 right-2 flex flex-col gap-1 items-end">
+  <!-- P2A (bottom-left cell) -->
+  <div id="p2a-info" class="absolute bottom-2 left-2 flex flex-col gap-1">
+    <div id="p2a-return" class="hidden glass neon-a rounded-lg px-1.5 py-0.5">
+      <div class="text-[7px] ta font-bold pulse2">⚠ 返回己方</div>
+    </div>
+    <div class="glass neon-o rounded-lg px-1.5 py-1">
+      <div id="p2a-tag" class="text-[6px] text-slate-400 tracking-wider">P2A</div>
+      <div id="p2a-camlab" class="text-[8px] font-bold p2ac">TPV 追蹤</div>
+    </div>
+  </div>
+
+  <!-- P2B (bottom-middle cell, 避開小地圖往上移) -->
+  <div id="p2b-info" class="absolute flex flex-col gap-1" style="bottom:8px;left:calc(33.333% + 8px)">
     <div id="p2b-return" class="hidden glass neon-a rounded-lg px-1.5 py-0.5">
       <div class="text-[7px] ta font-bold pulse2">⚠ 返回己方</div>
     </div>
-    <div class="glass neon-o rounded-lg px-1.5 py-1 text-right">
-      <div class="text-[6px] text-slate-400 tracking-wider">P2B [GP]</div>
+    <div class="glass neon-o rounded-lg px-1.5 py-1">
+      <div id="p2b-tag" class="text-[6px] text-slate-400 tracking-wider">P2B</div>
       <div id="p2b-camlab" class="text-[8px] font-bold p2bc">TPV 追蹤</div>
+    </div>
+  </div>
+
+  <!-- P2C (bottom-right cell) -->
+  <div id="p2c-info" class="absolute bottom-2 right-2 flex flex-col gap-1 items-end">
+    <div id="p2c-return" class="hidden glass neon-a rounded-lg px-1.5 py-0.5">
+      <div class="text-[7px] ta font-bold pulse2">⚠ 返回己方</div>
+    </div>
+    <div class="glass neon-o rounded-lg px-1.5 py-1 text-right">
+      <div id="p2c-tag" class="text-[6px] text-slate-400 tracking-wider">P2C</div>
+      <div id="p2c-camlab" class="text-[8px] font-bold p2cc">TPV 追蹤</div>
     </div>
   </div>
 
   <!-- Mode indicator (center) -->
   <div id="mode-ind" class="hidden absolute glass neon-a rounded-xl px-3 py-1 z-20" style="top:58px;left:50%;transform:translateX(-50%)">
-    <div class="text-[8px] ta font-bold tracking-widest" id="mode-ind-text">📐 四格模式  [Q] 切換</div>
+    <div class="text-[8px] ta font-bold tracking-widest" id="mode-ind-text">📐 六格模式  [Q] 切換</div>
   </div>
 
   <!-- Pilot mode team labels -->
   <div id="pilot-team-a" class="hidden absolute bottom-3 left-3">
     <div class="glass neon-c rounded-xl px-3 py-1.5 text-center">
-      <div class="text-[8px] tc font-bold">🔵 青隊 (P1A + P1B)</div>
+      <div class="text-[8px] tc font-bold">🔵 青隊 (P1A + P1B + P1C)</div>
       <div class="text-[7px] text-slate-400 font-mono">飛手端視角</div>
     </div>
   </div>
   <div id="pilot-team-b" class="hidden absolute bottom-3 right-3">
     <div class="glass neon-o rounded-xl px-3 py-1.5 text-center">
-      <div class="text-[8px] to font-bold">🟠 橙隊 (P2A + P2B)</div>
+      <div class="text-[8px] to font-bold">🟠 橙隊 (P2A + P2B + P2C)</div>
       <div class="text-[7px] text-slate-400 font-mono">飛手端視角</div>
     </div>
   </div>
@@ -167,13 +195,13 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
 <div id="intro" class="fixed inset-0 bg-slate-950/93 backdrop-blur-xl z-40 flex items-center justify-center p-3">
   <div class="glass neon-c rounded-3xl p-5 max-w-xl w-full flex flex-col gap-3 text-center">
     <div>
-      <div class="text-[8px] tc tracking-[.3em] font-bold uppercase">FAI F9A-B · 2v2 · Drone Soccer</div>
+      <div class="text-[8px] tc tracking-[.3em] font-bold uppercase">FAI F9A-B · 3v3 · Drone Soccer</div>
       <h1 class="text-xl font-black mt-1">
-        <span class="p1ac">P1A</span><span class="text-slate-500">+</span><span class="p1bc">P1B</span>
+        <span class="p1ac">P1A</span><span class="text-slate-500">+</span><span class="p1bc">P1B</span><span class="text-slate-500">+</span><span class="p1cc">P1C</span>
         <span class="text-white mx-1">vs</span>
-        <span class="p2ac">P2A</span><span class="text-slate-500">+</span><span class="p2bc">P2B</span>
+        <span class="p2ac">P2A</span><span class="text-slate-500">+</span><span class="p2bc">P2B</span><span class="text-slate-500">+</span><span class="p2cc">P2C</span>
       </h1>
-      <h2 class="text-sm font-black text-white">2v2 無人機足球</h2>
+      <h2 class="text-sm font-black text-white">3v3 無人機足球</h2>
       <div class="text-[7px] text-slate-500 font-mono mt-0.5">場地 6×3×3 m · 球門內徑 40 cm</div>
     </div>
 
@@ -182,10 +210,9 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
       <div class="glass rounded-xl p-2 border border-cyan-500/40">
         <div class="tc font-bold mb-1">🔵 青隊 (Team A)</div>
         <div class="text-slate-400 leading-relaxed">
-          <span class="p1ac font-bold">P1A</span>：<span id="lbl-gp1a">WASD ↑↓←→ / GP#0</span><br>
-          <span class="p1bc font-bold">P1B</span>：<span id="lbl-gp1b">IJKL Num8246 / GP#1</span><br>
-          <span class="tc">C</span> P1A視角 · <span class="tc">V</span> P1A站位<br>
-          <span class="tc">N</span> P1B視角 · <span class="tc">M</span> P1B站位
+          <span class="p1ac font-bold">P1A</span>：<span id="lbl-gp1a">GP#0</span><br>
+          <span class="p1bc font-bold">P1B</span>：<span id="lbl-gp1b">GP#1</span><br>
+          <span class="p1cc font-bold">P1C</span>：<span id="lbl-gp1c">—</span>
         </div>
       </div>
       <div class="glass rounded-xl p-2 border border-orange-500/40">
@@ -193,8 +220,7 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
         <div class="text-slate-400 leading-relaxed">
           <span class="p2ac font-bold">P2A</span>：<span id="lbl-gp2a">GP#2</span><br>
           <span class="p2bc font-bold">P2B</span>：<span id="lbl-gp2b">GP#3</span><br>
-          搖桿鍵：cam視角切換<br>
-          START 切換 · SELECT 站位
+          <span class="p2cc font-bold">P2C</span>：<span id="lbl-gp2c">—</span>
         </div>
       </div>
       <div class="glass rounded-xl p-2">
@@ -202,11 +228,11 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
         <div class="text-slate-400 leading-relaxed">3 節 × 3 分鐘<br>率先 <span class="ta font-bold">5 球</span>贏本節<br>贏 2 節即勝</div>
       </div>
       <div class="glass rounded-xl p-2">
-        <div class="ta font-bold mb-0.5">📐 視角說明</div>
+        <div class="ta font-bold mb-0.5">📐 視角/按鍵</div>
         <div class="text-slate-400 leading-relaxed">
-          <span class="ta">Q</span> 四格：每人獨立視角<br>
-          <span class="ta">Q</span> 飛手：同隊共用畫面<br>
-          自家球門自動半透明
+          <span class="ta">Q</span> 六格 ↔ 飛手視角<br>
+          <span class="ta">C/V</span> 鍵盤1 視角/站位 · <span class="ta">N/M</span> 鍵盤2<br>
+          搖桿 START 視角 · SELECT 站位
         </div>
       </div>
     </div>
@@ -214,7 +240,7 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
     <!-- Display mode -->
     <div class="glass rounded-xl p-2 flex items-center gap-2" style="pointer-events:auto">
       <div class="text-[7px] tc font-bold uppercase tracking-wider whitespace-nowrap">畫面模式</div>
-      <button id="disp-quad"  onclick="setDisplayMode('quad')"  class="mode-btn active">📐 四格模式</button>
+      <button id="disp-quad"  onclick="setDisplayMode('quad')"  class="mode-btn active">📐 六格模式</button>
       <button id="disp-pilot" onclick="setDisplayMode('pilot')" class="mode-btn">👤 飛手視角</button>
     </div>
 
@@ -222,9 +248,9 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
     <div class="glass rounded-xl p-2.5 flex flex-col gap-2" style="pointer-events:auto">
       <div class="text-[8px] tc font-bold uppercase tracking-widest">選擇模式</div>
       <div class="flex gap-2">
-        <button id="btn-2v2" onclick="enterMatch(false)"
+        <button id="btn-3v3" onclick="enterMatch(false)"
           class="flex-1 bg-gradient-to-r from-cyan-500 to-orange-400 hover:scale-105 active:scale-100 transition text-slate-950 font-black py-2 rounded-xl text-sm uppercase tracking-wider shadow-lg">
-          ⚔ 純 2v2
+          ⚔ 純 3v3
         </button>
         <button id="btn-gk" onclick="showGKOptions()"
           class="flex-1 bg-gradient-to-r from-purple-500 to-pink-400 hover:scale-105 active:scale-100 transition text-slate-950 font-black py-2 rounded-xl text-sm uppercase tracking-wider shadow-lg">
@@ -340,16 +366,18 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
   };
 })();
 
-// Gamepad indices (from pairing localStorage or defaults 0-3)
-// 特殊值：-2 = 鍵盤佈局1 (WASD+方向鍵)，-3 = 鍵盤佈局2 (IJKL+Numpad)
-const _fromLobby = localStorage.getItem('droneSimP1A')!=null;
-let gpIdx1a=+(localStorage.getItem('droneSimP1A')??localStorage.getItem('droneSimP1')??0);
+// Gamepad indices (from pairing localStorage or defaults)
+// 特殊值：-1 = 未指派，-2 = 鍵盤佈局1 (WASD+方向鍵)，-3 = 鍵盤佈局2 (IJKL+Numpad)
+const _fromLobby = localStorage.getItem('droneSimP1C')!=null;
+let gpIdx1a=+(localStorage.getItem('droneSimP1A')??0);
 let gpIdx1b=+(localStorage.getItem('droneSimP1B')??1);
-let gpIdx2a=+(localStorage.getItem('droneSimP2A')??localStorage.getItem('droneSimP2')??2);
+let gpIdx1c=+(localStorage.getItem('droneSimP1C')??-1);
+let gpIdx2a=+(localStorage.getItem('droneSimP2A')??2);
 let gpIdx2b=+(localStorage.getItem('droneSimP2B')??3);
+let gpIdx2c=+(localStorage.getItem('droneSimP2C')??-1);
 
-// 鍵盤佈局歸屬：大廳指定 -2/-3 給任一位置；直接開啟本頁時維持舊行為 P1A=WASD、P1B=IJKL
-const _posIdx={p1a:gpIdx1a,p1b:gpIdx1b,p2a:gpIdx2a,p2b:gpIdx2b};
+// 鍵盤佈局歸屬：大廳指定 -2/-3 給任一位置；直接開啟本頁時 fallback P1A=WASD、P1B=IJKL
+const _posIdx={p1a:gpIdx1a,p1b:gpIdx1b,p1c:gpIdx1c,p2a:gpIdx2a,p2b:gpIdx2b,p2c:gpIdx2c};
 let kb1Owner=null, kb2Owner=null;
 for(const [pos,v] of Object.entries(_posIdx)){
   if(v===-2)kb1Owner=pos;
@@ -365,7 +393,7 @@ for(const [pos,v] of Object.entries(_posIdx)){
 }
 // 每位 AI 各自的難度（大廳儲存）
 const AI_DIFFS={};
-['P1A','P1B','P2A','P2B'].forEach(k=>{
+['P1A','P1B','P1C','P2A','P2B','P2C'].forEach(k=>{
   AI_DIFFS[k.toLowerCase()]=localStorage.getItem('droneSimAIDiff_'+k)||'med';
 });
 
@@ -388,21 +416,28 @@ function kbInput(layout){
   return {thr,yaw,pitch,roll,crouch};
 }
 
-// Show controller assignment in intro
+// Show controller assignment in intro + HUD corner tags
 function _ctrlLabel(pos,v){
   if(v===-2)return '⌨️ WASD ↑↓←→';
   if(v===-3)return '⌨️ IJKL Num8246';
   if(v===-4)return '🤖 AI 進攻（'+({easy:'簡單',med:'中等',hard:'困難'}[AI_DIFFS[pos]]||'中等')+'）';
   if(v===-5)return '🛡️ AI 防守（'+({easy:'簡單',med:'中等',hard:'困難'}[AI_DIFFS[pos]]||'中等')+'）';
-  let s='GP#'+v;
-  if(kb1Owner===pos)s='WASD ↑↓←→ / '+s;   // 直接開頁的舊行為
-  if(kb2Owner===pos)s='IJKL Num8246 / '+s;
-  return s;
+  if(v===-1&&kb1Owner!==pos&&kb2Owner!==pos)return '—（未指派）';
+  let s=v>=0?'GP#'+v:'';
+  if(kb1Owner===pos)s=('WASD ↑↓←→'+(s?' / '+s:''));
+  if(kb2Owner===pos)s=('IJKL Num8246'+(s?' / '+s:''));
+  return s||'—（未指派）';
 }
-document.getElementById('lbl-gp1a').textContent=_ctrlLabel('p1a',gpIdx1a);
-document.getElementById('lbl-gp1b').textContent=_ctrlLabel('p1b',gpIdx1b);
-document.getElementById('lbl-gp2a').textContent=_ctrlLabel('p2a',gpIdx2a);
-document.getElementById('lbl-gp2b').textContent=_ctrlLabel('p2b',gpIdx2b);
+const POS_LIST=['p1a','p1b','p1c','p2a','p2b','p2c'];
+const POS_IDX_VAR={p1a:()=>gpIdx1a,p1b:()=>gpIdx1b,p1c:()=>gpIdx1c,p2a:()=>gpIdx2a,p2b:()=>gpIdx2b,p2c:()=>gpIdx2c};
+POS_LIST.forEach(pos=>{
+  const v=POS_IDX_VAR[pos]();
+  document.getElementById('lbl-gp'+pos.slice(1)).textContent=_ctrlLabel(pos,v);
+  // HUD 角落標籤：顯示視角切換鍵 / AI 角色
+  const key=AI_ROLES[pos]==='fwd'?'[🤖攻]':AI_ROLES[pos]==='def'?'[🛡️守]'
+           :kb1Owner===pos?'[C]':kb2Owner===pos?'[N]':'[GP]';
+  document.getElementById(pos+'-tag').textContent=pos.toUpperCase()+' '+key;
+});
 
 // ── FAI F9A-B CONSTANTS ──
 const FL=6, FW=3, FH=3;
@@ -473,15 +508,15 @@ function tickCountdownBeep(){
 
 // ── GLOBALS ──
 let renderer, scene, clock;
-// Quad mode cameras (one per player)
-let camP1A, camP1B, camP2A, camP2B;
+// Hex mode cameras (one per player)
+let camP1A, camP1B, camP1C, camP2A, camP2B, camP2C;
 // Pilot mode cameras (one per team)
 let camPilotA, camPilotB;
 // Overhead tactic camera
 let cameraOverhead;
 // Camera look-at targets
-let camTgtP1A=new THREE.Vector3(), camTgtP1B=new THREE.Vector3();
-let camTgtP2A=new THREE.Vector3(), camTgtP2B=new THREE.Vector3();
+let camTgtP1A=new THREE.Vector3(), camTgtP1B=new THREE.Vector3(), camTgtP1C=new THREE.Vector3();
+let camTgtP2A=new THREE.Vector3(), camTgtP2B=new THREE.Vector3(), camTgtP2C=new THREE.Vector3();
 
 let goalMeshes=[], goalLights=[];
 let drones=[];
@@ -489,21 +524,16 @@ let phase='intro';
 let curSet=1, setTimer=SET_DUR;
 let scores={A:0,B:0}, setsWon={A:0,B:0}, setGoals={A:0,B:0}, setLog=[];
 let paused=false, hasGK=false, pDiff='med', SF=1.0;
-let displayMode='quad'; // 'quad' or 'pilot'
+let displayMode='quad'; // 'quad'(六格) or 'pilot'
 let tacticView=false;
 
 // Per-player camera / pilot state
-let camMode1a='tpv', camMode1b='tpv', camMode2a='tpv', camMode2b='tpv';
-let pilotSide1a='right', pilotSide1b='right', pilotSide2a='right', pilotSide2b='right';
-let pilotCrouching1a=false, pilotCrouching1b=false;
-let pilotCrouching2a=false, pilotCrouching2b=false;
-
-// Gamepad edge tracking
-let gp1aCamPrev=false, gp1aPilotPrev=false;
-let gp1bCamPrev=false, gp1bPilotPrev=false;
-let gp2aCamPrev=false, gp2aPilotPrev=false;
-let gp2bCamPrev=false, gp2bPilotPrev=false;
-let gpPausePrev=false;
+let camMode1a='tpv', camMode1b='tpv', camMode1c='tpv';
+let camMode2a='tpv', camMode2b='tpv', camMode2c='tpv';
+let pilotSide1a='right', pilotSide1b='right', pilotSide1c='right';
+let pilotSide2a='right', pilotSide2b='right', pilotSide2c='right';
+let pilotCrouching1a=false, pilotCrouching1b=false, pilotCrouching1c=false;
+let pilotCrouching2a=false, pilotCrouching2b=false, pilotCrouching2c=false;
 
 const KEYS={}, CODES={};
 
@@ -524,15 +554,19 @@ function initThree(){
   scene.background=new THREE.Color(0x040810);
   scene.fog=new THREE.FogExp2(0x04080e,0.032);
 
-  // Quad mode: each viewport is W/2 × H/2, aspect = W/H
-  const fa=innerWidth/innerHeight;
-  // Pilot mode: each viewport is W/2 × H, aspect = (W/2)/H
+  // Hex mode: each viewport is W/3 × H/2
+  const hexA=(innerWidth/3)/(innerHeight/2);
+  // Pilot mode: each viewport is W/2 × H
   const ha=(innerWidth/2)/innerHeight;
+  // Fullscreen aspect
+  const fa=innerWidth/innerHeight;
 
-  camP1A=new THREE.PerspectiveCamera(68,fa,.04,150);
-  camP1B=new THREE.PerspectiveCamera(68,fa,.04,150);
-  camP2A=new THREE.PerspectiveCamera(68,fa,.04,150);
-  camP2B=new THREE.PerspectiveCamera(68,fa,.04,150);
+  camP1A=new THREE.PerspectiveCamera(68,hexA,.04,150);
+  camP1B=new THREE.PerspectiveCamera(68,hexA,.04,150);
+  camP1C=new THREE.PerspectiveCamera(68,hexA,.04,150);
+  camP2A=new THREE.PerspectiveCamera(68,hexA,.04,150);
+  camP2B=new THREE.PerspectiveCamera(68,hexA,.04,150);
+  camP2C=new THREE.PerspectiveCamera(68,hexA,.04,150);
 
   // Fixed pilot-end cameras for pilot mode
   camPilotA=new THREE.PerspectiveCamera(72,ha,.04,150);
@@ -556,9 +590,10 @@ function initThree(){
 
   clock=new THREE.Clock();
   window.addEventListener('resize',()=>{
-    const fa2=innerWidth/innerHeight, ha2=(innerWidth/2)/innerHeight;
-    [camP1A,camP1B,camP2A,camP2B,cameraOverhead].forEach(c=>{c.aspect=fa2;c.updateProjectionMatrix();});
+    const hexA2=(innerWidth/3)/(innerHeight/2), ha2=(innerWidth/2)/innerHeight, fa2=innerWidth/innerHeight;
+    [camP1A,camP1B,camP1C,camP2A,camP2B,camP2C].forEach(c=>{c.aspect=hexA2;c.updateProjectionMatrix();});
     [camPilotA,camPilotB].forEach(c=>{c.aspect=ha2;c.updateProjectionMatrix();});
+    cameraOverhead.aspect=fa2;cameraOverhead.updateProjectionMatrix();
     renderer.setSize(innerWidth,innerHeight);
   });
 }
@@ -638,7 +673,6 @@ function buildGoalRings(){
 }
 
 // Set own-goal opacity per team's perspective
-// opA: opacity of Team A's goal (at -GZ), opB: opacity of Team B's goal (at +GZ)
 function setGoalOpacity(opA,opB){
   if(goalMeshes[0])goalMeshes[0].material.opacity=opA;
   if(goalMeshes[1])goalMeshes[1].material.opacity=opB;
@@ -663,22 +697,26 @@ function makeDroneMesh(cfg){
   return g;
 }
 
-// ── DRONE CONFIGS FOR 4P ──
-const STARTS_4P=[
-  new THREE.Vector3(-0.25,BR+.02,-1.1),  // [0] P1A (Team A)
-  new THREE.Vector3( 0.25,BR+.02,-1.1),  // [1] P1B (Team A)
-  new THREE.Vector3(-0.25,BR+.02, 1.1),  // [2] P2A (Team B)
-  new THREE.Vector3( 0.25,BR+.02, 1.1),  // [3] P2B (Team B)
-  new THREE.Vector3(-0.12,GY,-GZ+.40),   // [4] GK_A1
-  new THREE.Vector3( 0.12,GY,-GZ+.40),   // [5] GK_A2
-  new THREE.Vector3(-0.12,GY, GZ-.40),   // [6] GK_B1
-  new THREE.Vector3( 0.12,GY, GZ-.40),   // [7] GK_B2
+// ── DRONE CONFIGS FOR 6P ──
+const STARTS_6P=[
+  new THREE.Vector3(-0.60,BR+.02,-1.10),  // [0] P1A (Team A)
+  new THREE.Vector3( 0.00,BR+.02,-1.18),  // [1] P1B (Team A)
+  new THREE.Vector3( 0.60,BR+.02,-1.10),  // [2] P1C (Team A)
+  new THREE.Vector3(-0.60,BR+.02, 1.10),  // [3] P2A (Team B)
+  new THREE.Vector3( 0.00,BR+.02, 1.18),  // [4] P2B (Team B)
+  new THREE.Vector3( 0.60,BR+.02, 1.10),  // [5] P2C (Team B)
+  new THREE.Vector3(-0.12,GY,-GZ+.40),    // [6] GK_A1
+  new THREE.Vector3( 0.12,GY,-GZ+.40),    // [7] GK_A2
+  new THREE.Vector3(-0.12,GY, GZ-.40),    // [8] GK_B1
+  new THREE.Vector3( 0.12,GY, GZ-.40),    // [9] GK_B2
 ];
-const DCFG_4P=[
+const DCFG_6P=[
   {team:TA,tc:0x00eeff,playerIndex:0,role:'p1a'},
   {team:TA,tc:0x38bdf8,playerIndex:1,role:'p1b'},
-  {team:TB,tc:0xff6622,playerIndex:2,role:'p2a'},
-  {team:TB,tc:0xfacc15,playerIndex:3,role:'p2b'},
+  {team:TA,tc:0x2dd4bf,playerIndex:2,role:'p1c'},
+  {team:TB,tc:0xff6622,playerIndex:3,role:'p2a'},
+  {team:TB,tc:0xfacc15,playerIndex:4,role:'p2b'},
+  {team:TB,tc:0xfb7185,playerIndex:5,role:'p2c'},
   {team:TA,tc:0x0055cc,playerIndex:null,xOff:-0.11},
   {team:TA,tc:0x003399,playerIndex:null,xOff: 0.11},
   {team:TB,tc:0xff3300,playerIndex:null,xOff:-0.11},
@@ -688,9 +726,9 @@ const DCFG_4P=[
 function initDrones(){
   drones.forEach(d=>{if(d.mesh)scene.remove(d.mesh);});
   drones=[];
-  const count=hasGK?8:4;
+  const count=hasGK?10:6;
   for(let i=0;i<count;i++){
-    const cfg=DCFG_4P[i];
+    const cfg=DCFG_6P[i];
     const isPlayer=cfg.playerIndex!==null;
     const mesh=makeDroneMesh(cfg);
     scene.add(mesh);
@@ -698,10 +736,10 @@ function initDrones(){
     drones.push({
       i,team:cfg.team,isPlayer,playerIndex:cfg.playerIndex,
       role:isPlayer?cfg.role:'gk',xOff:cfg.xOff??0,
-      pos:STARTS_4P[i].clone(),vel:new THREE.Vector3(),
-      yaw,mesh,prevZ:STARTS_4P[i].z,mustReturn:false,
+      pos:STARTS_6P[i].clone(),vel:new THREE.Vector3(),
+      yaw,mesh,prevZ:STARTS_6P[i].z,mustReturn:false,
     });
-    mesh.position.copy(STARTS_4P[i]);
+    mesh.position.copy(STARTS_6P[i]);
     mesh.rotation.y=yaw;
   }
 }
@@ -797,8 +835,8 @@ function showGoalFx(team){
 
 // ── INPUT HANDLERS ──
 function gpInput(gp,cfg,d,camKey,pilotKey,crouchRef,pauseRef){
-  // Returns {thr,yaw,pitch,roll,crouching,pauseEdge}
-  let thr=0,yaw=0,pitch=0,roll=0,crouching=false,pauseEdge=false;
+  // Returns {thr,yaw,pitch,roll,crouching}
+  let thr=0,yaw=0,pitch=0,roll=0,crouching=false;
   if(gp){
     thr  +=clamp(window.gpAxis(gp,'throttle',cfg),-1,1);
     yaw  +=clamp(window.gpAxis(gp,'yaw',cfg),-1,1);
@@ -822,8 +860,10 @@ function gpInput(gp,cfg,d,camKey,pilotKey,crouchRef,pauseRef){
 
 const _gp1aCam={prev:false,name:'p1a'}, _gp1aPilot={prev:false,name:'p1a'};
 const _gp1bCam={prev:false,name:'p1b'}, _gp1bPilot={prev:false,name:'p1b'};
+const _gp1cCam={prev:false,name:'p1c'}, _gp1cPilot={prev:false,name:'p1c'};
 const _gp2aCam={prev:false,name:'p2a'}, _gp2aPilot={prev:false,name:'p2a'};
 const _gp2bCam={prev:false,name:'p2b'}, _gp2bPilot={prev:false,name:'p2b'};
+const _gp2cCam={prev:false,name:'p2c'}, _gp2cPilot={prev:false,name:'p2c'};
 const _gpPause={prev:false};
 
 // 共用玩家輸入：鍵盤佈局（若歸屬此位置）＋搖桿疊加
@@ -851,13 +891,21 @@ function p1bInput(dt){
   const c=playerInput('p1b',1,gpIdx1b,_gp1bCam,_gp1bPilot,dt);
   if(c!==null)pilotCrouching1b=c;
 }
+function p1cInput(dt){
+  const c=playerInput('p1c',2,gpIdx1c,_gp1cCam,_gp1cPilot,dt);
+  if(c!==null)pilotCrouching1c=c;
+}
 function p2aInput(dt){
-  const c=playerInput('p2a',2,gpIdx2a,_gp2aCam,_gp2aPilot,dt);
+  const c=playerInput('p2a',3,gpIdx2a,_gp2aCam,_gp2aPilot,dt);
   if(c!==null)pilotCrouching2a=c;
 }
 function p2bInput(dt){
-  const c=playerInput('p2b',3,gpIdx2b,_gp2bCam,_gp2bPilot,dt);
+  const c=playerInput('p2b',4,gpIdx2b,_gp2bCam,_gp2bPilot,dt);
   if(c!==null)pilotCrouching2b=c;
+}
+function p2cInput(dt){
+  const c=playerInput('p2c',5,gpIdx2c,_gp2cCam,_gp2cPilot,dt);
+  if(c!==null)pilotCrouching2c=c;
 }
 
 // ── AI GOALKEEPER ──
@@ -898,6 +946,16 @@ function updateAI_GK(gk,target,ownGoalZ,dt,xOffset=0){
     aiMoveWorld(gk,new THREE.Vector3(xOffset,GY,gz+inward*0.5),dt,3.5*SF);
   }
 }
+// GK 鎖定最近的敵方進攻手
+function nearestAttacker(gk,team){
+  let best=null,bd=1e9;
+  drones.forEach(d=>{
+    if(!d.isPlayer||d.team===team)return;
+    const dist=gk.pos.distanceToSquared(d.pos);
+    if(dist<bd){bd=dist;best=d;}
+  });
+  return best;
+}
 
 // ── AI 場上玩家（進攻 / 防守） ──
 function updateAI_Fwd(fwd,dt,diff){
@@ -917,13 +975,7 @@ function updateAI_Def(def,dt,diff){
   const isA=def.team===TA;
   const gz=isA?-GZ:GZ;
   const spd=GK_SPD[diff]*SF*1.15;
-  // 鎖定最近的敵方玩家機（含敵方 AI）
-  let tgt=null,bd=1e9;
-  drones.forEach(d=>{
-    if(!d.isPlayer||d.team===def.team)return;
-    const dist=def.pos.distanceToSquared(d.pos);
-    if(dist<bd){bd=dist;tgt=d;}
-  });
+  const tgt=nearestAttacker(def,def.team);
   if(!tgt){aiMoveWorld(def,new THREE.Vector3(0,GY,gz*0.6),dt,spd);return;}
   // 站在「敵機預測位置 ↔ 自家球門」連線上（偏球門側），夾在己方半場
   const pred=tgt.pos.clone().addScaledVector(tgt.vel,GK_PRED[diff]);
@@ -979,35 +1031,39 @@ function toggleCam(player){
   const map={
     p1a:[camMode1a,v=>{camMode1a=v;document.getElementById('p1a-camlab').textContent=CAM_LABELS[v];}],
     p1b:[camMode1b,v=>{camMode1b=v;document.getElementById('p1b-camlab').textContent=CAM_LABELS[v];}],
+    p1c:[camMode1c,v=>{camMode1c=v;document.getElementById('p1c-camlab').textContent=CAM_LABELS[v];}],
     p2a:[camMode2a,v=>{camMode2a=v;document.getElementById('p2a-camlab').textContent=CAM_LABELS[v];}],
     p2b:[camMode2b,v=>{camMode2b=v;document.getElementById('p2b-camlab').textContent=CAM_LABELS[v];}],
+    p2c:[camMode2c,v=>{camMode2c=v;document.getElementById('p2c-camlab').textContent=CAM_LABELS[v];}],
   };
   if(!map[player])return;
   const [cur,set]=map[player];
   set(CAM_MODES[(CAM_MODES.indexOf(cur)+1)%CAM_MODES.length]);
 }
 function togglePilot(player){
-  const lbl={left:'← 左側',mid:'正中',right:'右側 →'};
   if(player==='p1a'){pilotSide1a=PILOT_SIDES[(PILOT_SIDES.indexOf(pilotSide1a)+1)%PILOT_SIDES.length];}
   else if(player==='p1b'){pilotSide1b=PILOT_SIDES[(PILOT_SIDES.indexOf(pilotSide1b)+1)%PILOT_SIDES.length];}
+  else if(player==='p1c'){pilotSide1c=PILOT_SIDES[(PILOT_SIDES.indexOf(pilotSide1c)+1)%PILOT_SIDES.length];}
   else if(player==='p2a'){pilotSide2a=PILOT_SIDES[(PILOT_SIDES.indexOf(pilotSide2a)+1)%PILOT_SIDES.length];}
   else if(player==='p2b'){pilotSide2b=PILOT_SIDES[(PILOT_SIDES.indexOf(pilotSide2b)+1)%PILOT_SIDES.length];}
+  else if(player==='p2c'){pilotSide2c=PILOT_SIDES[(PILOT_SIDES.indexOf(pilotSide2c)+1)%PILOT_SIDES.length];}
 }
 
 // ── DISPLAY MODE ──
+const INFO_IDS=['p1a-info','p1b-info','p1c-info','p2a-info','p2b-info','p2c-info'];
 function setDisplayMode(mode){
   displayMode=mode;
   document.getElementById('disp-quad').classList.toggle('active',mode==='quad');
   document.getElementById('disp-pilot').classList.toggle('active',mode==='pilot');
   // Show/hide dividers
-  document.getElementById('quad-dividers').style.display=mode==='quad'&&phase!=='intro'?'block':'none';
+  document.getElementById('hex-dividers').style.display=mode==='quad'&&phase!=='intro'?'block':'none';
   document.getElementById('pilot-divider').style.display=mode==='pilot'&&phase!=='intro'?'block':'none';
   // Show/hide pilot team labels
   const isPilot=mode==='pilot'&&phase!=='intro';
   document.getElementById('pilot-team-a').classList.toggle('hidden',!isPilot);
   document.getElementById('pilot-team-b').classList.toggle('hidden',!isPilot);
   // Show/hide per-player corner info (hide in pilot mode to reduce clutter)
-  ['p1a-info','p1b-info','p2a-info','p2b-info'].forEach(id=>{
+  INFO_IDS.forEach(id=>{
     const el=document.getElementById(id);
     if(el)el.style.display=mode==='quad'&&phase!=='intro'?'flex':'none';
   });
@@ -1028,10 +1084,10 @@ function drawMinimap(){
     ctx.strokeStyle=g.c;ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(mx,mz,GI*scX,0,Math.PI*2);ctx.stroke();
   });
-  const pCols=['#00eeff','#38bdf8','#ff6622','#facc15','#0066ff','#0044cc','#ff4400','#cc2200'];
+  const pCols=['#00eeff','#38bdf8','#2dd4bf','#ff6622','#facc15','#fb7185','#0066ff','#0044cc','#ff4400','#cc2200'];
   drones.forEach((d,i)=>{
     const mx=(d.pos.x+HW)*scX,mz=(d.pos.z+HL)*scZ;
-    const col=pCols[Math.min(i,7)];
+    const col=pCols[Math.min(i,9)];
     ctx.beginPath();ctx.arc(mx,mz,d.isPlayer?4:2.5,0,Math.PI*2);
     ctx.fillStyle=col;ctx.fill();
     if(d.isPlayer){ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();}
@@ -1040,7 +1096,7 @@ function drawMinimap(){
     ctx.beginPath();ctx.moveTo(mx,mz);
     ctx.lineTo(mx+Math.sin(d.yaw)*fwd,mz+Math.cos(d.yaw)*fwd);ctx.stroke();
     if(d.isPlayer){
-      const labels=['1A','1B','2A','2B'];
+      const labels=['1A','1B','1C','2A','2B','2C'];
       ctx.fillStyle='#fff';ctx.font='bold 6px monospace';ctx.textAlign='center';
       ctx.fillText(labels[d.playerIndex]??'',mx,mz-5);
     }
@@ -1108,11 +1164,11 @@ function updateHUD(){
   const gs=document.getElementById('gstatus');
   if(phase==='playing'){gs.textContent='比賽進行中';gs.className='text-[6px] tg font-mono pulse2';}
   else if(phase==='goal_pause'){gs.textContent='進球！';gs.className='text-[6px] ta font-mono pulse2';}
-  const d0=drones[0],d1=drones[1],d2=drones[2],d3=drones[3];
-  document.getElementById('p1a-return').classList.toggle('hidden',!(d0&&d0.mustReturn));
-  document.getElementById('p1b-return').classList.toggle('hidden',!(d1&&d1.mustReturn));
-  document.getElementById('p2a-return').classList.toggle('hidden',!(d2&&d2.mustReturn));
-  document.getElementById('p2b-return').classList.toggle('hidden',!(d3&&d3.mustReturn));
+  POS_LIST.forEach((pos,i)=>{
+    const d=drones[i];
+    const el=document.getElementById(pos+'-return');
+    if(el)el.classList.toggle('hidden',!(d&&d.mustReturn));
+  });
 }
 
 // ── SPEED ──
@@ -1123,10 +1179,11 @@ function setupKeys(){
   window.addEventListener('keydown',e=>{
     KEYS[e.key]=true;CODES[e.code]=true;
     switch(e.key.toLowerCase()){
-      case 'c':if(phase!=='intro')toggleCam('p1a');break;
-      case 'v':if(phase!=='intro')togglePilot('p1a');break;
-      case 'n':if(phase!=='intro')toggleCam('p1b');break;
-      case 'm':if(phase!=='intro')togglePilot('p1b');break;
+      // C/V 綁鍵盤1 擁有者，N/M 綁鍵盤2 擁有者（無鍵盤玩家時 fallback P1A/P1B）
+      case 'c':if(phase!=='intro')toggleCam(kb1Owner??'p1a');break;
+      case 'v':if(phase!=='intro')togglePilot(kb1Owner??'p1a');break;
+      case 'n':if(phase!=='intro')toggleCam(kb2Owner??'p1b');break;
+      case 'm':if(phase!=='intro')togglePilot(kb2Owner??'p1b');break;
       case 'q':if(phase!=='intro'){setDisplayMode(displayMode==='quad'?'pilot':'quad');}break;
       case 'p':case 'escape':
         if(phase==='playing'||phase==='goal_pause'){
@@ -1154,12 +1211,12 @@ function enterMatch(withGK){
   initDrones();
   phase='playing';
   // Apply chosen display mode dividers
-  document.getElementById('quad-dividers').style.display=displayMode==='quad'?'block':'none';
+  document.getElementById('hex-dividers').style.display=displayMode==='quad'?'block':'none';
   document.getElementById('pilot-divider').style.display=displayMode==='pilot'?'block':'none';
   const isPilot=displayMode==='pilot';
   document.getElementById('pilot-team-a').classList.toggle('hidden',!isPilot);
   document.getElementById('pilot-team-b').classList.toggle('hidden',!isPilot);
-  ['p1a-info','p1b-info','p2a-info','p2b-info'].forEach(id=>{
+  INFO_IDS.forEach(id=>{
     const el=document.getElementById(id);
     if(el)el.style.display=isPilot?'none':'flex';
   });
@@ -1176,15 +1233,16 @@ function animate(){
     if(phase==='playing'){
       if(!updateAI_Player('p1a',0,dt))p1aInput(dt);
       if(!updateAI_Player('p1b',1,dt))p1bInput(dt);
-      if(!updateAI_Player('p2a',2,dt))p2aInput(dt);
-      if(!updateAI_Player('p2b',3,dt))p2bInput(dt);
-      if(hasGK&&drones.length>=8){
-        // TeamA GKs guard -GZ, track TeamB attackers
-        updateAI_GK(drones[4],drones[2],-GZ,dt,drones[4].xOff);
-        updateAI_GK(drones[5],drones[3],-GZ,dt,drones[5].xOff);
-        // TeamB GKs guard +GZ, track TeamA attackers
-        updateAI_GK(drones[6],drones[0],+GZ,dt,drones[6].xOff);
-        updateAI_GK(drones[7],drones[1],+GZ,dt,drones[7].xOff);
+      if(!updateAI_Player('p1c',2,dt))p1cInput(dt);
+      if(!updateAI_Player('p2a',3,dt))p2aInput(dt);
+      if(!updateAI_Player('p2b',4,dt))p2bInput(dt);
+      if(!updateAI_Player('p2c',5,dt))p2cInput(dt);
+      if(hasGK&&drones.length>=10){
+        // TeamA GKs guard -GZ, TeamB GKs guard +GZ; 各自鎖定最近敵方
+        updateAI_GK(drones[6],nearestAttacker(drones[6],TA)??drones[3],-GZ,dt,drones[6].xOff);
+        updateAI_GK(drones[7],nearestAttacker(drones[7],TA)??drones[4],-GZ,dt,drones[7].xOff);
+        updateAI_GK(drones[8],nearestAttacker(drones[8],TB)??drones[0],+GZ,dt,drones[8].xOff);
+        updateAI_GK(drones[9],nearestAttacker(drones[9],TB)??drones[1],+GZ,dt,drones[9].xOff);
       }
       tickTimer(dt);
       drones.forEach(d=>{
@@ -1200,12 +1258,14 @@ function animate(){
     goalLights.forEach((l,i)=>{l.intensity=1.2+Math.sin(t*(1.1+i*.3))*.5;});
   }
 
-  // Camera updates (quad mode only; pilot cams are fixed)
+  // Camera updates (hex mode only; pilot cams are fixed)
   if(!tacticView&&displayMode==='quad'){
     updateCameraForPlayer(camP1A,camTgtP1A,drones[0],camMode1a,pilotSide1a,pilotCrouching1a);
     updateCameraForPlayer(camP1B,camTgtP1B,drones[1],camMode1b,pilotSide1b,pilotCrouching1b);
-    updateCameraForPlayer(camP2A,camTgtP2A,drones[2],camMode2a,pilotSide2a,pilotCrouching2a);
-    updateCameraForPlayer(camP2B,camTgtP2B,drones[3],camMode2b,pilotSide2b,pilotCrouching2b);
+    updateCameraForPlayer(camP1C,camTgtP1C,drones[2],camMode1c,pilotSide1c,pilotCrouching1c);
+    updateCameraForPlayer(camP2A,camTgtP2A,drones[3],camMode2a,pilotSide2a,pilotCrouching2a);
+    updateCameraForPlayer(camP2B,camTgtP2B,drones[4],camMode2b,pilotSide2b,pilotCrouching2b);
+    updateCameraForPlayer(camP2C,camTgtP2C,drones[5],camMode2c,pilotSide2c,pilotCrouching2c);
   }
 
   hudTick+=dt;
@@ -1230,34 +1290,27 @@ function animate(){
     setGoalOpacity(1.0,1.0);
     renderer.render(scene,cameraOverhead);
   } else if(displayMode==='quad'){
-    // 4-quadrant split
+    // 2×3 六分割：上排青隊 (P1A/P1B/P1C)，下排橙隊 (P2A/P2B/P2C)
     // goalMeshes[0] = Team A's own goal (at -GZ, blue)
     // goalMeshes[1] = Team B's own goal (at +GZ, red)
     renderer.setScissorTest(true);
+    const CW=Math.floor(W/3), CH=Math.floor(H/2);
 
-    // Top-left: P1A (Team A) → own goal transparent
+    // Top row: Team A → own goal transparent
     setGoalOpacity(0.22,1.0);
-    renderer.setViewport(0,H/2,W/2,H/2);
-    renderer.setScissor(0,H/2,W/2,H/2);
-    renderer.render(scene,camP1A);
+    [[0,camP1A],[1,camP1B],[2,camP1C]].forEach(([col,cam])=>{
+      renderer.setViewport(col*CW,CH,CW,CH);
+      renderer.setScissor(col*CW,CH,CW,CH);
+      renderer.render(scene,cam);
+    });
 
-    // Bottom-left: P1B (Team A) → own goal transparent
-    setGoalOpacity(0.22,1.0);
-    renderer.setViewport(0,0,W/2,H/2);
-    renderer.setScissor(0,0,W/2,H/2);
-    renderer.render(scene,camP1B);
-
-    // Top-right: P2A (Team B) → own goal transparent
+    // Bottom row: Team B → own goal transparent
     setGoalOpacity(1.0,0.22);
-    renderer.setViewport(W/2,H/2,W/2,H/2);
-    renderer.setScissor(W/2,H/2,W/2,H/2);
-    renderer.render(scene,camP2A);
-
-    // Bottom-right: P2B (Team B) → own goal transparent
-    setGoalOpacity(1.0,0.22);
-    renderer.setViewport(W/2,0,W/2,H/2);
-    renderer.setScissor(W/2,0,W/2,H/2);
-    renderer.render(scene,camP2B);
+    [[0,camP2A],[1,camP2B],[2,camP2C]].forEach(([col,cam])=>{
+      renderer.setViewport(col*CW,0,CW,CH);
+      renderer.setScissor(col*CW,0,CW,CH);
+      renderer.render(scene,cam);
+    });
 
     setGoalOpacity(1.0,1.0);
     renderer.setScissorTest(false);
@@ -1289,8 +1342,8 @@ function animate(){
   buildGoalRings();
   setupKeys();
   animate();
-  // Auto-start from pairing if localStorage set
-  if(localStorage.getItem('droneSimP1A')!=null||localStorage.getItem('droneSimP1')!=null){
+  // Auto-start from pairing if localStorage set (6P 大廳一定會寫 droneSimP1C)
+  if(localStorage.getItem('droneSimP1C')!=null){
     enterMatch(false);
   }
 })();
@@ -1306,7 +1359,7 @@ function gpNav(d){
   _gpFocusBtns.forEach((id,i)=>{const el=document.getElementById(id);if(el)el.classList.toggle('gp-focus',i===_gpFocusIdx);});
 }
 function gpConfirm(){const el=document.getElementById(_gpFocusBtns[_gpFocusIdx]);if(el)el.click();}
-gpSetFocus(['btn-2v2','btn-gk'],0);
+gpSetFocus(['btn-3v3','btn-gk'],0);
 (function gpMenuLoop(){
   requestAnimationFrame(gpMenuLoop);
   if(phase!=='intro')return;
