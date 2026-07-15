@@ -345,35 +345,41 @@
                 </div>
             </div>
 
-            <!-- PVP 2P 足球賽 -->
+            <!-- PVP 多人對戰足球賽（2P / 4P / 6P） -->
             <div class="stage-card glass border rounded-2xl p-5 flex flex-col gap-3"
                  style="border-color:rgba(249,115,22,.45);box-shadow:0 0 12px rgba(249,115,22,.15)">
                 <div class="flex items-center gap-3">
                     <div class="text-4xl">🆚</div>
                     <div>
-                        <div class="text-[9px] tracking-widest font-bold uppercase" style="color:#fb923c">PVP · 2P LOCAL MATCH</div>
-                        <div class="text-lg font-black text-white">雙人對戰足球賽</div>
+                        <div class="text-[9px] tracking-widest font-bold uppercase" style="color:#fb923c">PVP · LOCAL MULTIPLAYER · 2P/4P/6P</div>
+                        <div class="text-lg font-black text-white">多人對戰足球賽</div>
                     </div>
                 </div>
                 <p class="text-[10px] text-slate-400 font-mono leading-relaxed">
-                    雙人本地對戰，每隊 1 人類前鋒＋2 AI 守門員，共 6 台無人機同場競技。
+                    本地多人對戰：2P 單挑、4P 2v2、6P 3v3。最多 4 支搖桿＋2 組鍵盤同場競技，
+                    任一位置可換成 AI（🤖 進攻／🛡️ 防守，難度各自可調），還能加開 AI 守門員。
                 </p>
                 <div class="flex gap-2 flex-wrap text-[9px]">
-                    <span class="px-2 py-0.5 rounded-full" style="background:rgba(249,115,22,.15);color:#fdba74;border:1px solid rgba(249,115,22,.35)">🎮 雙搖桿 / 鍵盤</span>
-                    <span class="px-2 py-0.5 rounded-full" style="background:rgba(249,115,22,.15);color:#fdba74;border:1px solid rgba(249,115,22,.35)">⚽ 3 vs 3 · 6台</span>
-                    <span class="px-2 py-0.5 rounded-full" style="background:rgba(249,115,22,.15);color:#fdba74;border:1px solid rgba(249,115,22,.35)">📺 分割畫面</span>
+                    <span class="px-2 py-0.5 rounded-full" style="background:rgba(249,115,22,.15);color:#fdba74;border:1px solid rgba(249,115,22,.35)">🎮 4搖桿＋2鍵盤＝6人</span>
+                    <span class="px-2 py-0.5 rounded-full" style="background:rgba(249,115,22,.15);color:#fdba74;border:1px solid rgba(249,115,22,.35)">🤖 AI 進攻/防守</span>
+                    <span class="px-2 py-0.5 rounded-full" style="background:rgba(249,115,22,.15);color:#fdba74;border:1px solid rgba(249,115,22,.35)">📺 分割畫面/飛手視角</span>
                 </div>
                 <div class="mt-auto">
                     <div class="flex gap-2">
                     <a href="pairing.html"
                        class="flex-1 block text-center text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest transition"
                        style="background:rgba(249,115,22,.75)">
-                        🆚 2v2 →
+                        🆚 2P →
                     </a>
-                    <a href="PVP/soccer-match-4p.html"
+                    <a href="pairing.html?mode=4p"
                        class="flex-1 block text-center text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest transition"
                        style="background:rgba(168,85,247,.75)">
                         ⚔ 4P →
+                    </a>
+                    <a href="pairing.html?mode=6p"
+                       class="flex-1 block text-center text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest transition"
+                       style="background:rgba(6,182,212,.75)">
+                        👥 6P →
                     </a>
                     </div>
                 </div>

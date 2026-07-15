@@ -73,6 +73,14 @@ footer{padding:10px;border-top:1px solid #1e293b;text-align:center;flex-shrink:0
 #lobby4p{display:none;grid-template-columns:1fr 1fr;flex:1;overflow:hidden}
 body.mode4p #lobby2p{display:none!important}
 body.mode4p #lobby4p{display:grid!important;flex:1}
+/* ── 6P mode ─────────────────────── */
+#lobby6p{display:none;grid-template-columns:1fr 1fr;flex:1;overflow:hidden}
+body.mode6p #lobby2p{display:none!important}
+body.mode6p #lobby6p{display:grid!important;flex:1}
+.panel6p{display:flex;flex-direction:column;gap:5px;padding:8px 12px;
+         border-bottom:1px solid #111827;flex:1}
+.kb-live{width:8px;height:8px;border-radius:50%;background:#334155;flex-shrink:0;transition:.15s}
+.kb-live.on{background:#38bdf8;box-shadow:0 0 6px #38bdf888}
 .team-col{display:flex;flex-direction:column;border-right:1px solid #1e293b;overflow-y:auto;flex:1}
 .team-col:last-child{border-right:none}
 .team-hdr{padding:6px 12px;font-size:.72rem;font-weight:700;border-bottom:1px solid #1e293b;
@@ -86,10 +94,11 @@ body.mode4p #lobby4p{display:grid!important;flex:1}
 <header>
   <a class="back" href="exp/menu.html">← 主選單</a>
   <h1>🎮 配對大廳</h1>
-  <p>插上手把 → 選控制器 → 試飛確認手感 → 按準備</p>
+  <p>插上手把或選鍵盤 → 試飛確認手感 → 按準備</p>
   <div id="mode-sel">
     <button id="ms-2p" class="mselbtn on" onclick="setGameMode('2p')">2P 對戰</button>
     <button id="ms-4p" class="mselbtn" onclick="setGameMode('4p')">4P 2v2</button>
+    <button id="ms-6p" class="mselbtn" onclick="setGameMode('6p')">6P 3v3</button>
   </div>
   <a class="back" href="exp/gamepad-test.html" style="margin-left:4px;white-space:nowrap">⚙️ 搖桿設定</a>
 </header>
@@ -157,6 +166,11 @@ body.mode4p #lobby4p{display:grid!important;flex:1}
           <option value="-1">— 未偵測到控制器 —</option>
         </select>
       </div>
+      <div class="row" id="aidrow-p1a" style="display:none"><span>AI：</span>
+        <select id="aid-p1a" onchange="setAIDiff4('p1a',this.value)">
+          <option value="easy">🟢 簡單</option><option value="med" selected>🟡 中等</option><option value="hard">🔴 困難</option>
+        </select>
+      </div>
       <div class="mrow">
         <button class="mbtn" id="m1-p1a" onclick="setMode4('p1a','1')">✈️ Mode 1</button>
         <button class="mbtn b" id="m2-p1a" onclick="setMode4('p1a','2')">🎮 Mode 2</button>
@@ -172,6 +186,11 @@ body.mode4p #lobby4p{display:grid!important;flex:1}
       <div class="row"><span>手把：</span>
         <select id="sel-p1b" onchange="assignGp4('p1b',+this.value)">
           <option value="-1">— 未偵測到控制器 —</option>
+        </select>
+      </div>
+      <div class="row" id="aidrow-p1b" style="display:none"><span>AI：</span>
+        <select id="aid-p1b" onchange="setAIDiff4('p1b',this.value)">
+          <option value="easy">🟢 簡單</option><option value="med" selected>🟡 中等</option><option value="hard">🔴 困難</option>
         </select>
       </div>
       <div class="mrow">
@@ -196,6 +215,11 @@ body.mode4p #lobby4p{display:grid!important;flex:1}
           <option value="-1">— 未偵測到控制器 —</option>
         </select>
       </div>
+      <div class="row" id="aidrow-p2a" style="display:none"><span>AI：</span>
+        <select id="aid-p2a" onchange="setAIDiff4('p2a',this.value)">
+          <option value="easy">🟢 簡單</option><option value="med" selected>🟡 中等</option><option value="hard">🔴 困難</option>
+        </select>
+      </div>
       <div class="mrow">
         <button class="mbtn" id="m1-p2a" onclick="setMode4('p2a','1')">✈️ Mode 1</button>
         <button class="mbtn r" id="m2-p2a" onclick="setMode4('p2a','2')">🎮 Mode 2</button>
@@ -213,6 +237,11 @@ body.mode4p #lobby4p{display:grid!important;flex:1}
           <option value="-1">— 未偵測到控制器 —</option>
         </select>
       </div>
+      <div class="row" id="aidrow-p2b" style="display:none"><span>AI：</span>
+        <select id="aid-p2b" onchange="setAIDiff4('p2b',this.value)">
+          <option value="easy">🟢 簡單</option><option value="med" selected>🟡 中等</option><option value="hard">🔴 困難</option>
+        </select>
+      </div>
       <div class="mrow">
         <button class="mbtn" id="m1-p2b" onclick="setMode4('p2b','1')">✈️ Mode 1</button>
         <button class="mbtn r" id="m2-p2b" onclick="setMode4('p2b','2')">🎮 Mode 2</button>
@@ -221,6 +250,123 @@ body.mode4p #lobby4p{display:grid!important;flex:1}
       <div class="axwrap" id="ax-p2b"></div>
       <div class="hint" style="font-size:.58rem">↑↓ 油門高度 · 搖桿移動 · 白點＝機頭</div>
       <button class="rbtn" id="r-p2b" onclick="toggleReady4('p2b')">▷ 尚未準備</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── 6P Lobby（3v3，軸條檢測，無 3D 預覽以節省 WebGL 資源） ── -->
+<div class="lobby" id="lobby6p">
+
+  <!-- Team A: P1A + P1B + P1C -->
+  <div class="team-col">
+    <div class="team-hdr" style="color:#38bdf8">🔵 青隊 (Team A) — 3 人</div>
+    <div class="panel6p">
+      <div class="plabel" style="font-size:.85rem"><div class="dot" id="dot6-p1a"></div><span class="p1c">P1A 玩家</span></div>
+      <div class="row"><span>控制：</span>
+        <select id="sel6-p1a" onchange="assignGp6('p1a',+this.value)"><option value="-1">— 未選擇 —</option></select>
+      </div>
+      <div class="row" id="aidrow6-p1a" style="display:none"><span>AI：</span>
+        <select id="aid6-p1a" onchange="setAIDiff6('p1a',this.value)">
+          <option value="easy">🟢 簡單</option><option value="med" selected>🟡 中等</option><option value="hard">🔴 困難</option>
+        </select>
+      </div>
+      <div class="mrow">
+        <button class="mbtn" id="m1-6-p1a" onclick="setMode6('p1a','1')">✈️ Mode 1</button>
+        <button class="mbtn b" id="m2-6-p1a" onclick="setMode6('p1a','2')">🎮 Mode 2</button>
+      </div>
+      <div class="axwrap" id="ax6-p1a"></div>
+      <button class="rbtn" id="r6-p1a" onclick="toggleReady6('p1a')">▷ 尚未準備</button>
+    </div>
+    <div class="panel6p">
+      <div class="plabel" style="font-size:.85rem"><div class="dot" id="dot6-p1b"></div><span class="p1c">P1B 玩家</span></div>
+      <div class="row"><span>控制：</span>
+        <select id="sel6-p1b" onchange="assignGp6('p1b',+this.value)"><option value="-1">— 未選擇 —</option></select>
+      </div>
+      <div class="row" id="aidrow6-p1b" style="display:none"><span>AI：</span>
+        <select id="aid6-p1b" onchange="setAIDiff6('p1b',this.value)">
+          <option value="easy">🟢 簡單</option><option value="med" selected>🟡 中等</option><option value="hard">🔴 困難</option>
+        </select>
+      </div>
+      <div class="mrow">
+        <button class="mbtn" id="m1-6-p1b" onclick="setMode6('p1b','1')">✈️ Mode 1</button>
+        <button class="mbtn b" id="m2-6-p1b" onclick="setMode6('p1b','2')">🎮 Mode 2</button>
+      </div>
+      <div class="axwrap" id="ax6-p1b"></div>
+      <button class="rbtn" id="r6-p1b" onclick="toggleReady6('p1b')">▷ 尚未準備</button>
+    </div>
+    <div class="panel6p">
+      <div class="plabel" style="font-size:.85rem"><div class="dot" id="dot6-p1c"></div><span class="p1c">P1C 玩家</span></div>
+      <div class="row"><span>控制：</span>
+        <select id="sel6-p1c" onchange="assignGp6('p1c',+this.value)"><option value="-1">— 未選擇 —</option></select>
+      </div>
+      <div class="row" id="aidrow6-p1c" style="display:none"><span>AI：</span>
+        <select id="aid6-p1c" onchange="setAIDiff6('p1c',this.value)">
+          <option value="easy">🟢 簡單</option><option value="med" selected>🟡 中等</option><option value="hard">🔴 困難</option>
+        </select>
+      </div>
+      <div class="mrow">
+        <button class="mbtn" id="m1-6-p1c" onclick="setMode6('p1c','1')">✈️ Mode 1</button>
+        <button class="mbtn b" id="m2-6-p1c" onclick="setMode6('p1c','2')">🎮 Mode 2</button>
+      </div>
+      <div class="axwrap" id="ax6-p1c"></div>
+      <button class="rbtn" id="r6-p1c" onclick="toggleReady6('p1c')">▷ 尚未準備</button>
+    </div>
+  </div>
+
+  <!-- Team B: P2A + P2B + P2C -->
+  <div class="team-col">
+    <div class="team-hdr" style="color:#fb923c">🟠 橙隊 (Team B) — 3 人</div>
+    <div class="panel6p">
+      <div class="plabel" style="font-size:.85rem"><div class="dot" id="dot6-p2a"></div><span class="p2c">P2A 玩家</span></div>
+      <div class="row"><span>控制：</span>
+        <select id="sel6-p2a" onchange="assignGp6('p2a',+this.value)"><option value="-1">— 未選擇 —</option></select>
+      </div>
+      <div class="row" id="aidrow6-p2a" style="display:none"><span>AI：</span>
+        <select id="aid6-p2a" onchange="setAIDiff6('p2a',this.value)">
+          <option value="easy">🟢 簡單</option><option value="med" selected>🟡 中等</option><option value="hard">🔴 困難</option>
+        </select>
+      </div>
+      <div class="mrow">
+        <button class="mbtn" id="m1-6-p2a" onclick="setMode6('p2a','1')">✈️ Mode 1</button>
+        <button class="mbtn r" id="m2-6-p2a" onclick="setMode6('p2a','2')">🎮 Mode 2</button>
+      </div>
+      <div class="axwrap" id="ax6-p2a"></div>
+      <button class="rbtn" id="r6-p2a" onclick="toggleReady6('p2a')">▷ 尚未準備</button>
+    </div>
+    <div class="panel6p">
+      <div class="plabel" style="font-size:.85rem"><div class="dot" id="dot6-p2b"></div><span class="p2c">P2B 玩家</span></div>
+      <div class="row"><span>控制：</span>
+        <select id="sel6-p2b" onchange="assignGp6('p2b',+this.value)"><option value="-1">— 未選擇 —</option></select>
+      </div>
+      <div class="row" id="aidrow6-p2b" style="display:none"><span>AI：</span>
+        <select id="aid6-p2b" onchange="setAIDiff6('p2b',this.value)">
+          <option value="easy">🟢 簡單</option><option value="med" selected>🟡 中等</option><option value="hard">🔴 困難</option>
+        </select>
+      </div>
+      <div class="mrow">
+        <button class="mbtn" id="m1-6-p2b" onclick="setMode6('p2b','1')">✈️ Mode 1</button>
+        <button class="mbtn r" id="m2-6-p2b" onclick="setMode6('p2b','2')">🎮 Mode 2</button>
+      </div>
+      <div class="axwrap" id="ax6-p2b"></div>
+      <button class="rbtn" id="r6-p2b" onclick="toggleReady6('p2b')">▷ 尚未準備</button>
+    </div>
+    <div class="panel6p">
+      <div class="plabel" style="font-size:.85rem"><div class="dot" id="dot6-p2c"></div><span class="p2c">P2C 玩家</span></div>
+      <div class="row"><span>控制：</span>
+        <select id="sel6-p2c" onchange="assignGp6('p2c',+this.value)"><option value="-1">— 未選擇 —</option></select>
+      </div>
+      <div class="row" id="aidrow6-p2c" style="display:none"><span>AI：</span>
+        <select id="aid6-p2c" onchange="setAIDiff6('p2c',this.value)">
+          <option value="easy">🟢 簡單</option><option value="med" selected>🟡 中等</option><option value="hard">🔴 困難</option>
+        </select>
+      </div>
+      <div class="mrow">
+        <button class="mbtn" id="m1-6-p2c" onclick="setMode6('p2c','1')">✈️ Mode 1</button>
+        <button class="mbtn r" id="m2-6-p2c" onclick="setMode6('p2c','2')">🎮 Mode 2</button>
+      </div>
+      <div class="axwrap" id="ax6-p2c"></div>
+      <button class="rbtn" id="r6-p2c" onclick="toggleReady6('p2c')">▷ 尚未準備</button>
     </div>
   </div>
 
@@ -282,6 +428,41 @@ body.mode4p #lobby4p{display:grid!important;flex:1}
     return expo(v,ex);
   };
 })();
+
+// ─── Keyboard sentinel（存進 localStorage 的特殊值）─────────────
+// -1 = 未選擇   -2 = 鍵盤佈局1 (WASD+方向鍵)   -3 = 鍵盤佈局2 (IJKL+Numpad)
+// -4 = AI 進攻   -5 = AI 防守（4P/6P 可多個位置選 AI）
+const KB1=-2, KB2=-3;
+const KB_LABEL={[KB1]:'⌨️ 鍵盤 WASD + 方向鍵',[KB2]:'⌨️ 鍵盤 IJKL + Numpad'};
+const AIF=-4, AID=-5;
+const AI_LABEL={[AIF]:'🤖 AI 進攻',[AID]:'🛡️ AI 防守'};
+const isAIIdx=v=>v===AIF||v===AID;
+
+// ─── Keyboard state（試飛預覽用）───────────────────────────────
+const KEYS={}, CODES={};
+window.addEventListener('keydown',e=>{
+  KEYS[e.key]=true; CODES[e.code]=true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)
+     && e.target.tagName!=='SELECT') e.preventDefault();
+});
+window.addEventListener('keyup',e=>{KEYS[e.key]=false;CODES[e.code]=false;});
+
+// 讀取鍵盤佈局軸值（layout: KB1 或 KB2）
+function kbAxes(layout){
+  let yaw=0,thr=0,roll=0,pitch=0;
+  if(layout===KB1){
+    if(KEYS['w']||KEYS['W'])thr+=1; if(KEYS['s']||KEYS['S'])thr-=1;
+    if(KEYS['a']||KEYS['A'])yaw+=1; if(KEYS['d']||KEYS['D'])yaw-=1;
+    if(KEYS['ArrowUp'])pitch+=1;    if(KEYS['ArrowDown'])pitch-=1;
+    if(KEYS['ArrowLeft'])roll+=1;   if(KEYS['ArrowRight'])roll-=1;
+  }else{
+    if(KEYS['i']||KEYS['I'])thr+=1; if(KEYS['k']||KEYS['K'])thr-=1;
+    if(KEYS['j']||KEYS['J'])yaw+=1; if(KEYS['l']||KEYS['L'])yaw-=1;
+    if(CODES['Numpad8'])pitch+=1;   if(CODES['Numpad2'])pitch-=1;
+    if(CODES['Numpad4'])roll+=1;    if(CODES['Numpad6'])roll-=1;
+  }
+  return {yaw,thr,roll,pitch};
+}
 
 // ─── Player state ─────────────────────────────────────────────
 const PS={
@@ -397,12 +578,12 @@ function setMode(pid,m){
 
 function assignGp(pid,idx){
   PS[pid].gpIdx=idx;
-  document.getElementById('dot'+pid).className='dot'+(idx>=0?' on':'');
-  if(idx>=0) setReady(pid,false);
+  document.getElementById('dot'+pid).className='dot'+(idx!==-1?' on':'');
+  if(idx!==-1) setReady(pid,false);
 }
 
 function toggleReady(pid){
-  if(PS[pid].gpIdx<0){alert('請先選擇手把！');return;}
+  if(PS[pid].gpIdx===-1){alert('請先選擇手把或鍵盤！');return;}
   setReady(pid,!PS[pid].ready);
 }
 function setReady(pid,val){
@@ -423,7 +604,7 @@ function setAI(){
 
 function startGame(){
   if(!PS[1].ready||!PS[2].ready)return;
-  localStorage.setItem('droneSimAI', PS[2].gpIdx<0&&document.getElementById('ai-btn').classList.contains('on')?'true':'false');
+  localStorage.setItem('droneSimAI', PS[2].gpIdx===-1&&document.getElementById('ai-btn').classList.contains('on')?'true':'false');
   localStorage.setItem('droneSimP1',PS[1].gpIdx);
   localStorage.setItem('droneSimP2',PS[2].gpIdx);
   localStorage.setItem('droneSimFlightMode_P1',PS[1].mode);
@@ -438,6 +619,12 @@ function refreshSels(){
     const sel=document.getElementById('sel'+pid);
     const cur=PS[pid].gpIdx;
     sel.innerHTML='<option value="-1">— 未選擇 —</option>';
+    // 鍵盤選項：P1 = 佈局1 (WASD)，P2 = 佈局2 (IJKL)，對應 2P 對戰頁固定鍵位
+    const kb=pid===1?KB1:KB2;
+    const kbOpt=document.createElement('option');
+    kbOpt.value=kb; kbOpt.selected=(cur===kb);
+    kbOpt.textContent=KB_LABEL[kb];
+    sel.appendChild(kbOpt);
     for(let i=0;i<4;i++){
       const gp=pads[i]; if(!gp||!gp.connected)continue;
       const opt=document.createElement('option');
@@ -451,7 +638,11 @@ window.addEventListener('gamepadconnected',refreshSels);
 window.addEventListener('gamepaddisconnected',()=>{
   refreshSels();
   const pads=navigator.getGamepads?navigator.getGamepads():[];
-  [1,2].forEach(pid=>{const gp=pads[PS[pid].gpIdx];if(!gp||!gp.connected)assignGp(pid,-1);});
+  [1,2].forEach(pid=>{
+    if(PS[pid].gpIdx<0)return; // 鍵盤/未選擇不受搖桿斷線影響
+    const gp=pads[PS[pid].gpIdx];
+    if(!gp||!gp.connected)assignGp(pid,-1);
+  });
 });
 
 // ─── Physics & update ─────────────────────────────────────────
@@ -461,12 +652,19 @@ function updatePlayer(pid,dt){
   const gp=p.gpIdx>=0?pads[p.gpIdx]:null;
   let yaw=0,thr=0,roll=0,pitch=0;
 
+  let active=false;
   if(gp&&gp.connected){
     const cfg=window.gpCfgRead(gp);
     yaw  =window.gpAxis(gp,'yaw',  cfg,p.mode);
     thr  =window.gpAxis(gp,'throttle',cfg,p.mode);
     roll =window.gpAxis(gp,'roll', cfg,p.mode);
     pitch=window.gpAxis(gp,'pitch',cfg,p.mode);
+    active=true;
+  } else if(p.gpIdx===KB1||p.gpIdx===KB2){ // 鍵盤模式（AI -4/-5 不讀鍵盤）
+    ({yaw,thr,roll,pitch}=kbAxes(p.gpIdx));
+    active=true;
+  }
+  if(active){
     // axis bars
     [yaw,thr,roll,pitch].forEach((v,i)=>{
       const el=p.axEls[i]; if(!el)return;
@@ -526,6 +724,7 @@ function loop(){
     if(p.ren)p.ren.render(p.scene,p.cam);
   });
   update4pAxes();
+  update6pAxes();
 }
 
 // ─── Init ─────────────────────────────────────────────────────
@@ -542,22 +741,29 @@ loop();
 var gameMode = '2p';
 
 const PS4 = {
-  'p1a': {gpIdx:-1, mode:'2', ready:false, axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
-  'p1b': {gpIdx:-1, mode:'2', ready:false, axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
-  'p2a': {gpIdx:-1, mode:'2', ready:false, axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
-  'p2b': {gpIdx:-1, mode:'2', ready:false, axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
+  'p1a': {gpIdx:-1, mode:'2', ready:false, aiDiff:'med', axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
+  'p1b': {gpIdx:-1, mode:'2', ready:false, aiDiff:'med', axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
+  'p2a': {gpIdx:-1, mode:'2', ready:false, aiDiff:'med', axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
+  'p2b': {gpIdx:-1, mode:'2', ready:false, aiDiff:'med', axEls:[], ren:null, scene:null, cam:null, drone:null, rotors:[], vel:{x:0,y:0,z:0}},
 };
 
 function setGameMode(m){
   gameMode = m;
-  document.getElementById('ms-2p').classList.toggle('on', m==='2p');
-  document.getElementById('ms-4p').classList.toggle('on', m==='4p');
+  ['2p','4p','6p'].forEach(k=>{
+    const btn=document.getElementById('ms-'+k);
+    if(btn)btn.classList.toggle('on', m===k);
+  });
   document.body.classList.toggle('mode4p', m==='4p');
+  document.body.classList.toggle('mode6p', m==='6p');
   if(m==='4p'){
     init4pAxBars();
     refresh4pSels();
     // defer one frame so CSS display is applied before reading clientWidth
     requestAnimationFrame(()=>init4pScenes());
+  }
+  if(m==='6p'){
+    init6pAxBars();
+    refresh6pSels();
   }
   checkReady4p();
 }
@@ -629,12 +835,19 @@ function updatePlayer4(pid,dt){
   const gp=p.gpIdx>=0?pads[p.gpIdx]:null;
   let yaw=0,thr=0,roll=0,pitch=0;
 
+  let active=false;
   if(gp&&gp.connected){
     const cfg=window.gpCfgRead(gp);
     yaw  =window.gpAxis(gp,'yaw',  cfg,p.mode);
     thr  =window.gpAxis(gp,'throttle',cfg,p.mode);
     roll =window.gpAxis(gp,'roll', cfg,p.mode);
     pitch=window.gpAxis(gp,'pitch',cfg,p.mode);
+    active=true;
+  } else if(p.gpIdx===KB1||p.gpIdx===KB2){ // 鍵盤模式（AI -4/-5 不讀鍵盤）
+    ({yaw,thr,roll,pitch}=kbAxes(p.gpIdx));
+    active=true;
+  }
+  if(active){
     [yaw,thr,roll,pitch].forEach((v,i)=>{
       const el=p.axEls[i]; if(!el)return;
       const pct=(Math.abs(v)*50).toFixed(1);
@@ -669,7 +882,7 @@ function updatePlayer4(pid,dt){
   drone.rotation.z=THREE.MathUtils.lerp(drone.rotation.z,-roll*.45,dt*9);
   drone.rotation.x=THREE.MathUtils.lerp(drone.rotation.x,pitch*.35,dt*9);
   // rotor spin
-  const spd=(gp&&gp.connected)?((thr+1)*0.5*25+5):2;
+  const spd=active?((thr+1)*0.5*25+5):2;
   p.rotors.forEach((r,i)=>{ r.rotation.y+=(i%2===0?1:-1)*spd*dt; });
 
   if(p.ren&&p.scene&&p.cam) p.ren.render(p.scene,p.cam);
@@ -692,10 +905,15 @@ function init4pAxBars(){
 
 function assignGp4(pid,idx){
   PS4[pid].gpIdx=idx;
-  document.getElementById('dot-'+pid).className='dot'+(idx>=0?' on':'');
-  if(idx>=0) setReady4(pid,false);
+  document.getElementById('dot-'+pid).className='dot'+(idx!==-1?' on':'');
+  const aidRow=document.getElementById('aidrow-'+pid);
+  if(aidRow)aidRow.style.display=isAIIdx(idx)?'flex':'none';
+  if(isAIIdx(idx))setReady4(pid,true);       // AI 自動就緒
+  else if(idx!==-1)setReady4(pid,false);
   checkReady4p();
 }
+
+function setAIDiff4(pid,v){PS4[pid].aiDiff=v;}
 
 function setMode4(pid,m){
   PS4[pid].mode=m;
@@ -706,7 +924,7 @@ function setMode4(pid,m){
 }
 
 function toggleReady4(pid){
-  if(PS4[pid].gpIdx<0){alert('請先選擇手把！');return;}
+  if(PS4[pid].gpIdx===-1){alert('請先選擇手把或鍵盤！');return;}
   setReady4(pid,!PS4[pid].ready);
 }
 
@@ -720,8 +938,9 @@ function setReady4(pid,val){
 
 function checkReady4p(){
   const ok4=Object.values(PS4).every(p=>p.ready);
+  const ok6=typeof PS6!=='undefined'&&Object.values(PS6).every(p=>p.ready);
   const ok2=PS[1].ready&&PS[2].ready;
-  const ok=gameMode==='4p'?ok4:ok2;
+  const ok=gameMode==='4p'?ok4:gameMode==='6p'?ok6:ok2;
   document.getElementById('sbtn').className='sbtn'+(ok?' on':'');
 }
 
@@ -731,6 +950,20 @@ function refresh4pSels(){
     const sel=document.getElementById('sel-'+pid);
     const cur=PS4[pid].gpIdx;
     sel.innerHTML='<option value="-1">— 未選擇 —</option>';
+    // 兩套鍵盤佈局：任一位置皆可選（同一佈局只能給一個人）
+    [KB1,KB2].forEach(kb=>{
+      const opt=document.createElement('option');
+      opt.value=kb; opt.selected=(cur===kb);
+      opt.textContent=KB_LABEL[kb];
+      sel.appendChild(opt);
+    });
+    // AI 選項（可多個位置同時選 AI）
+    [AIF,AID].forEach(ai=>{
+      const opt=document.createElement('option');
+      opt.value=ai; opt.selected=(cur===ai);
+      opt.textContent=AI_LABEL[ai];
+      sel.appendChild(opt);
+    });
     for(let i=0;i<8;i++){
       const gp=pads[i];if(!gp||!gp.connected)continue;
       const opt=document.createElement('option');
@@ -738,7 +971,7 @@ function refresh4pSels(){
       opt.textContent=`GP[${i}] ${gp.id.substring(0,28)}`;
       sel.appendChild(opt);
     }
-    document.getElementById('dot-'+pid).className='dot'+(cur>=0?' on':'');
+    document.getElementById('dot-'+pid).className='dot'+(cur!==-1?' on':'');
   });
 }
 
@@ -752,12 +985,45 @@ function update4pAxes(){
 // ─── Override startGame & checkReady for unified entry ──────────
 const _origStartGame = startGame;
 startGame = function(){
+  if(gameMode==='6p'){
+    if(!Object.values(PS6).every(p=>p.ready))return;
+    // 防呆：同一控制器不能被兩人選用（AI 可重複）
+    const picked6=Object.values(PS6).map(p=>p.gpIdx).filter(v=>v!==-1&&!isAIIdx(v));
+    if(new Set(picked6).size!==picked6.length){
+      alert('有兩位玩家選了同一個控制器／鍵盤佈局，請調整後再開始！');return;
+    }
+    localStorage.setItem('droneSimP1A', PS6.p1a.gpIdx);
+    localStorage.setItem('droneSimP1B', PS6.p1b.gpIdx);
+    localStorage.setItem('droneSimP1C', PS6.p1c.gpIdx);
+    localStorage.setItem('droneSimP2A', PS6.p2a.gpIdx);
+    localStorage.setItem('droneSimP2B', PS6.p2b.gpIdx);
+    localStorage.setItem('droneSimP2C', PS6.p2c.gpIdx);
+    localStorage.setItem('droneSimAIDiff_P1A', PS6.p1a.aiDiff);
+    localStorage.setItem('droneSimAIDiff_P1B', PS6.p1b.aiDiff);
+    localStorage.setItem('droneSimAIDiff_P1C', PS6.p1c.aiDiff);
+    localStorage.setItem('droneSimAIDiff_P2A', PS6.p2a.aiDiff);
+    localStorage.setItem('droneSimAIDiff_P2B', PS6.p2b.aiDiff);
+    localStorage.setItem('droneSimAIDiff_P2C', PS6.p2c.aiDiff);
+    localStorage.setItem('droneSimFlightMode_P1', PS6.p1a.mode);
+    localStorage.setItem('droneSimFlightMode_P2', PS6.p1b.mode);
+    window.location.href='PVP/soccer-match-6p.html';
+    return;
+  }
   if(gameMode==='4p'){
     if(!Object.values(PS4).every(p=>p.ready))return;
+    // 防呆：同一控制器不能被兩人選用（AI 可重複）
+    const picked=Object.values(PS4).map(p=>p.gpIdx).filter(v=>v!==-1&&!isAIIdx(v));
+    if(new Set(picked).size!==picked.length){
+      alert('有兩位玩家選了同一個控制器／鍵盤佈局，請調整後再開始！');return;
+    }
     localStorage.setItem('droneSimP1A', PS4.p1a.gpIdx);
     localStorage.setItem('droneSimP1B', PS4.p1b.gpIdx);
     localStorage.setItem('droneSimP2A', PS4.p2a.gpIdx);
     localStorage.setItem('droneSimP2B', PS4.p2b.gpIdx);
+    localStorage.setItem('droneSimAIDiff_P1A', PS4.p1a.aiDiff);
+    localStorage.setItem('droneSimAIDiff_P1B', PS4.p1b.aiDiff);
+    localStorage.setItem('droneSimAIDiff_P2A', PS4.p2a.aiDiff);
+    localStorage.setItem('droneSimAIDiff_P2B', PS4.p2b.aiDiff);
     localStorage.setItem('droneSimFlightMode_P1', PS4.p1a.mode);
     localStorage.setItem('droneSimFlightMode_P2', PS4.p1b.mode);
     window.location.href='PVP/soccer-match-4p.html';
@@ -773,10 +1039,139 @@ setReady = function(pid, val){
   checkReady4p();
 };
 
-// Patch gamepadconnected to also refresh 4P selectors
-const _gpConnected4p = ()=>{ refresh4pSels(); checkReady4p(); };
+// Patch gamepadconnected to also refresh 4P/6P selectors
+const _gpConnected4p = ()=>{ refresh4pSels(); refresh6pSels(); checkReady4p(); };
 window.addEventListener('gamepadconnected', _gpConnected4p);
-window.addEventListener('gamepaddisconnected', ()=>{ refresh4pSels(); checkReady4p(); });
+window.addEventListener('gamepaddisconnected', ()=>{ refresh4pSels(); refresh6pSels(); checkReady4p(); });
+
+// ─── 6P Mode（3v3；大廳用軸條檢測，不建 3D 預覽以節省 WebGL context） ───
+const PS6={
+  p1a:{gpIdx:-1,mode:'2',ready:false,aiDiff:'med',axEls:[]},
+  p1b:{gpIdx:-1,mode:'2',ready:false,aiDiff:'med',axEls:[]},
+  p1c:{gpIdx:-1,mode:'2',ready:false,aiDiff:'med',axEls:[]},
+  p2a:{gpIdx:-1,mode:'2',ready:false,aiDiff:'med',axEls:[]},
+  p2b:{gpIdx:-1,mode:'2',ready:false,aiDiff:'med',axEls:[]},
+  p2c:{gpIdx:-1,mode:'2',ready:false,aiDiff:'med',axEls:[]},
+};
+const P6_LIST=['p1a','p1b','p1c','p2a','p2b','p2c'];
+
+function init6pAxBars(){
+  P6_LIST.forEach(pid=>{
+    const div=document.getElementById('ax6-'+pid);
+    if(!div||div.innerHTML!=='')return;
+    PS6[pid].axEls=[];
+    [['偏航 Yaw'],['油門 Thr'],['橫移 Roll'],['俯仰 Pitch']].forEach(([nm],i)=>{
+      const row=document.createElement('div');row.className='axrow';
+      const fid=`f6-${pid}-${i}`,vid=`v6-${pid}-${i}`;
+      row.innerHTML=`<span class="axnm">${nm}</span><div class="axtrack"><div class="axfill" id="${fid}" style="left:50%;width:0"></div></div><span class="axnum" id="${vid}">0.00</span>`;
+      div.appendChild(row);
+      PS6[pid].axEls.push({fill:document.getElementById(fid),val:document.getElementById(vid)});
+    });
+  });
+}
+
+function assignGp6(pid,idx){
+  PS6[pid].gpIdx=idx;
+  document.getElementById('dot6-'+pid).className='dot'+(idx!==-1?' on':'');
+  const aidRow=document.getElementById('aidrow6-'+pid);
+  if(aidRow)aidRow.style.display=isAIIdx(idx)?'flex':'none';
+  if(isAIIdx(idx))setReady6(pid,true);       // AI 自動就緒
+  else if(idx!==-1)setReady6(pid,false);
+  checkReady4p();
+}
+
+function setAIDiff6(pid,v){PS6[pid].aiDiff=v;}
+
+function setMode6(pid,m){
+  PS6[pid].mode=m;
+  const team=pid.startsWith('p1')?'b':'r';
+  document.getElementById('m1-6-'+pid).className='mbtn'+(m==='1'?' '+team:'');
+  document.getElementById('m2-6-'+pid).className='mbtn'+(m==='2'?' '+team:'');
+}
+
+function toggleReady6(pid){
+  if(PS6[pid].gpIdx===-1){alert('請先選擇手把或鍵盤！');return;}
+  setReady6(pid,!PS6[pid].ready);
+}
+
+function setReady6(pid,val){
+  PS6[pid].ready=val;
+  const btn=document.getElementById('r6-'+pid);
+  btn.className='rbtn'+(val?' on':'');
+  btn.textContent=val?'✅ 準備好！':'▷ 尚未準備';
+  checkReady4p();
+}
+
+function refresh6pSels(){
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  P6_LIST.forEach(pid=>{
+    const sel=document.getElementById('sel6-'+pid);
+    if(!sel)return;
+    const cur=PS6[pid].gpIdx;
+    sel.innerHTML='<option value="-1">— 未選擇 —</option>';
+    [KB1,KB2].forEach(kb=>{
+      const opt=document.createElement('option');
+      opt.value=kb;opt.selected=(cur===kb);
+      opt.textContent=KB_LABEL[kb];
+      sel.appendChild(opt);
+    });
+    [AIF,AID].forEach(ai=>{
+      const opt=document.createElement('option');
+      opt.value=ai;opt.selected=(cur===ai);
+      opt.textContent=AI_LABEL[ai];
+      sel.appendChild(opt);
+    });
+    for(let i=0;i<8;i++){
+      const gp=pads[i];if(!gp||!gp.connected)continue;
+      const opt=document.createElement('option');
+      opt.value=i;opt.selected=(i===cur);
+      opt.textContent=`GP[${i}] ${gp.id.substring(0,28)}`;
+      sel.appendChild(opt);
+    }
+    document.getElementById('dot6-'+pid).className='dot'+(cur!==-1?' on':'');
+  });
+}
+
+// 6P 軸條即時更新（搖桿 / 鍵盤皆可檢測）
+function update6pAxes(){
+  if(gameMode!=='6p')return;
+  const pads=navigator.getGamepads?navigator.getGamepads():[];
+  P6_LIST.forEach(pid=>{
+    const p=PS6[pid];
+    if(!p.axEls.length)return;
+    let yaw=0,thr=0,roll=0,pitch=0,active=false;
+    const gp=p.gpIdx>=0?pads[p.gpIdx]:null;
+    if(gp&&gp.connected){
+      const cfg=window.gpCfgRead(gp);
+      yaw  =window.gpAxis(gp,'yaw',  cfg,p.mode);
+      thr  =window.gpAxis(gp,'throttle',cfg,p.mode);
+      roll =window.gpAxis(gp,'roll', cfg,p.mode);
+      pitch=window.gpAxis(gp,'pitch',cfg,p.mode);
+      active=true;
+    }else if(p.gpIdx===KB1||p.gpIdx===KB2){
+      ({yaw,thr,roll,pitch}=kbAxes(p.gpIdx));
+      active=true;
+    }
+    if(active){
+      [yaw,thr,roll,pitch].forEach((v,i)=>{
+        const el=p.axEls[i];if(!el)return;
+        const pct=(Math.abs(v)*50).toFixed(1);
+        const col=pid.startsWith('p1')?'#00eeff':'#ff8844';
+        if(v>=0){el.fill.style.left='50%';el.fill.style.width=pct+'%';el.fill.style.background=col;}
+        else{el.fill.style.left=(50-parseFloat(pct)).toFixed(1)+'%';el.fill.style.width=pct+'%';el.fill.style.background='#f59e0b';}
+        el.val.textContent=v.toFixed(2);
+      });
+    }else{
+      p.axEls.forEach(el=>{if(el&&el.fill){el.fill.style.width='0';el.val.textContent='0.00';}});
+    }
+  });
+}
+
+// ─── URL 參數：pairing.html?mode=4p / ?mode=6p 直接開啟對應模式 ───
+{
+  const _m=new URLSearchParams(location.search).get('mode');
+  if(_m==='4p'||_m==='6p')setGameMode(_m);
+}
 
 </script>
 </body>
