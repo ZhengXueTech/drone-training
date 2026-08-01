@@ -1037,8 +1037,9 @@ function drawMinimap(){
   ctx.strokeStyle='rgba(34,211,238,.35)';ctx.lineWidth=1;ctx.strokeRect(0,0,cw,ch);
   ctx.strokeStyle='rgba(34,211,238,.3)';ctx.beginPath();ctx.moveTo(0,ch/2);ctx.lineTo(cw,ch/2);ctx.stroke();
   // goal rings (as circles)
+  // [FIX 3] 小地圖改為玩家視角方向：前方（攻擊的紅色球門 +Z）在上、玩家右手邊（-X）在右
   [{z:-GZ,c:'rgba(60,100,255,.9)'},{z:GZ,c:'rgba(255,50,30,.9)'}].forEach(g=>{
-    const mx=cw/2,mz=(g.z+HL)*scZ;
+    const mx=cw/2,mz=(HL-g.z)*scZ;
     ctx.strokeStyle=g.c;ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(mx,mz,GI*scX,0,Math.PI*2);ctx.stroke();
     ctx.beginPath();ctx.arc(mx,mz,GO*scX,0,Math.PI*2);ctx.stroke();
@@ -1046,7 +1047,7 @@ function drawMinimap(){
   // drones
   const cols=[0x00eeff,0x2266ff,0x2266ff,0xff3322,0xff6633,0xff6633];
   drones.forEach(d=>{
-    const mx=(d.pos.x+HW)*scX, mz=(d.pos.z+HL)*scZ;
+    const mx=(HW-d.pos.x)*scX, mz=(HL-d.pos.z)*scZ; // [FIX 3] 翻轉對應玩家視角
     ctx.beginPath();ctx.arc(mx,mz,d.isPlayer?4:2.5,0,Math.PI*2);
     ctx.fillStyle='#'+cols[d.i].toString(16).padStart(6,'0');ctx.fill();
     if(d.isPlayer){ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();}
@@ -1055,7 +1056,7 @@ function drawMinimap(){
     ctx.strokeStyle=d.isPlayer?'#00ffaa':'rgba(255,255,255,.5)';ctx.lineWidth=1;
     ctx.beginPath();
     ctx.moveTo(mx,mz);
-    ctx.lineTo(mx+Math.sin(d.yaw)*fwd,mz+Math.cos(d.yaw)*fwd);
+    ctx.lineTo(mx-Math.sin(d.yaw)*fwd,mz-Math.cos(d.yaw)*fwd); // [FIX 3] 箭頭隨座標翻轉同步反向
     ctx.stroke();
   });
 }
@@ -1175,6 +1176,8 @@ function setupKeys(){
       case 'p': case 'escape':
         paused=!paused;
         document.getElementById('w-pause').classList.toggle('hidden',!paused);
+        // [FIX 4] 桌機暫停也開啟暫停選單（含「回主選單」），與觸控⏸一致
+        document.getElementById('touch-pause-modal')?.classList.toggle('hidden',!paused);
         break;
       case 'r':
         if(gameMode==='practice'){resetPracticeAttempt();}

@@ -1233,7 +1233,7 @@ function setupKeys(){
         if(phase==='playing'||phase==='goal_pause'){
           paused=!paused;
           document.getElementById('w-pause').classList.toggle('hidden',!paused);
-          if(!paused)document.getElementById('touch-pause-modal')?.classList.add('hidden'); // [FIX 3] 觸控暫停與回選單：鍵盤恢復時同步關閉觸控暫停選單
+          document.getElementById('touch-pause-modal')?.classList.toggle('hidden',!paused); // [FIX 3] 鍵盤 Esc/P 暫停也開啟暫停選單（含回主選單），恢復時關閉
         }
         break;
     }
