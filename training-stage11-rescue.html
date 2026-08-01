@@ -8,7 +8,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 // ── Virtual Joystick (觸控裝置) ──
-(function(){
+// [FIX 1] 修正搖桿初始化時序：DOM 尚未載入 vj-wrap 導致觸控搖桿從未顯示
+function _initVJ(){
   var vjs = window._vjState = { active:false, throttle:0, yaw:0, pitch:0, roll:0 };
   var wrap = document.getElementById('vj-wrap');
   var lOn = false, rOn = false;
@@ -79,7 +80,8 @@
     if(e.key.toLowerCase() === 'r'){ e.preventDefault(); var r=document.getElementById('btn-restart-all'); if(r) r.click(); }
     if(e.key === 'Escape'){ e.preventDefault(); window.location.href='index.html'; }
   });
-})();
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',_initVJ);}else{_initVJ();}
 </script>
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');

@@ -107,6 +107,14 @@
     @media (prefers-reduced-motion: reduce) {
         * { transition: none !important; animation: none !important; }
     }
+    /* [FIX 1] 手機版面調整：主要按鈕觸控目標 ≥44px、檢查清單小字放大、gp-bar 不超出畫面 */
+    @media (max-width: 640px) {
+        #btn-checklist-next, #btn-quiz-next, #btn-retry-quiz,
+        #btn-goto-next, #btn-restart-all { min-height: 44px; }
+        .checklist-item .text-\[10px\] { font-size: 11px; }
+        #gp-bar { max-width: calc(100vw - 16px); white-space: normal;
+                  flex-wrap: wrap; justify-content: center; gap: 8px; }
+    }
 </style>
 </head>
 <body class="text-slate-100 flex items-center justify-center p-3 md:p-6">

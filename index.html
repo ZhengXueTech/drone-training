@@ -32,6 +32,13 @@
         animation: scanline 6s linear infinite; }
 
     .progress-bar { transition: width 0.5s ease; }
+
+    /* [FIX 1] 手機版面調整：卡片主要按鈕觸控目標 ≥44px、敘述小字放大 */
+    @media (max-width: 767px) {
+        .stage-card a { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+        footer a, footer button { min-height: 44px; }
+        .stage-card p { font-size: 11px; }
+    }
     .badge-complete { background: linear-gradient(135deg, #22c55e, #16a34a); }
     .badge-locked   { background: rgba(51,65,85,0.8); }
     .badge-open     { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
@@ -42,7 +49,8 @@
 
 <!-- ============ HEADER ============ -->
 <header class="sticky top-0 z-30 glass border-b border-slate-700/50">
-    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <!-- [FIX 2] 手機版面調整：標題列允許換行、進度條在小螢幕收窄避免擠壓 -->
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-y-2">
         <div>
             <div class="text-[10px] text-cyan-400 tracking-[0.3em] font-bold uppercase mb-0.5">UAV Pilot Training System</div>
             <h1 class="text-lg md:text-xl font-black text-white tracking-wide">無人機飛行員培訓系統</h1>
@@ -51,12 +59,13 @@
         <div class="flex flex-col items-end gap-1">
             <div class="text-[10px] text-slate-400 font-mono">整體進度</div>
             <div class="flex items-center gap-2">
-                <div class="w-32 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-600/40">
+                <div class="w-20 sm:w-32 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-600/40">
                     <div id="overall-progress-bar" class="progress-bar h-full bg-gradient-to-r from-cyan-500 to-teal-400 rounded-full" style="width:0%"></div>
                 </div>
                 <span id="overall-progress-text" class="text-xs font-bold text-cyan-400">0 / 11</span>
             </div>
-            <a href="exp/gamepad-test.html" class="text-[10px] text-slate-400 hover:text-cyan-300 font-mono tracking-wide transition">⚙️ 搖桿設定</a>
+            <!-- [FIX 3] 手機版面調整：連結加 padding 擴大觸控範圍 -->
+            <a href="exp/gamepad-test.html" class="text-[10px] text-slate-400 hover:text-cyan-300 font-mono tracking-wide transition py-2 sm:py-0">⚙️ 搖桿設定</a>
         </div>
     </div>
 </header>
@@ -763,7 +772,8 @@ function loadAllProgress() {
 loadAllProgress();
 
 // ── 清除所有紀錄 ──
-const STAGE_KEYS = [
+// [FIX 4] 修正 const STAGE_KEYS 重複宣告造成整段 script SyntaxError（進度顯示與清除按鈕失效）
+const CLEAR_KEYS = [
     'training-stage1-progress',  'training-stage2-progress',
     'training-stage3-progress',  'training-stage4-progress',
     'training-stage5-progress',  'training-stage6-progress',
@@ -781,7 +791,7 @@ document.getElementById('btn-clear-no').addEventListener('click', () => {
     document.getElementById('clear-confirm').classList.remove('flex');
 });
 document.getElementById('btn-clear-yes').addEventListener('click', () => {
-    STAGE_KEYS.forEach(k => localStorage.removeItem(k));
+    CLEAR_KEYS.forEach(k => localStorage.removeItem(k));
     document.getElementById('clear-confirm').classList.add('hidden');
     document.getElementById('clear-confirm').classList.remove('flex');
     loadAllProgress(); // 重新渲染進度

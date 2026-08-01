@@ -87,6 +87,28 @@ body.mode6p #lobby6p{display:grid!important;flex:1}
           letter-spacing:.05em;flex-shrink:0}
 .panel4p{display:flex;flex-direction:column;gap:6px;padding:9px 12px;
          border-bottom:1px solid #111827;flex:1}
+
+/* ── [FIX 1] 手機版面調整 ──────────────────────
+   ≤760px：大廳改單欄直向堆疊、整頁可捲動，
+   按鈕/下拉選單觸控目標 ≥44px，小字放大 */
+@media (max-width:760px){
+  body{height:auto;min-height:100vh;overflow:auto}
+  .lobby,#lobby4p,#lobby6p{grid-template-columns:1fr;overflow:visible;flex:none}
+  .panel{border-right:none;border-bottom:1px solid #1e293b;overflow-y:visible}
+  .team-col{border-right:none;border-bottom:1px solid #1e293b;overflow-y:visible}
+  header{flex-wrap:wrap;row-gap:6px}
+  #mode-sel{margin-left:0;order:5;width:100%}
+  .mselbtn{flex:1;min-height:44px;font-size:.78rem}
+  .back{padding:8px 2px;display:inline-block}
+  .mbtn{min-height:44px;font-size:.72rem}
+  .rbtn{min-height:48px}
+  select{min-height:44px;font-size:16px} /* 16px 避免 iOS 聚焦自動放大 */
+  .sbtn{width:100%;padding:14px;min-height:48px}
+  .row{font-size:.78rem}
+  .axrow{font-size:.68rem}
+  .axnum{font-size:.68rem;width:40px}
+  .hint{font-size:.68rem}
+}
 </style>
 </head>
 <body>

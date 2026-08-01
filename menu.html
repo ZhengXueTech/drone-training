@@ -27,16 +27,22 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
 .gp-focus .card-inner{box-shadow:0 0 0 3px rgba(255,255,255,.85),0 0 28px rgba(255,255,255,.35)!important;}
 #gp-status{position:fixed;top:16px;right:16px;z-index:10}
 #nav-hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:10}
+/* [FIX 1] 手機版面調整：小字放大提升手機可讀性 */
+@media (max-width:640px){
+  #card-grid .text-\[10px\]{font-size:12px}
+  #card-grid .text-\[8px\]{font-size:10px}
+}
 </style>
 </head>
 <body>
 <div class="scanline"></div>
 <div id="bg"></div>
-<div class="fixed inset-0 z-10 flex flex-col items-center justify-start overflow-y-auto px-4 py-6">
+<!-- [FIX 2] 手機版面調整：上方留空避開返回鈕、標題縮小防爆版 -->
+<div class="fixed inset-0 z-10 flex flex-col items-center justify-start overflow-y-auto px-4 pt-16 pb-6 sm:pt-6">
   <!-- 標題 -->
   <div class="text-center mb-5">
     <div class="text-[10px] text-slate-500 tracking-[0.4em] mb-2 font-mono">DRONE FLIGHT EXPERIENCE</div>
-    <h1 class="text-5xl font-black leading-tight" style="font-family:'Orbitron',monospace;
+    <h1 class="text-3xl sm:text-5xl font-black leading-tight" style="font-family:'Orbitron',monospace;
       background:linear-gradient(135deg,#60a5fa,#34d399,#fb923c,#fbbf24);
       -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">
       無人機飛行體驗
@@ -225,14 +231,16 @@ body{font-family:'Orbitron','Share Tech Mono',monospace;color:#e2e8f0;user-selec
 </div>
 
 <!-- 回訓練總覽 -->
-<a href="../index.html" class="hidden sm:flex fixed top-4 left-4 z-10 items-center gap-1.5 glass rounded-full px-3 py-1.5 text-[9px] font-bold text-slate-400 hover:text-slate-200 transition">← 訓練總覽</a>
+<!-- [FIX 3] 手機版面調整：返回連結改為手機也顯示、加大觸控目標 -->
+<a href="../index.html" class="flex fixed top-4 left-4 z-10 items-center gap-1.5 glass rounded-full px-4 py-2.5 text-[11px] sm:px-3 sm:py-1.5 sm:text-[9px] font-bold text-slate-400 hover:text-slate-200 transition">← 訓練總覽</a>
 <!-- 搖桿狀態 -->
 <div id="gp-status" class="hidden glass rounded-full px-3 py-1 text-[9px] font-bold text-sky-400 flex items-center gap-1.5">
   <span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>🎮 搖桿已連接
 </div>
 
 <!-- 底部操作提示 -->
-<div id="nav-hint" class="glass rounded-xl px-4 py-2 text-[9px] text-slate-500 flex gap-4">
+<!-- [FIX 4] 手機版面調整：鍵盤/搖桿提示與觸控無關，手機隱藏避免遮擋卡片 -->
+<div id="nav-hint" class="glass rounded-xl px-4 py-2 text-[9px] text-slate-500 hidden sm:flex gap-4">
   <span>⌨ <span class="text-slate-400">←→ 選擇</span></span>
   <span class="text-slate-700">|</span>
   <span>⌨ <span class="text-slate-400">Enter 進入</span></span>

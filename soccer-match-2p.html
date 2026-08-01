@@ -1353,7 +1353,9 @@ gpSetFocus(['btn-1v1','btn-gk'],0);
 })();
 
 // ── VJ 雙人分割畫面 ──────────────────────────────────────────────────────────
-(function(){
+// [FIX 1] 修正搖桿初始化時序：DOM 尚未載入 vj wrap 導致觸控搖桿從未顯示
+//         （vj-p1-wrap / vj-p2-wrap 位於 script 結尾之後，立即執行的 IIFE 取到 null）
+function _initVJ(){
   function makePlayerVJ(prefix,vjsKey){
     const vjs=window[vjsKey]={active:false,throttle:0,yaw:0,pitch:0,roll:0};
     let lOn=false,rOn=false;
@@ -1377,7 +1379,13 @@ gpSetFocus(['btn-1v1','btn-gk'],0);
           const d=Math.sqrt(dx*dx+dy*dy);if(d>VJR){dx*=VJR/d;dy*=VJR/d;}
           knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
           const nx=dx/VJR,ny=dy/VJR;
-          if(isLeft){vjs.yaw=nx;vjs.throttle=-ny;}else{vjs.roll=nx;vjs.pitch=ny;}
+          // [FIX 2] 修正虛擬搖桿方向符號，使其與鍵盤/手把慣例一致：
+          //   鍵盤慣例：W=thr+、A=yaw+(左)、D=yaw-(右)、ArrowUp=pitch+(前)、ArrowRight=roll-(右)
+          //   螢幕座標：右推 nx>0、上推 ny<0
+          //   左桿右推=偏航右 → yaw 需為負 → yaw=-nx；左桿上推=油門+ → throttle=-ny（原本即正確）
+          //   右桿上推=前飛 → pitch 需為正 → pitch=-ny；右桿右推=右滾 → roll 需為負 → roll=-nx
+          //   （原碼 yaw=nx、roll=nx、pitch=ny 三者皆反向）
+          if(isLeft){vjs.yaw=-nx;vjs.throttle=-ny;}else{vjs.roll=-nx;vjs.pitch=-ny;}
         }
       },{passive:false});
       const end=e=>{
@@ -1409,7 +1417,8 @@ gpSetFocus(['btn-1v1','btn-gk'],0);
   window.addEventListener('gamepaddisconnected',checkVJShow);
   window.addEventListener('touchstart',checkVJShow,{once:true,passive:true});
   checkVJShow();
-})();
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',_initVJ);}else{_initVJ();}
 </script>
 <div id="vj-p1-wrap">
   <div class="vj-area" id="vj1-left">

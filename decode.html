@@ -34,12 +34,13 @@
   <!-- 單一代碼輸入 -->
   <div class="glass neon-c rounded-2xl p-5 flex flex-col gap-4 no-print">
     <div class="text-xs text-cyan-400 font-bold uppercase tracking-wider">單一代碼查詢</div>
+    <!-- [FIX 1] 手機版面調整：輸入與按鈕觸控目標 ≥44px -->
     <div class="flex gap-2">
       <input id="inp-code" type="text" maxlength="8" placeholder="貼上 8 碼進度代碼，例如 HNS5GP6J"
-        class="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white font-mono tracking-widest placeholder-slate-600 focus:outline-none focus:border-cyan-500 uppercase"
+        class="flex-1 min-w-0 min-h-[44px] bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white font-mono tracking-widest placeholder-slate-600 focus:outline-none focus:border-cyan-500 uppercase"
         oninput="this.value=this.value.toUpperCase()">
       <button onclick="decodeSingle()"
-        class="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs px-5 py-2 rounded-xl transition">
+        class="min-h-[44px] bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs px-5 py-2 rounded-xl transition">
         解析
       </button>
     </div>
@@ -52,17 +53,18 @@
     <div class="text-[10px] text-slate-500 font-mono">每行格式：<code class="text-amber-400">姓名,代碼</code> 或 <code class="text-amber-400">姓名\t代碼</code>（Tab 分隔）</div>
     <textarea id="inp-batch" rows="6" placeholder="王小明,HNS5GP6J&#10;李大華,A3X9KM7P&#10;..."
       class="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-cyan-500 resize-y"></textarea>
-    <div class="flex gap-2">
+    <!-- [FIX 2] 手機版面調整：按鈕允許換行、觸控目標 ≥44px -->
+    <div class="flex flex-wrap gap-2">
       <button onclick="decodeBatch()"
-        class="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs px-5 py-2 rounded-xl transition">
+        class="min-h-[44px] bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs px-5 py-2 rounded-xl transition">
         批次解析
       </button>
       <button onclick="exportCSV()"
-        class="glass border border-slate-600 text-slate-400 hover:text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition">
+        class="min-h-[44px] glass border border-slate-600 text-slate-400 hover:text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition">
         匯出 CSV
       </button>
       <button onclick="window.print()"
-        class="glass border border-slate-600 text-slate-400 hover:text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition">
+        class="min-h-[44px] glass border border-slate-600 text-slate-400 hover:text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition">
         🖨️ 列印
       </button>
     </div>
@@ -103,8 +105,9 @@
     </div>
     <div class="relative">
       <pre id="gas-code" class="bg-slate-900 rounded-xl px-4 py-3 text-[10px] text-emerald-400 overflow-x-auto leading-relaxed"></pre>
+      <!-- [FIX 3] 手機版面調整：複製鈕加大觸控範圍與字級 -->
       <button onclick="copyGAS()"
-        class="absolute top-2 right-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-[9px] font-bold px-2 py-1 rounded-lg transition">
+        class="absolute top-2 right-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] font-bold px-3 py-2 rounded-lg transition">
         複製
       </button>
     </div>

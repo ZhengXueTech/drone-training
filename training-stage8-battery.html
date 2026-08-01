@@ -821,7 +821,8 @@ function animate() {
   });
 })();
 // ── Virtual Joystick (觸控裝置) ──
-(function(){
+// [FIX 1] 修正搖桿初始化時序：DOM 尚未載入 vj-wrap 導致觸控搖桿從未顯示
+function _initVJ(){
   var vjs = window._vjState = { active:false, throttle:0, yaw:0, pitch:0, roll:0 };
   var wrap = document.getElementById('vj-wrap');
   var lOn = false, rOn = false;
@@ -884,7 +885,8 @@ function animate() {
   window.addEventListener('gamepaddisconnected',checkShow);
   window.addEventListener('touchstart',function(){checkShow();},{once:true,passive:true});
   checkShow();
-})();
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',_initVJ);}else{_initVJ();}
 </script>
 <div id="gp-bar">
   <span>🎮</span>
