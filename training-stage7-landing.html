@@ -47,6 +47,9 @@
         pointer-events: none;
     }
     #vj-wrap.show { display: flex; }
+    /* [FIX 3] 觸控搖桿顯示時：視角按鈕上移避開右搖桿、隱藏鍵盤提示（觸控用不到） */
+    body.vj-on #cam-panel { bottom: 238px; right: 8px; }
+    body.vj-on #kb-legend { display: none; }
     .vj-area {
         position: relative; width: clamp(112px,30vw,144px); height: clamp(112px,30vw,144px);
         border-radius: 50%; pointer-events: auto;
@@ -126,7 +129,8 @@
 </div>
 
 <!-- ============ CAMERA SWITCHER ============ -->
-<div class="absolute bottom-24 right-3 md:bottom-28 md:right-5 z-10 pointer-events-auto glass-panel neon-border-cyan rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
+<!-- [FIX 3] 觸控時視角按鈕移到搖桿上方，避免被右搖桿遮擋 -->
+<div id="cam-panel" class="absolute bottom-24 right-3 md:bottom-28 md:right-5 z-10 pointer-events-auto glass-panel neon-border-cyan rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
     <div class="text-[9px] text-cyan-400 font-mono tracking-wider text-center">相機視角</div>
     <div class="grid grid-cols-3 gap-1">
         <button id="cam-tpv" class="bg-cyan-500 text-slate-950 text-[9px] font-bold py-1 rounded">TPV</button>
@@ -149,7 +153,7 @@
         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
         🎮 已偵測到搖桿，使用左右類比搖桿操作
     </div>
-    <div class="glass-panel neon-border-cyan rounded-2xl px-5 py-3 flex items-center gap-8 pointer-events-auto">
+    <div id="kb-legend" class="glass-panel neon-border-cyan rounded-2xl px-5 py-3 flex items-center gap-8 pointer-events-auto">
         <div class="flex flex-col items-center gap-1.5">
             <div class="text-[9px] text-slate-400 font-mono">油門 / 偏航</div>
             <div class="grid grid-cols-3 gap-1">
@@ -881,9 +885,11 @@ function _initVJ(){
   function checkShow(){
     var hasGp=!!(navigator.getGamepads&&Array.from(navigator.getGamepads()).find(function(g){return g;}));
     var isTouch=navigator.maxTouchPoints>0||window.matchMedia('(pointer:coarse)').matches;
-    if(wrap) wrap.classList.toggle('show', isTouch && !hasGp);
+    var vjOn = isTouch && !hasGp;
+    if(wrap) wrap.classList.toggle('show', vjOn);
+    document.body.classList.toggle('vj-on', vjOn); // [FIX 3] 同步 body 狀態供版面調整
   }
-  window.addEventListener('gamepadconnected',function(){if(wrap)wrap.classList.remove('show');});
+  window.addEventListener('gamepadconnected',function(){if(wrap)wrap.classList.remove('show');document.body.classList.remove('vj-on');});
   window.addEventListener('gamepaddisconnected',checkShow);
   window.addEventListener('touchstart',function(){checkShow();},{once:true,passive:true});
   checkShow();

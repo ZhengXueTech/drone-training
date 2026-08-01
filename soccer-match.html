@@ -40,6 +40,18 @@ input[type=range]{accent-color:#22d3ee}
 .diff-btn{flex:1;border:1px solid rgba(100,116,139,.35);border-radius:8px;padding:4px 6px;font-size:9px;font-weight:700;color:#94a3b8;background:rgba(15,23,42,.6);cursor:pointer;transition:all .15s;pointer-events:auto}
 .diff-btn:hover,.diff-btn.active{border-color:rgba(168,85,247,.7);color:#d946ef;background:rgba(168,85,247,.12);box-shadow:0 0 8px rgba(168,85,247,.2)}
 /* ── 虛擬搖桿（平板/觸控）── */
+/* [FIX 2] 觸控專用 UI：視角/暫停鈕只在觸控裝置顯示；鍵盤提示在觸控裝置隱藏 */
+#touch-ctl{display:none}
+@media (pointer:coarse){
+  #touch-ctl{display:flex}
+  #kb-legend{display:none}
+}
+#touch-pause-modal{position:fixed;inset:0;z-index:60;background:rgba(2,6,16,.82);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center}
+#touch-pause-modal.hidden{display:none}
+#touch-pause-modal .tp-box{background:rgba(8,18,36,.95);border:1px solid rgba(6,182,212,.4);border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;gap:12px;min-width:230px;text-align:center}
+#touch-pause-modal button{min-height:46px;border-radius:12px;font-weight:900;font-size:14px;cursor:pointer;border:none}
+#tp-resume{background:linear-gradient(135deg,#06b6d4,#22d3ee);color:#04121f}
+#tp-exit{background:rgba(51,65,85,.8);color:#cbd5e1}
 .vjoy-wrap{position:fixed;bottom:28px;z-index:30;touch-action:none;display:none;user-select:none}
 .vjoy-wrap.show{display:block}
 #vjoy-left{left:28px}
@@ -125,6 +137,11 @@ input[type=range]{accent-color:#22d3ee}
 
   <!-- TOP RIGHT: Settings btn + warnings + speed -->
   <div class="absolute top-3 right-3 flex flex-col gap-1.5 items-end" style="pointer-events:auto">
+    <!-- [FIX 2] 觸控專用按鈕：視角切換與暫停（鍵盤 C / Esc 的觸控替代） -->
+    <div id="touch-ctl" class="flex gap-1.5">
+      <button id="btn-touch-cam" class="glass rounded-xl px-3 py-1.5 text-slate-300 text-sm font-bold" style="pointer-events:auto">📷 視角</button>
+      <button id="btn-touch-pause" class="glass rounded-xl px-3 py-1.5 text-slate-300 text-sm font-bold" style="pointer-events:auto">⏸</button>
+    </div>
     <button id="btn-settings" class="glass rounded-xl px-3 py-1.5 text-slate-400 hover:tc transition text-sm font-bold" style="pointer-events:auto">⚙ 設定</button>
     <div id="w-return" class="hidden glass neon-a rounded-xl px-3 py-1.5">
       <div class="text-[10px] ta font-bold pulse2">⚠ 請返回己方半場！</div>
@@ -142,7 +159,7 @@ input[type=range]{accent-color:#22d3ee}
   </div>
 
   <!-- BOTTOM: Controls -->
-  <div class="absolute bottom-3 left-1/2 -translate-x-1/2">
+  <div id="kb-legend" class="absolute bottom-3 left-1/2 -translate-x-1/2">
     <div class="glass neon-c rounded-2xl px-5 py-2.5 flex items-center gap-5">
       <div class="flex flex-col items-center gap-1">
         <div class="text-[7px] text-slate-500 font-mono">油門 偏航</div>
@@ -1319,8 +1336,9 @@ function initVirtualJoysticks(){
   document.getElementById('vjoy-left').classList.add('show');
   document.getElementById('vjoy-right').classList.add('show');
 
+  // [FIX 1] 修正觸控事件攔截：原本無條件 preventDefault 導致所有按鈕（含開始比賽）在觸控裝置上完全失效
   document.addEventListener('touchstart',e=>{
-    e.preventDefault();
+    let claimed=false;
     for(const t of e.changedTouches){
       const lEl=document.getElementById('vjoy-left');
       const rEl=document.getElementById('vjoy-right');
@@ -1331,21 +1349,23 @@ function initVirtualJoysticks(){
       // 偵測半徑 72px（比外圓稍大，方便觸控）
       if(vj.L.id===null && Math.hypot(t.clientX-lcx,t.clientY-lcy)<72){
         vj.L.id=t.identifier; vj.L.cx=lcx; vj.L.cy=lcy;
-        vjMove('L',t.clientX,t.clientY);
+        vjMove('L',t.clientX,t.clientY); claimed=true;
       }
       if(vj.R.id===null && Math.hypot(t.clientX-rcx,t.clientY-rcy)<72){
         vj.R.id=t.identifier; vj.R.cx=rcx; vj.R.cy=rcy;
-        vjMove('R',t.clientX,t.clientY);
+        vjMove('R',t.clientX,t.clientY); claimed=true;
       }
     }
+    if(claimed) e.preventDefault(); // 只有碰到搖桿才攔截，其餘觸控（按鈕、選單）放行
   },{passive:false});
 
   document.addEventListener('touchmove',e=>{
-    e.preventDefault();
+    let active=false;
     for(const t of e.changedTouches){
-      if(t.identifier===vj.L.id) vjMove('L',t.clientX,t.clientY);
-      if(t.identifier===vj.R.id) vjMove('R',t.clientX,t.clientY);
+      if(t.identifier===vj.L.id){ vjMove('L',t.clientX,t.clientY); active=true; }
+      if(t.identifier===vj.R.id){ vjMove('R',t.clientX,t.clientY); active=true; }
     }
+    if(active) e.preventDefault(); // [FIX 1] 只攔截搖桿中的手指
   },{passive:false});
 
   const endFn=e=>{
@@ -1383,5 +1403,38 @@ window.addEventListener('load',()=>{
   <div class="vjoy-label">俯仰 · 翻滾</div>
 </div>
 
+<!-- [FIX 2] 觸控暫停選單 -->
+<div id="touch-pause-modal" class="hidden">
+  <div class="tp-box">
+    <div style="font-size:15px;font-weight:900;color:#22d3ee;letter-spacing:.1em">⏸ 比賽暫停</div>
+    <button id="tp-resume">▶ 繼續比賽</button>
+    <button id="tp-exit">↩ 回主選單</button>
+  </div>
+</div>
+<script>
+// [FIX 2] 觸控視角/暫停鈕綁定
+(function(){
+  function init(){
+    var camB=document.getElementById('btn-touch-cam');
+    var pauB=document.getElementById('btn-touch-pause');
+    var modal=document.getElementById('touch-pause-modal');
+    if(camB) camB.addEventListener('click',function(){ if(typeof toggleCam==='function') toggleCam(); });
+    if(pauB) pauB.addEventListener('click',function(){
+      paused=true;
+      document.getElementById('w-pause').classList.remove('hidden');
+      if(modal) modal.classList.remove('hidden');
+    });
+    var res=document.getElementById('tp-resume');
+    if(res) res.addEventListener('click',function(){
+      paused=false;
+      document.getElementById('w-pause').classList.add('hidden');
+      if(modal) modal.classList.add('hidden');
+    });
+    var ex=document.getElementById('tp-exit');
+    if(ex) ex.addEventListener('click',function(){ location.reload(); });
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',init);}else{init();}
+})();
+</script>
 </body>
 </html>

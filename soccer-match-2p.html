@@ -75,6 +75,35 @@ input[type=range]{accent-color:#22d3ee}
   color:rgba(6,182,212,.7);}
 .vj2 .vj-label{color:rgba(249,115,22,.7);}
 .gp-focus{outline:3px solid rgba(255,255,255,.85)!important;outline-offset:2px;}
+
+/* ── [FIX 3] 觸控暫停與回選單 ─────────────────────────────
+   ⏸ 鈕：頂部中央區域，以 left:50% 為基準向右偏移 155px 避開中央計分板與左右上角 HUD；
+   預設 display:none，僅觸控裝置 (pointer:coarse) 顯示。z-index 30：高於分割線(8)/小地圖(15)/VJ(25)，低於 modal。 */
+#touch-pause-btn{display:none;position:fixed;top:8px;left:50%;
+  transform:translateX(calc(-50% + 155px));
+  width:42px;height:42px;border-radius:50%;z-index:30;
+  align-items:center;justify-content:center;
+  background:rgba(15,23,42,.72);border:1px solid rgba(100,116,139,.55);
+  color:#cbd5e1;font-size:17px;line-height:1;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  user-select:none;-webkit-user-select:none;}
+#touch-pause-btn:active{background:rgba(6,182,212,.25);border-color:rgba(6,182,212,.8);color:#22d3ee;}
+@media (pointer:coarse){#touch-pause-btn{display:flex;}}
+/* [FIX 3] 暫停選單 modal：z-index 60 高於一切遊戲 UI（intro/match-end 為 z-40） */
+#touch-pause-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+  background:rgba(2,6,23,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+#touch-pause-modal.hidden{display:none;}
+.tp-panel{width:min(320px,86vw);border-radius:16px;padding:22px 18px;text-align:center;
+  display:flex;flex-direction:column;gap:12px;
+  background:rgba(15,23,42,.92);border:1px solid rgba(6,182,212,.45);
+  box-shadow:0 0 24px rgba(6,182,212,.25);}
+.tp-title{font-size:17px;font-weight:900;color:#e2e8f0;letter-spacing:.25em;}
+.tp-btn{display:block;width:100%;min-height:44px;border-radius:10px;font-weight:700;font-size:14px;
+  cursor:pointer;transition:all .15s;
+  border:1px solid rgba(6,182,212,.6);color:#22d3ee;background:rgba(6,182,212,.12);}
+.tp-btn:active{background:rgba(6,182,212,.3);}
+.tp-btn.tp-exit{border-color:rgba(249,115,22,.6);color:#fb923c;background:rgba(249,115,22,.1);}
+.tp-btn.tp-exit:active{background:rgba(249,115,22,.28);}
 </style>
 </head>
 <body>
@@ -1204,6 +1233,7 @@ function setupKeys(){
         if(phase==='playing'||phase==='goal_pause'){
           paused=!paused;
           document.getElementById('w-pause').classList.toggle('hidden',!paused);
+          if(!paused)document.getElementById('touch-pause-modal')?.classList.add('hidden'); // [FIX 3] 觸控暫停與回選單：鍵盤恢復時同步關閉觸控暫停選單
         }
         break;
     }
@@ -1440,5 +1470,41 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
     <div class="vj-label">前後/左右</div>
   </div>
 </div>
+<!-- ▌ [FIX 3] 觸控暫停與回選單：⏸ 鈕（僅觸控裝置顯示）與暫停選單 modal -->
+<button id="touch-pause-btn" type="button" aria-label="暫停比賽">⏸</button>
+<div id="touch-pause-modal" class="hidden">
+  <div class="tp-panel">
+    <div class="tp-title">比賽暫停</div>
+    <button id="touch-pause-resume" type="button" class="tp-btn">▶ 繼續比賽</button>
+    <button id="touch-pause-exit" type="button" class="tp-btn tp-exit">↩ 回主選單</button>
+  </div>
+</div>
+<script>
+// [FIX 3] 觸控暫停與回選單：⏸ 鈕沿用鍵盤 Esc/P 的暫停條件 (phase==='playing'||phase==='goal_pause')；
+//           「回主選單」直接 location.reload()（本頁載入時即顯示開場選單）。
+//           比照 _initVJ 寫法：綁定放在檔案最末並以 DOMContentLoaded 守門；
+//           元素一律在 handler 內才 getElementById，避免初始化時序問題。
+function _initTouchPause(){
+  const btn=document.getElementById('touch-pause-btn');
+  if(btn)btn.addEventListener('click',()=>{
+    if(phase==='playing'||phase==='goal_pause'){   // 與鍵盤 Esc/P case 相同的暫停條件
+      if(!paused){
+        paused=true;
+        document.getElementById('w-pause').classList.remove('hidden'); // 同步 ⏸ 暫停指示
+      }
+      document.getElementById('touch-pause-modal').classList.remove('hidden');
+    }
+  });
+  const resume=document.getElementById('touch-pause-resume');
+  if(resume)resume.addEventListener('click',()=>{
+    paused=false;
+    document.getElementById('touch-pause-modal').classList.add('hidden');
+    document.getElementById('w-pause').classList.add('hidden');
+  });
+  const exit=document.getElementById('touch-pause-exit');
+  if(exit)exit.addEventListener('click',()=>{location.reload();});
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',_initTouchPause);}else{_initTouchPause();}
+</script>
 </body>
 </html>

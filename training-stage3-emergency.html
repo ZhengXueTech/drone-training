@@ -80,6 +80,10 @@
         pointer-events: none;
     }
     #vj-wrap.show { display: flex; }
+    /* [FIX 4] 觸控搖桿顯示時：視角按鈕上移避開右搖桿、隱藏鍵盤提示（觸控用不到） */
+    body.vj-on #cam-panel { bottom: 238px; right: 8px; }
+    body.vj-on #kb-legend { display: none; }
+    body.vj-on #kb-kill-panel { display: none; }
     /* [FIX 3] 觸控緊急停止鈕：底部中央兩搖桿之間，大顆紅色，觸控裝置專用 */
     #vj-kill {
         pointer-events: auto; align-self: flex-end; margin-bottom: 18px;
@@ -154,7 +158,8 @@
 </div>
 
 <!-- ============ CAMERA SWITCHER ============ -->
-<div class="absolute bottom-28 right-3 md:bottom-32 md:right-5 z-10 pointer-events-auto glass-panel neon-border-cyan rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
+<!-- [FIX 4] 觸控時視角按鈕移到搖桿上方，避免被右搖桿遮擋 -->
+<div id="cam-panel" class="absolute bottom-28 right-3 md:bottom-32 md:right-5 z-10 pointer-events-auto glass-panel neon-border-cyan rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
     <div class="text-[9px] text-cyan-400 font-mono tracking-wider text-center">相機視角</div>
     <div class="grid grid-cols-3 gap-1">
         <button id="cam-tpv" class="bg-cyan-500 text-slate-950 text-[9px] font-bold py-1 rounded">TPV</button>
@@ -210,7 +215,7 @@
         🎮 已偵測到搖桿，A 鍵可作為緊急停止的替代按鍵
     </div>
     <div class="flex justify-center items-end gap-4 w-full">
-    <div class="glass-panel neon-border-cyan rounded-2xl px-5 py-3 flex items-center gap-6 pointer-events-auto">
+    <div id="kb-legend" class="glass-panel neon-border-cyan rounded-2xl px-5 py-3 flex items-center gap-6 pointer-events-auto">
         <div class="flex flex-col items-center gap-1.5">
             <div class="text-[9px] text-slate-400 font-mono">油門 / 偏航</div>
             <div class="grid grid-cols-3 gap-1">
@@ -230,7 +235,7 @@
         </div>
     </div>
 
-    <div class="glass-panel neon-border-red rounded-2xl px-4 py-3 flex flex-col items-center gap-1.5 pointer-events-auto">
+    <div id="kb-kill-panel" class="glass-panel neon-border-red rounded-2xl px-4 py-3 flex flex-col items-center gap-1.5 pointer-events-auto">
         <div class="text-[9px] text-red-300 font-mono">緊急停止</div>
         <div id="key-space" class="kill-key" role="button" tabindex="0"
              onclick="if(typeof attemptKillSwitch==='function')attemptKillSwitch()"
@@ -1071,9 +1076,11 @@ function _initVJ(){
   function checkShow(){
     var hasGp=!!(navigator.getGamepads&&Array.from(navigator.getGamepads()).find(function(g){return g;}));
     var isTouch=navigator.maxTouchPoints>0||window.matchMedia('(pointer:coarse)').matches;
-    if(wrap) wrap.classList.toggle('show', isTouch && !hasGp);
+    var vjOn = isTouch && !hasGp;
+    if(wrap) wrap.classList.toggle('show', vjOn);
+    document.body.classList.toggle('vj-on', vjOn); // [FIX 4] 同步 body 狀態供版面調整
   }
-  window.addEventListener('gamepadconnected',function(){if(wrap)wrap.classList.remove('show');});
+  window.addEventListener('gamepadconnected',function(){if(wrap)wrap.classList.remove('show');document.body.classList.remove('vj-on');});
   window.addEventListener('gamepaddisconnected',checkShow);
   window.addEventListener('touchstart',function(){checkShow();},{once:true,passive:true});
   checkShow();
