@@ -194,6 +194,21 @@ canvas{display:block;}
   </div>
 </div>
 
+<!-- [FIX 2] vj-wrap 移到 script 之前：原本放在 </script> 之後，
+     虛擬搖桿初始化（getElementById）時元素尚未解析，導致觸控搖桿永遠不會顯示 -->
+<div id="vj-wrap">
+  <div class="vj-area" id="vj-left">
+    <div class="vj-base"></div>
+    <div class="vj-knob" id="vj-lk"></div>
+    <div class="vj-label">油門 / 偏航</div>
+  </div>
+  <div class="vj-area vj-r" id="vj-right">
+    <div class="vj-base"></div>
+    <div class="vj-knob" id="vj-rk"></div>
+    <div class="vj-label">前後 / 左右</div>
+  </div>
+</div>
+
 <script src="gamepad.js"></script>
 <script>
 // ── END GP CONFIG READER ─────────────────────────────────────
@@ -870,7 +885,11 @@ animate();
         const d=Math.sqrt(dx*dx+dy*dy);if(d>VJR){dx*=VJR/d;dy*=VJR/d;}
         knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
         const nx=dx/VJR,ny=dy/VJR;
-        if(isLeft){vjs.yaw=nx;vjs.throttle=-ny;}else{vjs.roll=nx;vjs.pitch=ny;}
+        // [FIX 1] 修正虛擬搖桿方向符號：對齊本檔鍵盤慣例（累加式，Mode 2 美國手）
+        // W=thr+1、A=yaw+1（左偏航）、ArrowUp=pitch+1（前飛）、ArrowLeft=roll+1（左移）
+        // 左桿上推=油門+（-ny）；左桿左推=左偏航（-nx，同 A）
+        // 右桿上推=前飛（-ny，同 ArrowUp）；右桿左推=左移（-nx，同 ArrowLeft）
+        if(isLeft){vjs.yaw=-nx;vjs.throttle=-ny;}else{vjs.roll=-nx;vjs.pitch=-ny;}
       }
     },{passive:false});
     const end=e=>{
@@ -890,14 +909,7 @@ animate();
   makeStick('vj-right','vj-rk',false);
 
   const wrap=document.getElementById('vj-wrap');
-  const btnB=document.getElementById('vj-btn-b');
-  if(btnB){
-    btnB.addEventListener('touchstart',e=>{
-      e.preventDefault();
-      btnB.classList.add('active');
-    },{passive:false});
-    btnB.addEventListener('touchend',e=>{e.preventDefault();btnB.classList.remove('active');},{passive:false});
-  }
+  // [FIX 3] 移除無作用的「防守」按鈕處理：本關防守由飛行位置決定，無對應鍵盤動作鍵
 
   function checkShow(){
     const hasGp=!!(navigator.getGamepads&&[...navigator.getGamepads()].find(g=>g));
@@ -910,19 +922,5 @@ animate();
   checkShow();
 })();
 </script>
-<div id="vj-wrap">
-  <div class="vj-area" id="vj-left">
-    <div class="vj-base"></div>
-    <div class="vj-knob" id="vj-lk"></div>
-    <div class="vj-label">油門 / 偏航</div>
-  </div>
-  <button id="vj-btn-b">🛡️<br><span>防守</span></button>
-  <div class="vj-area vj-r" id="vj-right">
-    <div class="vj-base"></div>
-    <div class="vj-knob" id="vj-rk"></div>
-    <div class="vj-label">前後 / 左右</div>
-  </div>
-</div>
 </body>
 </html>
-                                                                                                    

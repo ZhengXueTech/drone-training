@@ -1202,7 +1202,8 @@ setupKeys();
 document.getElementById('btn-retry').onclick=()=>startGame(currentDiff);
 gpSetFocus(['btn-easy','btn-med','btn-hard'],0);
 // ── Virtual Joystick (touch) ──
-(function(){
+// [FIX 1] 修正搖桿初始化時序：DOM 尚未載入 vj-wrap 導致觸控搖桿從未顯示
+function _initVJ(){
   const vjs=window._vjState={active:false,throttle:0,yaw:0,pitch:0,roll:0};
   const wrap=document.getElementById('vj-wrap');
   const btnB=document.getElementById('vj-btn-b');
@@ -1228,7 +1229,10 @@ gpSetFocus(['btn-easy','btn-med','btn-hard'],0);
         const d=Math.sqrt(dx*dx+dy*dy);if(d>VJR){dx*=VJR/d;dy*=VJR/d;}
         knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
         const nx=dx/VJR,ny=dy/VJR;
-        if(isLeft){vjs.yaw=nx;vjs.throttle=-ny;}else{vjs.roll=nx;vjs.pitch=ny;}
+        // [FIX 2] 修正搖桿方向與鍵盤一致（右推=D、上推=ArrowUp）
+        // 推導：螢幕座標右推 nx>0、上推 ny<0；鍵盤 W=thr+1、D=yaw-1、ArrowUp=pitch+1、ArrowRight=roll-1
+        // → throttle=-ny（上推=W）、yaw=-nx（右推=D）、pitch=-ny（上推=ArrowUp）、roll=-nx（右推=ArrowRight）
+        if(isLeft){vjs.yaw=-nx;vjs.throttle=-ny;}else{vjs.roll=-nx;vjs.pitch=-ny;}
       }
     },{passive:false});
     const end=e=>{
@@ -1265,10 +1269,22 @@ gpSetFocus(['btn-easy','btn-med','btn-hard'],0);
   window.addEventListener('gamepaddisconnected',checkShow);
   window.addEventListener('touchstart',checkShow,{once:true,passive:true});
   checkShow();
-})();
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',_initVJ);}else{_initVJ();}
 </script>
 <div id="vj-wrap">
   <div class="vj-area" id="vj-left">
     <div class="vj-base"></div>
     <div class="vj-knob" id="vj-lk"></div>
-    <div class="vj-label">油門 / 偏航</di
+    <div class="vj-label">油門 / 偏航</div>
+  </div>
+  <!-- [FIX 3] 重建被截斷的檔尾：vj-left 收尾、噴灑切換鈕（對應 JS 的 vj-btn-b / sprayOn）、右桿區塊與關閉標籤，結構參照 exp-bridge.html -->
+  <button id="vj-btn-b">💧<br><span>噴灑</span></button>
+  <div class="vj-area vj-r" id="vj-right">
+    <div class="vj-base"></div>
+    <div class="vj-knob" id="vj-rk"></div>
+    <div class="vj-label">前後 / 左右</div>
+  </div>
+</div>
+</body>
+</html>

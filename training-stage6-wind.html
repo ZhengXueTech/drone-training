@@ -532,8 +532,10 @@ function updatePhysics(dt) {
     const autoThrustForce = (targetYVel - drone.vel.y) * 12.0 + 9.81;
 
     drone.rot.y += (-yaw * 1.8) * dt;
-    drone.rot.x = THREE.MathUtils.lerp(drone.rot.x, -pitch * 0.4, 8 * dt);
-    drone.rot.z = THREE.MathUtils.lerp(drone.rot.z, roll * 0.4, 8 * dt);
+    // [FIX 2] 修正機身傾斜方向：多旋翼朝移動方向傾斜——前飛=機頭下壓（尾高於前）、右移=右側下沉
+    // 本檔慣例 ArrowUp→pitch=-1(前飛)、ArrowRight→roll=+1(右移)；nose 在 -Z，rot.x>0=機頭抬、rot.z>0=右側抬
+    drone.rot.x = THREE.MathUtils.lerp(drone.rot.x, pitch * 0.4, 8 * dt);
+    drone.rot.z = THREE.MathUtils.lerp(drone.rot.z, -roll * 0.4, 8 * dt);
     drone.q.setFromEuler(drone.rot);
 
     const facingDir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, drone.rot.y, 0));

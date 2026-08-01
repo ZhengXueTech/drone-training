@@ -80,6 +80,28 @@
         pointer-events: none;
     }
     #vj-wrap.show { display: flex; }
+    /* [FIX 3] 觸控緊急停止鈕：底部中央兩搖桿之間，大顆紅色，觸控裝置專用 */
+    #vj-kill {
+        pointer-events: auto; align-self: flex-end; margin-bottom: 18px;
+        width: clamp(64px, 17vw, 88px); height: clamp(64px, 17vw, 88px); border-radius: 50%;
+        background: rgba(239,68,68,0.35); border: 3px solid rgba(239,68,68,0.95);
+        box-shadow: 0 0 18px rgba(239,68,68,0.55);
+        color: #fff; cursor: pointer;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+        font-size: clamp(20px, 5vw, 28px); line-height: 1;
+        touch-action: none; user-select: none; -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: transform 0.08s, background 0.08s;
+    }
+    #vj-kill span {
+        font-size: 9px; font-family: 'Share Tech Mono', monospace;
+        color: rgba(254,202,202,0.95); letter-spacing: 0.08em;
+    }
+    #vj-kill.pressed {
+        transform: scale(0.9);
+        background: rgba(239,68,68,0.85);
+        box-shadow: 0 0 28px rgba(239,68,68,0.95);
+    }
     .vj-area {
         position: relative; width: clamp(112px,30vw,144px); height: clamp(112px,30vw,144px);
         border-radius: 50%; pointer-events: auto;
@@ -491,8 +513,10 @@ function updatePhysics(dt) {
     const autoThrustForce = (targetYVel - drone.vel.y) * 12.0 + 9.81;
 
     drone.rot.y += (-yaw * 1.8) * dt;
-    drone.rot.x = THREE.MathUtils.lerp(drone.rot.x, -pitch * 0.4, 8 * dt);
-    drone.rot.z = THREE.MathUtils.lerp(drone.rot.z, roll * 0.4, 8 * dt);
+    // [FIX 2] 修正機身傾斜方向：多旋翼朝移動方向傾斜——前飛=機頭下壓（尾高於前）、右移=右側下沉
+    // 本檔慣例 ArrowUp→pitch=-1(前飛)、ArrowRight→roll=+1(右移)；nose 在 -Z，rot.x>0=機頭抬、rot.z>0=右側抬
+    drone.rot.x = THREE.MathUtils.lerp(drone.rot.x, pitch * 0.4, 8 * dt);
+    drone.rot.z = THREE.MathUtils.lerp(drone.rot.z, -roll * 0.4, 8 * dt);
     drone.q.setFromEuler(drone.rot);
 
     const facingDir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, drone.rot.y, 0));
@@ -1028,6 +1052,22 @@ function _initVJ(){
   makeStick('vj-left','vj-lk',true);
   makeStick('vj-right','vj-rk',false);
 
+  // [FIX 3] 觸控緊急停止鈕：等同 SPACE / 手把 A 鍵
+  var killBtn = document.getElementById('vj-kill');
+  if (killBtn) {
+      killBtn.addEventListener('touchstart', function(e) {
+          e.preventDefault();
+          killBtn.classList.add('pressed');
+          if (typeof attemptKillSwitch === 'function') attemptKillSwitch();
+      }, {passive: false});
+      var killEnd = function(e) { e.preventDefault(); killBtn.classList.remove('pressed'); };
+      killBtn.addEventListener('touchend', killEnd, {passive: false});
+      killBtn.addEventListener('touchcancel', killEnd, {passive: false});
+      killBtn.addEventListener('click', function() {
+          if (typeof attemptKillSwitch === 'function') attemptKillSwitch();
+      });
+  }
+
   function checkShow(){
     var hasGp=!!(navigator.getGamepads&&Array.from(navigator.getGamepads()).find(function(g){return g;}));
     var isTouch=navigator.maxTouchPoints>0||window.matchMedia('(pointer:coarse)').matches;
@@ -1053,6 +1093,8 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
     <div class="vj-knob" id="vj-lk"></div>
     <div class="vj-label">油門 / 偏航</div>
   </div>
+  <!-- [FIX 3] 觸控緊急停止鈕 -->
+  <button id="vj-kill" type="button" aria-label="緊急停止">⛔<span>緊急停止</span></button>
   <div class="vj-area right" id="vj-right">
     <div class="vj-base"></div>
     <div class="vj-knob" id="vj-rk"></div>
